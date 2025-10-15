@@ -12,10 +12,10 @@ class ChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
         fields = [
-            'id', 'title', 'user', 'conversation_id', 
+            'id', 'title', 'user', 'dify_conversation_id', 
             'created_at', 'updated_at', 'message_count', 'last_message'
         ]
-        read_only_fields = ['id', 'conversation_id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'dify_conversation_id', 'created_at', 'updated_at']
     
     def get_message_count(self, obj):
         """获取消息数量"""
@@ -28,7 +28,7 @@ class ChatSessionSerializer(serializers.ModelSerializer):
             return {
                 'content': last_message.content[:100],
                 'is_user': last_message.is_user,
-                'created_at': last_message.created_at
+                'timestamp': last_message.timestamp
             }
         return None
 
@@ -41,16 +41,16 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         model = ChatMessage
         fields = [
             'id', 'session', 'content', 'is_user', 
-            'model_used', 'created_at', 'updated_at'
+            'dify_message_id', 'timestamp'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'timestamp']
 
 
 class ChatMessageCreateSerializer(serializers.Serializer):
     """创建聊天消息的序列化器"""
     message = serializers.CharField(max_length=5000, help_text="用户消息内容")
-    session_id = serializers.UUIDField(required=False, help_text="会话ID（可选，不提供则创建新会话）")
-    model = serializers.CharField(required=False, help_text="使用的AI模型（可选）")
+    session_id = serializers.UUIDField(required=False, allow_null=True, help_text="会话ID（可选，不提供则创建新会话）")
+    model = serializers.CharField(required=False, allow_blank=True, help_text="使用的AI模型（可选）")
     
     def validate_message(self, value):
         """验证消息内容"""
@@ -97,7 +97,7 @@ class ChatHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatSession
         fields = [
-            'id', 'title', 'user', 'conversation_id',
+            'id', 'title', 'user', 'dify_conversation_id',
             'created_at', 'updated_at', 'messages'
         ]
-        read_only_fields = ['id', 'conversation_id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'dify_conversation_id', 'created_at', 'updated_at']

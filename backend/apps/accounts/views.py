@@ -189,8 +189,9 @@ def edit_profile(request):
         
         # 更新用户资料
         profile.bio = request.POST.get('bio', profile.bio)
-        if 'avatar' in request.FILES:
-            profile.avatar = request.FILES['avatar']
+        # TODO: 头像功能暂时禁用，需要在模型中添加 avatar 字段
+        # if 'avatar' in request.FILES:
+        #     profile.avatar = request.FILES['avatar']
         profile.save()
         
         messages.success(request, '个人资料更新成功！')
@@ -220,7 +221,7 @@ def update_profile(request):
     """更新用户个人资料"""
     try:
         user = request.user
-        profile = user.userprofile
+        profile = user.profile
         
         # 更新用户基本信息
         user.email = request.data.get('email', user.email)
@@ -308,15 +309,15 @@ def upload_avatar(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        profile = request.user.userprofile
-        profile.avatar = file
-        profile.save()
+        # TODO: 头像功能暂时禁用，需要在模型中添加 avatar 字段
+        # profile = request.user.profile
+        # profile.avatar = file
+        # profile.save()
         
         return Response({
-            'success': True,
-            'avatar_url': profile.avatar.url if profile.avatar else None,
-            'message': '头像上传成功'
-        })
+            'success': False,
+            'message': '头像功能暂时不可用'
+        }, status=status.HTTP_501_NOT_IMPLEMENTED)
     except Exception as e:
         return Response({
             'success': False,
@@ -409,13 +410,16 @@ class UserInfoAPIView(APIView):
     def get(self, request):
         user_data = UserSerializer(request.user).data
         try:
-            profile = request.user.userprofile
+            profile = request.user.profile
             profile_data = UserProfileSerializer(profile).data
             return Response({
                 'user': user_data,
                 'profile': profile_data
             })
         except UserProfile.DoesNotExist:
+            # 如果用户没有profile，则创建一个
+            profile = UserProfile.objects.create(user=request.user)
+            profile_data = UserProfileSerializer(profile).data
             return Response({
                 'user': user_data,
                 'profile': None

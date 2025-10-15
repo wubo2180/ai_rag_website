@@ -10,18 +10,30 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-# DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.sqlite3',
-#        'NAME': BASE_DIR / 'db.sqlite3',
-#    }
-# }
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# 数据库配置 - 支持SQLite和MySQL
+if os.environ.get('DATABASE_TYPE') == 'mysql':
+        DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get('MYSQL_DATABASE', 'ai_rag_db'),
+            'USER': os.environ.get('MYSQL_USER', 'ai_rag_user'),
+            'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'airag_user123'),
+            'HOST': os.environ.get('MYSQL_HOST', 'localhost'),
+            'PORT': os.environ.get('MYSQL_PORT', '3306'),
+            'OPTIONS': {
+                'charset': 'utf8mb4',
+                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
+        }
+        }
+else:
+    # 默认使用SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -110,8 +122,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # AI模型配置 - Dify API
-DIFY_API_KEY = os.environ.get('DIFY_API_KEY', 'app-K9fjgkD8JbNrNfTH2ECIv4jw')
-DIFY_BASE_URL = os.environ.get('DIFY_BASE_URL', 'http://localhost/v1')
+DIFY_API_KEY = os.environ.get('DIFY_API_KEY', 'app-2WflAIBZKQGLwUImUXbYaLsN')
+DIFY_BASE_URL = os.environ.get('DIFY_BASE_URL', 'http://172.20.46.18:8088/v1')
 DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', '通义千问')  # 默认模型
 
 # 可用的AI模型列表

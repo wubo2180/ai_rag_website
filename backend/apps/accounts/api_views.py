@@ -98,14 +98,18 @@ class UserInfoAPIView(APIView):
     def get(self, request):
         user_data = UserSerializer(request.user).data
         try:
-            profile = request.user.userprofile
+            # 使用正确的 related_name 'profile'
+            profile = request.user.profile
             profile_data = UserProfileSerializer(profile).data
             return Response({
                 'user': user_data,
                 'profile': profile_data
             })
         except UserProfile.DoesNotExist:
+            # 如果用户没有profile，则创建一个
+            profile = UserProfile.objects.create(user=request.user)
+            profile_data = UserProfileSerializer(profile).data
             return Response({
                 'user': user_data,
-                'profile': None
+                'profile': profile_data
             })

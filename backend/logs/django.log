@@ -186,3 +186,13 @@ Dify API响应状态: 200
 请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}, "conversation_id": "2846bcad-8bd3-4dd9-8575-5a70f44dd585"}
 Dify API 请求超时
 AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200

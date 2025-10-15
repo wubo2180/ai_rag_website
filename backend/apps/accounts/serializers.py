@@ -18,26 +18,26 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserProfile
-        fields = ('user', 'bio', 'avatar', 'phone', 'created_at', 'updated_at')
+        fields = ('user', 'nickname', 'bio', 'created_at', 'updated_at')
         read_only_fields = ('created_at', 'updated_at')
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     """用户注册序列化器"""
     password = serializers.CharField(write_only=True, min_length=8)
-    password_confirm = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
     
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name')
+        fields = ('username', 'email', 'password', 'confirm_password', 'first_name', 'last_name')
     
     def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
+        if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError("密码不匹配")
         return attrs
     
     def create(self, validated_data):
-        validated_data.pop('password_confirm')
+        validated_data.pop('confirm_password')
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
