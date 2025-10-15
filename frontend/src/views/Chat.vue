@@ -56,6 +56,7 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="profile">个人资料</el-dropdown-item>
                   <el-dropdown-item command="sessions">会话管理</el-dropdown-item>
+                  <el-dropdown-item command="documents">文献管理</el-dropdown-item>
                   <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -266,6 +267,9 @@ const handleUserAction = (command) => {
       break
     case 'sessions':
       router.push('/sessions')
+      break
+    case 'documents':
+      router.push('/documents')
       break
     case 'logout':
       userStore.logout()

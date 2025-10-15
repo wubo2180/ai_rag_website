@@ -45,7 +45,7 @@ apiClient.interceptors.response.use(
         }
 
         // 尝试刷新token
-        const response = await axios.post('/api/auth/token/refresh/', {
+        const response = await axios.create({ baseURL: '/api' }).post('/auth/token/refresh/', {
           refresh: refreshToken
         })
 

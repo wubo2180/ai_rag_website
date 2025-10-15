@@ -35,6 +35,12 @@ const routes = [
     name: 'ChatSessions',
     component: () => import('@/views/ChatSessions.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/documents',
+    name: 'Documents',
+    component: () => import('@/views/Documents.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

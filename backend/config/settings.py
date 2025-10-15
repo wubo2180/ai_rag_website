@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'apps.chat',
     'apps.knowledge',
     'apps.ai_service',
+    'apps.documents',
 ]
 
 MIDDLEWARE = [

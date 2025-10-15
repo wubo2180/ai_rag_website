@@ -122,7 +122,29 @@ export const useUserStore = defineStore('user', () => {
   function initAuth() {
     if (accessToken.value) {
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken.value}`
-      // 可以在这里验证token是否有效
+      console.log('已设置认证头:', `Bearer ${accessToken.value.substring(0, 20)}...`)
+    } else {
+      console.log('未找到访问令牌')
+    }
+  }
+
+  // 验证token有效性（单独的异步方法）
+  async function validateToken() {
+    if (!accessToken.value) {
+      return false
+    }
+
+    try {
+      const response = await apiClient.get('/auth/user-info/')
+      user.value = response.data.user
+      console.log('Token验证成功，用户:', response.data.user.username)
+      return true
+    } catch (error) {
+      console.log('Token验证失败:', error.response?.status)
+      if (error.response?.status === 401) {
+        clearAuth()
+      }
+      return false
     }
   }
 
@@ -144,6 +166,7 @@ export const useUserStore = defineStore('user', () => {
     logout,
     fetchUserInfo,
     refreshAccessToken,
-    initAuth
+    initAuth,
+    validateToken
   }
 })

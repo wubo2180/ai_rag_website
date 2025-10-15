@@ -23,4 +23,6 @@ urlpatterns = [
     path('accounts/', include('apps.accounts.urls')),
     path('chat/', include('apps.chat.urls')),
     path('knowledge/', include('apps.knowledge.urls')),
+    path('documents/', include('apps.documents.urls')),
+    
 ]

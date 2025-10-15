@@ -14,4 +14,7 @@ urlpatterns = [
     
     # 知识库 API
     path('knowledge/', include('apps.knowledge.api_urls')),
+    
+    # 文档管理 API
+    path('documents/', include('apps.documents.urls')),
 ]
