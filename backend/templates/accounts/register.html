@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+
+{% block title %}用户注册 - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="register-container" style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px 0;">
+    <div class="register-box" style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1); width: 100%; max-width: 450px; margin: 20px;">
+        
+        <!-- Logo/Header -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #28a745, #20c997); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; font-weight: bold;">
+                🚀
+            </div>
+            <h2 style="margin: 0; color: #333; font-weight: 300;">创建账户</h2>
+            <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">加入 Django RAG Website</p>
+        </div>
+
+        <!-- 错误信息显示 -->
+        {% if form.errors %}
+            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
+                <strong>注册失败：</strong>
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                        <div style="margin-top: 5px;">
+                            {% if field == 'username' %}👤 用户名：{% endif %}
+                            {% if field == 'password1' %}🔒 密码：{% endif %}
+                            {% if field == 'password2' %}🔒 确认密码：{% endif %}
+                            {{ error }}
+                        </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- 注册表单 -->
+        <form method="post" class="register-form">
+            {% csrf_token %}
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="{{ form.username.id_for_label }}" style="display: block; margin-bottom: 8px; color: #555; font-weight: 500;">
+                    <i style="margin-right: 8px;">👤</i>用户名 *
+                </label>
+                <input 
+                    type="text" 
+                    id="{{ form.username.id_for_label }}" 
+                    name="{{ form.username.name }}" 
+                    value="{{ form.username.value|default:'' }}"
+                    required 
+                    class="form-control" 
+                    placeholder="请输入用户名"
+                    style="width: 100%; padding: 12px 15px; border: 2px solid #e1e8ed; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; box-sizing: border-box;"
+                    onfocus="this.style.borderColor='#28a745'; this.style.boxShadow='0 0 0 3px rgba(40,167,69,0.1)'"
+                    onblur="this.style.borderColor='#e1e8ed'; this.style.boxShadow='none'"
+                />
+                <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                    用户名只能包含字母、数字和 @/./+/-/_ 字符
+                </small>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="{{ form.password1.id_for_label }}" style="display: block; margin-bottom: 8px; color: #555; font-weight: 500;">
+                    <i style="margin-right: 8px;">🔒</i>密码 *
+                </label>
+                <input 
+                    type="password" 
+                    id="{{ form.password1.id_for_label }}" 
+                    name="{{ form.password1.name }}" 
+                    required 
+                    class="form-control" 
+                    placeholder="请输入密码"
+                    style="width: 100%; padding: 12px 15px; border: 2px solid #e1e8ed; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; box-sizing: border-box;"
+                    onfocus="this.style.borderColor='#28a745'; this.style.boxShadow='0 0 0 3px rgba(40,167,69,0.1)'"
+                    onblur="this.style.borderColor='#e1e8ed'; this.style.boxShadow='none'"
+                />
+                <div style="margin-top: 8px;">
+                    <div class="password-strength" style="height: 4px; background: #e1e8ed; border-radius: 2px; overflow: hidden;">
+                        <div class="strength-bar" style="height: 100%; width: 0%; background: #dc3545; transition: all 0.3s ease;"></div>
+                    </div>
+                    <small id="password-help" style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                        密码强度：弱
+                    </small>
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label for="{{ form.password2.id_for_label }}" style="display: block; margin-bottom: 8px; color: #555; font-weight: 500;">
+                    <i style="margin-right: 8px;">🔒</i>确认密码 *
+                </label>
+                <input 
+                    type="password" 
+                    id="{{ form.password2.id_for_label }}" 
+                    name="{{ form.password2.name }}" 
+                    required 
+                    class="form-control" 
+                    placeholder="请再次输入密码"
+                    style="width: 100%; padding: 12px 15px; border: 2px solid #e1e8ed; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; box-sizing: border-box;"
+                    onfocus="this.style.borderColor='#28a745'; this.style.boxShadow='0 0 0 3px rgba(40,167,69,0.1)'"
+                    onblur="this.style.borderColor='#e1e8ed'; this.style.boxShadow='none'"
+                />
+                <small id="password-match" style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                    请确认两次输入的密码一致
+                </small>
+            </div>
+
+            <!-- 用户协议 -->
+            <div style="margin-bottom: 25px;">
+                <label style="display: flex; align-items: flex-start; color: #666; font-size: 14px; cursor: pointer; line-height: 1.4;">
+                    <input type="checkbox" name="agree_terms" required style="margin: 2px 10px 0 0; flex-shrink: 0;">
+                    <span>我已阅读并同意 
+                        <a href="#" style="color: #007bff; text-decoration: none;">《用户协议》</a> 
+                        和 
+                        <a href="#" style="color: #007bff; text-decoration: none;">《隐私政策》</a>
+                    </span>
+                </label>
+            </div>
+            
+            <!-- 注册按钮 -->
+            <button 
+                type="submit" 
+                style="width: 100%; padding: 14px; background: linear-gradient(135deg, #28a745, #20c997); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; margin-bottom: 20px;"
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(40,167,69,0.3)'"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+            >
+                创建账户
+            </button>
+        </form>
+
+        <!-- 密码要求提示 -->
+        <div style="background: #e3f2fd; border: 1px solid #bbdefb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <h6 style="margin: 0 0 10px 0; color: #1565c0; font-size: 14px;">密码要求：</h6>
+            <ul style="margin: 0; padding-left: 20px; color: #1976d2; font-size: 12px; line-height: 1.5;">
+                <li>至少包含8个字符</li>
+                <li>不能全为数字</li>
+                <li>不能是常用密码</li>
+                <li>不能与用户名太相似</li>
+            </ul>
+        </div>
+
+        <!-- 分割线 -->
+        <div style="text-align: center; margin: 25px 0; position: relative;">
+            <span style="background: white; color: #999; padding: 0 15px; font-size: 14px;">或</span>
+            <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #e1e8ed; z-index: -1;"></div>
+        </div>
+
+        <!-- 登录链接 -->
+        <div style="text-align: center;">
+            <p style="color: #666; margin: 0; font-size: 14px;">
+                已有账户？
+                <a href="{% url 'login' %}" style="color: #007bff; text-decoration: none; font-weight: 500;">立即登录</a>
+            </p>
+        </div>
+
+        <!-- 游客访问 -->
+        <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e8ed;">
+            <a href="{% url 'chat_index' %}" style="color: #6c757d; text-decoration: none; font-size: 14px;">
+                <i style="margin-right: 5px;">👁️</i>先看看再说
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 添加一些动画效果 -->
+<style>
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.register-box {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.form-control:focus {
+    outline: none !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+    .register-container {
+        padding: 10px;
+    }
+    
+    .register-box {
+        padding: 30px 25px;
+        margin: 10px;
+    }
+}
+
+/* 按钮点击效果 */
+button[type="submit"]:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 4px 15px rgba(40,167,69,0.2) !important;
+}
+
+/* 链接悬停效果 */
+a:hover {
+    text-decoration: underline !important;
+}
+
+/* 密码强度条样式 */
+.strength-weak { background: #dc3545 !important; }
+.strength-medium { background: #ffc107 !important; }
+.strength-strong { background: #28a745 !important; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 自动聚焦到用户名输入框
+    const usernameInput = document.querySelector('input[name="{{ form.username.name }}"]');
+    if (usernameInput) {
+        usernameInput.focus();
+    }
+    
+    // 密码强度检查
+    const password1Input = document.querySelector('input[name="{{ form.password1.name }}"]');
+    const strengthBar = document.querySelector('.strength-bar');
+    const passwordHelp = document.getElementById('password-help');
+    
+    if (password1Input && strengthBar && passwordHelp) {
+        password1Input.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+            let strengthText = '弱';
+            let strengthClass = 'strength-weak';
+            
+            // 检查密码长度
+            if (password.length >= 8) strength += 25;
+            if (password.length >= 12) strength += 25;
+            
+            // 检查是否包含数字
+            if (/\d/.test(password)) strength += 25;
+            
+            // 检查是否包含字母
+            if (/[a-zA-Z]/.test(password)) strength += 25;
+            
+            // 检查是否包含特殊字符
+            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength += 10;
+            
+            if (strength >= 75) {
+                strengthText = '强';
+                strengthClass = 'strength-strong';
+            } else if (strength >= 50) {
+                strengthText = '中等';
+                strengthClass = 'strength-medium';
+            }
+            
+            strengthBar.style.width = Math.min(strength, 100) + '%';
+            strengthBar.className = 'strength-bar ' + strengthClass;
+            passwordHelp.textContent = '密码强度：' + strengthText;
+        });
+    }
+    
+    // 密码确认检查
+    const password2Input = document.querySelector('input[name="{{ form.password2.name }}"]');
+    const passwordMatch = document.getElementById('password-match');
+    
+    if (password1Input && password2Input && passwordMatch) {
+        function checkPasswordMatch() {
+            const password1 = password1Input.value;
+            const password2 = password2Input.value;
+            
+            if (password2 === '') {
+                passwordMatch.textContent = '请确认两次输入的密码一致';
+                passwordMatch.style.color = '#666';
+            } else if (password1 === password2) {
+                passwordMatch.textContent = '✓ 密码确认一致';
+                passwordMatch.style.color = '#28a745';
+            } else {
+                passwordMatch.textContent = '✗ 两次输入的密码不一致';
+                passwordMatch.style.color = '#dc3545';
+            }
+        }
+        
+        password1Input.addEventListener('input', checkPasswordMatch);
+        password2Input.addEventListener('input', checkPasswordMatch);
+    }
+    
+    // 表单验证
+    const form = document.querySelector('.register-form');
+    form.addEventListener('submit', function(e) {
+        const username = document.querySelector('input[name="{{ form.username.name }}"]').value.trim();
+        const password1 = document.querySelector('input[name="{{ form.password1.name }}"]').value.trim();
+        const password2 = document.querySelector('input[name="{{ form.password2.name }}"]').value.trim();
+        const agreeTerms = document.querySelector('input[name="agree_terms"]').checked;
+        
+        if (!username || !password1 || !password2) {
+            e.preventDefault();
+            alert('请填写完整的注册信息');
+            return false;
+        }
+        
+        if (password1 !== password2) {
+            e.preventDefault();
+            alert('两次输入的密码不一致');
+            return false;
+        }
+        
+        if (!agreeTerms) {
+            e.preventDefault();
+            alert('请同意用户协议和隐私政策');
+            return false;
+        }
+    });
+    
+    // 用户名实时验证
+    if (usernameInput) {
+        usernameInput.addEventListener('blur', function() {
+            const username = this.value.trim();
+            if (username && !/^[\w.@+-]+$/.test(username)) {
+                this.style.borderColor = '#dc3545';
+                this.style.boxShadow = '0 0 0 3px rgba(220,53,69,0.1)';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

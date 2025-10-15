@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% block title %}用户登录 - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="login-container" style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="login-box" style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; margin: 20px;">
+        
+        <!-- Logo/Header -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #007bff, #6610f2); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; font-weight: bold;">
+                🤖
+            </div>
+            <h2 style="margin: 0; color: #333; font-weight: 300;">用户登录</h2>
+            <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">登录到 Django RAG Website</p>
+        </div>
+
+        <!-- 错误信息显示 -->
+        {% if form.errors %}
+            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
+                <strong>登录失败：</strong>
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- 登录表单 -->
+        <form method="post" class="login-form">
+            {% csrf_token %}
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="{{ form.username.id_for_label }}" style="display: block; margin-bottom: 8px; color: #555; font-weight: 500;">
+                    <i style="margin-right: 8px;">👤</i>用户名
+                </label>
+                <input 
+                    type="text" 
+                    id="{{ form.username.id_for_label }}" 
+                    name="{{ form.username.name }}" 
+                    value="{{ form.username.value|default:'' }}"
+                    required 
+                    class="form-control" 
+                    placeholder="请输入用户名"
+                    style="width: 100%; padding: 12px 15px; border: 2px solid #e1e8ed; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; box-sizing: border-box;"
+                    onfocus="this.style.borderColor='#007bff'; this.style.boxShadow='0 0 0 3px rgba(0,123,255,0.1)'"
+                    onblur="this.style.borderColor='#e1e8ed'; this.style.boxShadow='none'"
+                />
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label for="{{ form.password.id_for_label }}" style="display: block; margin-bottom: 8px; color: #555; font-weight: 500;">
+                    <i style="margin-right: 8px;">🔒</i>密码
+                </label>
+                <input 
+                    type="password" 
+                    id="{{ form.password.id_for_label }}" 
+                    name="{{ form.password.name }}" 
+                    required 
+                    class="form-control" 
+                    placeholder="请输入密码"
+                    style="width: 100%; padding: 12px 15px; border: 2px solid #e1e8ed; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; box-sizing: border-box;"
+                    onfocus="this.style.borderColor='#007bff'; this.style.boxShadow='0 0 0 3px rgba(0,123,255,0.1)'"
+                    onblur="this.style.borderColor='#e1e8ed'; this.style.boxShadow='none'"
+                />
+            </div>
+
+            <!-- 记住我选项 -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px;">
+                <label style="display: flex; align-items: center; color: #666; font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" name="remember_me" style="margin-right: 8px;">
+                    记住我
+                </label>
+                <a href="#" style="color: #007bff; text-decoration: none; font-size: 14px;">忘记密码？</a>
+            </div>
+            
+            <!-- 登录按钮 -->
+            <button 
+                type="submit" 
+                style="width: 100%; padding: 14px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; margin-bottom: 20px;"
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,123,255,0.3)'"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+            >
+                登录
+            </button>
+        </form>
+
+        <!-- 分割线 -->
+        <div style="text-align: center; margin: 25px 0; position: relative;">
+            <span style="background: white; color: #999; padding: 0 15px; font-size: 14px;">或</span>
+            <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #e1e8ed; z-index: -1;"></div>
+        </div>
+
+        <!-- 注册链接 -->
+        <div style="text-align: center;">
+            <p style="color: #666; margin: 0; font-size: 14px;">
+                还没有账户？
+                <a href="{% url 'register' %}" style="color: #007bff; text-decoration: none; font-weight: 500;">立即注册</a>
+            </p>
+        </div>
+
+        <!-- 游客访问 -->
+        <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e8ed;">
+            <a href="{% url 'chat_index' %}" style="color: #28a745; text-decoration: none; font-size: 14px;">
+                <i style="margin-right: 5px;">🚀</i>以游客身份继续
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 添加一些动画效果 -->
+<style>
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.login-box {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.form-control:focus {
+    outline: none !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+    .login-container {
+        padding: 10px;
+    }
+    
+    .login-box {
+        padding: 30px 25px;
+        margin: 10px;
+    }
+}
+
+/* 按钮点击效果 */
+button[type="submit"]:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 4px 15px rgba(0,123,255,0.2) !important;
+}
+
+/* 链接悬停效果 */
+a:hover {
+    text-decoration: underline !important;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 自动聚焦到用户名输入框
+    const usernameInput = document.querySelector('input[name="{{ form.username.name }}"]');
+    if (usernameInput) {
+        usernameInput.focus();
+    }
+    
+    // 表单验证
+    const form = document.querySelector('.login-form');
+    form.addEventListener('submit', function(e) {
+        const username = document.querySelector('input[name="{{ form.username.name }}"]').value.trim();
+        const password = document.querySelector('input[name="{{ form.password.name }}"]').value.trim();
+        
+        if (!username || !password) {
+            e.preventDefault();
+            alert('请填写完整的登录信息');
+            return false;
+        }
+    });
+    
+    // 回车键快捷登录
+    document.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.click();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

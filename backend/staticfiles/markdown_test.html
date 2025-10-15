@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown格式测试</title>
+    <!-- Markdown渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <!-- 代码高亮库 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <!-- DOMPurify -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .demo-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .message-content {
+            background: #f1f3f4;
+            color: #333;
+            padding: 20px;
+            border-radius: 12px;
+        }
+        
+        /* 复制chat页面的所有AI消息样式 */
+        .message-content p {
+            margin: 0.5em 0;
+            line-height: 1.6;
+        }
+        
+        .message-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+            font-size: 0.9em;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .message-content table thead tr {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .message-content table th,
+        .message-content table td {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+        }
+        
+        .message-content table tbody tr:nth-of-type(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .message-content table tbody tr:hover {
+            background-color: #e9ecef;
+        }
+        
+        .message-content pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 1em;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1em 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .message-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: 0.9em;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+        
+        .message-content code {
+            background: #f4f4f4;
+            color: #e83e8c;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+        
+        .message-content h1,
+        .message-content h2,
+        .message-content h3 {
+            margin: 1em 0 0.5em 0;
+            font-weight: 600;
+        }
+        
+        .message-content h1 { font-size: 1.5em; border-bottom: 2px solid #ddd; padding-bottom: 0.3em; }
+        .message-content h2 { font-size: 1.3em; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+        
+        .message-content blockquote {
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+            margin: 1em 0;
+            padding: 0.5em 1em;
+            font-style: italic;
+            color: #555;
+        }
+        
+        .message-content ul,
+        .message-content ol {
+            margin: 0.5em 0;
+            padding-left: 2em;
+        }
+        
+        .message-content li {
+            margin: 0.3em 0;
+            line-height: 1.6;
+        }
+        
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        
+        .test-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center; color: #333;">🎨 Markdown格式化测试页面</h1>
+    
+    <div class="demo-container">
+        <h2>测试样本</h2>
+        <button class="test-button" onclick="testTable()">测试表格</button>
+        <button class="test-button" onclick="testCode()">测试代码</button>
+        <button class="test-button" onclick="testMixed()">测试混合格式</button>
+        <button class="test-button" onclick="testAll()">完整示例</button>
+    </div>
+    
+    <div class="demo-container">
+        <h2>渲染结果</h2>
+        <div id="output" class="message-content">
+            点击上方按钮查看效果...
+        </div>
+    </div>
+
+    <script>
+        // 配置marked
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            tables: true,
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (err) {}
+                }
+                return hljs.highlightAuto(code).value;
+            }
+        });
+
+        function render(markdown) {
+            const output = document.getElementById('output');
+            const rawHtml = marked.parse(markdown);
+            const cleanHtml = DOMPurify.sanitize(rawHtml);
+            output.innerHTML = cleanHtml;
+            
+            // 高亮代码
+            output.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        }
+
+        function testTable() {
+            const markdown = `
+## 📊 AI模型对比表
+
+| 模型名称 | 提供商 | 参数规模 | 特点 | 价格 |
+|---------|--------|---------|------|------|
+| GPT-5 | OpenAI | 1.76T | 强大的通用能力 | $$$ |
+| Claude4 | Anthropic | 500B | 长文本处理优秀 | $$ |
+| 通义千问 | 阿里云 | 72B | 中文理解强 | $ |
+| Gemini2.5 | Google | 1.2T | 多模态能力 | $$$ |
+| Llama4 | Meta | 405B | 开源免费 | 免费 |
+
+### 说明
+- 价格越多表示越贵
+- 参数规模：B=十亿，T=万亿
+            `;
+            render(markdown);
+        }
+
+        function testCode() {
+            const markdown = `
+## 💻 代码示例
+
+### Python快速排序
+
+\`\`\`python
+def quicksort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quicksort(left) + middle + quicksort(right)
+
+# 测试
+numbers = [3, 6, 8, 10, 1, 2, 1]
+print(quicksort(numbers))
+\`\`\`
+
+### JavaScript异步函数
+
+\`\`\`javascript
+async function fetchData(url) {
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        console.log('Data:', data);
+        return data;
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+\`\`\`
+
+### SQL查询
+
+\`\`\`sql
+SELECT 
+    u.name,
+    COUNT(o.id) as order_count,
+    SUM(o.total) as total_spent
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+WHERE o.created_at > '2025-01-01'
+GROUP BY u.id
+ORDER BY total_spent DESC
+LIMIT 10;
+\`\`\`
+            `;
+            render(markdown);
+        }
+
+        function testMixed() {
+            const markdown = `
+# 📝 混合格式测试
+
+## 文本强调
+
+这是**粗体文字**，这是*斜体文字*，这是\`行内代码\`。
+
+## 列表
+
+### 待办事项
+1. 完成Markdown渲染 ✅
+2. 添加代码高亮 ✅
+3. 优化表格样式 ✅
+4. 测试各种格式 🔄
+
+### 功能特性
+- ✨ 美观的表格
+- 🎨 代码高亮
+- 📱 响应式设计
+- 🔒 XSS防护
+
+## 引用块
+
+> "代码是写给人看的，顺便让计算机执行。"
+> 
+> —— 计算机程序的构造和解释
+
+## 分割线
+
+---
+
+## 链接测试
+
+访问 [GitHub](https://github.com) 查看更多信息。
+            `;
+            render(markdown);
+        }
+
+        function testAll() {
+            const markdown = `
+# 🎯 完整功能演示
+
+## 1. 数据分析报告
+
+以下是2025年第一季度的销售数据分析：
+
+| 月份 | 销售额(万元) | 订单数 | 客单价 | 增长率 |
+|-----|------------|--------|--------|--------|
+| 1月 | 150 | 1200 | 1250 | - |
+| 2月 | 180 | 1350 | 1333 | +20% |
+| 3月 | 225 | 1500 | 1500 | +25% |
+| **总计** | **555** | **4050** | **1370** | **+50%** |
+
+## 2. 关键发现
+
+### 📈 正面趋势
+1. **销售额持续增长** - 环比增长率保持在20%以上
+2. **客单价提升** - 从1250元增长到1500元
+3. **订单量稳定** - 月均增长12.5%
+
+### ⚠️ 需要关注
+- 2月增长略有放缓
+- 需要维持3月的增长势头
+- 客户留存率需进一步优化
+
+## 3. 技术实现
+
+### 数据处理代码
+
+\`\`\`python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# 读取数据
+data = {
+    '月份': ['1月', '2月', '3月'],
+    '销售额': [150, 180, 225],
+    '订单数': [1200, 1350, 1500]
+}
+
+df = pd.DataFrame(data)
+
+# 计算增长率
+df['增长率'] = df['销售额'].pct_change() * 100
+
+# 可视化
+plt.figure(figsize=(10, 6))
+plt.plot(df['月份'], df['销售额'], marker='o')
+plt.title('Q1销售趋势')
+plt.xlabel('月份')
+plt.ylabel('销售额(万元)')
+plt.grid(True)
+plt.show()
+\`\`\`
+
+## 4. 建议措施
+
+### 短期行动(1-2周)
+- [ ] 优化营销策略
+- [ ] 提升客户服务质量
+- [ ] 增加产品促销活动
+
+### 中期规划(1-3个月)
+> 💡 **重点**: 建立客户忠诚度计划
+> - 会员积分系统
+> - 个性化推荐
+> - 售后服务优化
+
+### 长期目标
+建立完善的数据分析体系，实现：
+1. 实时数据监控
+2. 预测性分析
+3. 自动化报告
+
+---
+
+## 总结
+
+通过以上分析，我们可以看到业务发展态势良好。继续保持当前策略，同时关注客户体验优化，预计Q2可以实现**更好的业绩表现**！
+
+\`最后更新: 2025-10-12\`
+            `;
+            render(markdown);
+        }
+
+        // 默认显示完整示例
+        testAll();
+    </script>
+</body>
+</html>

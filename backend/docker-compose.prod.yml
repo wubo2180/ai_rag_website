@@ -1,0 +1,79 @@
+# 生产环境 Docker Compose 配置覆盖
+# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库 - 生产配置
+  db:
+    restart: unless-stopped
+    command: postgres -c 'max_connections=200' -c 'shared_buffers=256MB'
+    environment:
+      # 添加性能优化参数
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Django 应用 - 生产配置
+  web:
+    restart: unless-stopped
+    environment:
+      # 强制生产环境设置
+      - DEBUG=False
+      - PYTHONUNBUFFERED=1
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx - 生产配置
+  nginx:
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # 添加 SSL 证书挂载（需要先获取证书）
+      # - /etc/letsencrypt:/etc/letsencrypt:ro
+      # 添加日志卷
+      - nginx_logs:/var/log/nginx
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  nginx_logs:

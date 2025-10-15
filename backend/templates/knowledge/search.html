@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}搜索结果 - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 0 auto;">
+    <div style="margin-bottom: 30px;">
+        <h1>搜索结果</h1>
+        {% if query %}
+            <p>搜索关键词：<strong>{{ query }}</strong></p>
+        {% endif %}
+    </div>
+
+    <!-- 搜索框 -->
+    <div style="margin-bottom: 30px;">
+        <form method="get" action="{% url 'search_knowledge' %}" style="display: flex; gap: 10px;">
+            <input type="text" name="q" value="{{ query }}" placeholder="搜索知识库..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+            <button type="submit" class="btn btn-primary">搜索</button>
+        </form>
+    </div>
+
+    <!-- 搜索结果 -->
+    <div class="knowledge-items">
+        {% if results %}
+            <p style="color: #666; margin-bottom: 20px;">找到 {{ results|length }} 个结果</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                {% for knowledge in results %}
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="margin: 0 0 10px 0; color: #007bff;">{{ knowledge.title }}</h3>
+                    <p style="color: #666; margin-bottom: 15px;">
+                        {% if knowledge.content|length > 150 %}
+                            {{ knowledge.content|slice:":150" }}...
+                        {% else %}
+                            {{ knowledge.content }}
+                        {% endif %}
+                    </p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #999;">
+                        <span>
+                            {% if knowledge.category %}
+                                分类: {{ knowledge.category }}
+                            {% endif %}
+                        </span>
+                        <span>{{ knowledge.created_at|date:"Y-m-d" }}</span>
+                    </div>
+                    {% if knowledge.tags %}
+                    <div style="margin-top: 10px;">
+                        <span style="background: #e9ecef; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 5px;">{{ knowledge.tags }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 50px; background: white; border-radius: 8px;">
+                {% if query %}
+                    <h3>未找到相关结果</h3>
+                    <p>没有找到与 "{{ query }}" 相关的知识条目。</p>
+                {% else %}
+                    <h3>请输入搜索关键词</h3>
+                    <p>请在上方搜索框中输入要搜索的内容。</p>
+                {% endif %}
+                <a href="{% url 'knowledge_index' %}" class="btn btn-primary">返回知识库</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

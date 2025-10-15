@@ -1,0 +1,188 @@
+INFO 2025-09-27 23:58:00,843 autoreload 6216 32428 Watching for file changes with StatReloader
+INFO 2025-09-27 23:58:02,042 autoreload 6216 32428 E:\document\python_workspace\django-rag-website\config\settings.py changed, reloading.
+INFO 2025-09-27 23:58:02,636 autoreload 31172 27200 Watching for file changes with StatReloader
+INFO 2025-09-27 23:59:03,230 autoreload 31172 27200 E:\document\python_workspace\django-rag-website\apps\chat\views.py changed, reloading.
+INFO 2025-09-27 23:59:03,814 autoreload 17736 13568 Watching for file changes with StatReloader
+WARNING 2025-09-27 23:59:03,841 __init__ 17736 13568 Dify API key not configured, using fallback responses
+INFO 2025-09-27 23:59:06,064 autoreload 17736 13568 E:\document\python_workspace\django-rag-website\apps\chat\views.py changed, reloading.
+INFO 2025-09-27 23:59:06,669 autoreload 7700 17628 Watching for file changes with StatReloader
+WARNING 2025-09-27 23:59:06,682 __init__ 7700 17628 Dify API key not configured, using fallback responses
+INFO 2025-09-27 23:59:22,005 autoreload 7700 17628 E:\document\python_workspace\django-rag-website\apps\chat\views.py changed, reloading.
+INFO 2025-09-27 23:59:22,544 autoreload 28504 31168 Watching for file changes with StatReloader
+WARNING 2025-09-27 23:59:22,569 __init__ 28504 31168 Dify API key not configured, using fallback responses
+WARNING 2025-09-28 00:00:11,835 __init__ 18440 3128 Dify API key not configured, using fallback responses
+WARNING 2025-09-28 00:00:19,048 __init__ 27212 31732 Dify API key not configured, using fallback responses
+INFO 2025-09-28 00:00:24,365 autoreload 14920 27432 Watching for file changes with StatReloader
+WARNING 2025-09-28 00:00:24,373 __init__ 14920 27432 Dify API key not configured, using fallback responses
+INFO 2025-09-28 00:00:49,524 basehttp 14920 14872 "GET /chat/ HTTP/1.1" 200 6650
+WARNING 2025-09-28 00:00:52,752 log 14920 14872 Not Found: /api/
+WARNING 2025-09-28 00:00:52,754 basehttp 14920 14872 "POST /api/ HTTP/1.1" 404 2641
+WARNING 2025-09-28 00:01:07,439 log 14920 14872 Not Found: /
+WARNING 2025-09-28 00:01:07,439 basehttp 14920 14872 "GET / HTTP/1.1" 404 2610
+INFO 2025-09-28 00:01:12,802 basehttp 14920 14872 "GET /chat/ HTTP/1.1" 200 6650
+WARNING 2025-09-28 00:01:16,284 log 14920 14872 Not Found: /api/
+WARNING 2025-09-28 00:01:16,284 basehttp 14920 14872 "POST /api/ HTTP/1.1" 404 2641
+INFO 2025-09-28 00:01:33,333 autoreload 14920 27432 E:\document\python_workspace\django-rag-website\config\settings.py changed, reloading.
+INFO 2025-09-28 00:01:33,919 autoreload 26472 32012 Watching for file changes with StatReloader
+WARNING 2025-09-28 00:01:33,928 __init__ 26472 32012 Dify API key not configured, using fallback responses
+INFO 2025-09-28 00:02:21,571 autoreload 26472 32012 E:\document\python_workspace\django-rag-website\config\settings.py changed, reloading.
+INFO 2025-09-28 00:02:39,145 autoreload 21548 29224 Watching for file changes with StatReloader
+INFO 2025-09-28 00:02:47,251 basehttp 21548 22448 "GET /chat/ HTTP/1.1" 200 6650
+WARNING 2025-09-28 00:02:49,568 log 21548 22448 Not Found: /api/
+WARNING 2025-09-28 00:02:49,569 basehttp 21548 22448 "POST /api/ HTTP/1.1" 404 2641
+INFO 2025-09-28 10:30:09,816 autoreload 21548 29224 E:\document\python_workspace\django-rag-website\apps\chat\views.py changed, reloading.
+INFO 2025-09-28 10:30:11,361 autoreload 20636 26840 Watching for file changes with StatReloader
+INFO 2025-09-28 10:30:16,609 autoreload 20636 26840 E:\document\python_workspace\django-rag-website\apps\chat\views.py changed, reloading.
+INFO 2025-09-28 10:30:17,118 autoreload 13080 20948 Watching for file changes with StatReloader
+INFO 2025-09-28 10:41:41,464 autoreload 13080 20948 E:\document\python_workspace\django-rag-website\config\settings.py changed, reloading.
+Dify API key not configured, using fallback responses
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 400
+Dify API错误: {"errors":{"conversation_id":"Existing conversation ID 14 is not a valid uuid."},"message":"Input payload validation failed"}
+
+AI服务错误: 400 Client Error: BAD REQUEST for url: http://localhost/v1/chat-messages
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 4462a6e2-b9bd-4e7b-8a56-696aea204d69
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 4462a6e2-b9bd-4e7b-8a56-696aea204d69
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+AI服务错误: HTTPConnectionPool(host='localhost', port=80): Read timed out. (read timeout=30)
+使用已有会话ID: 4462a6e2-b9bd-4e7b-8a56-696aea204d69
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+AI服务错误: HTTPConnectionPool(host='localhost', port=80): Read timed out. (read timeout=30)
+使用已有会话ID: 4462a6e2-b9bd-4e7b-8a56-696aea204d69
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+AI服务错误: HTTPConnectionPool(host='localhost', port=80): Read timed out. (read timeout=30)
+使用已有会话ID: 4462a6e2-b9bd-4e7b-8a56-696aea204d69
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: deepseek深度思考
+AI服务错误: HTTPConnectionPool(host='localhost', port=80): Read timed out. (read timeout=30)
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 4462a6e2-b9bd-4e7b-8a56-696aea204d69
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: deepseek深度思考
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 4c525a70-9b5d-48e9-b13e-c11abd903fc4
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 76b3f83a-b80a-4d89-ad00-a33a0dbc611d
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 76b3f83a-b80a-4d89-ad00-a33a0dbc611d
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 400
+Dify API错误: {"code":"invalid_param","message":"Run failed: [tongyi] Error: req_id: 728d2378c4 PluginInvokeError: {\"args\":{},\"error_type\":\"SSLError\",\"message\":\"HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: \/api\/v1\/services\/aigc\/text-generation\/generation (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)')))\"}","status":400}
+
+AI服务错误: 400 Client Error: BAD REQUEST for url: http://localhost/v1/chat-messages
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 400
+Dify API错误: {"code":"invalid_param","message":"Run failed: [tongyi] Error: req_id: 5386810d13 PluginInvokeError: {\"args\":{},\"error_type\":\"SSLError\",\"message\":\"HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: \/api\/v1\/services\/aigc\/text-generation\/generation (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)')))\"}","status":400}
+
+AI服务错误: 400 Client Error: BAD REQUEST for url: http://localhost/v1/chat-messages
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 400
+Dify API错误: {"code":"invalid_param","message":"Run failed: [tongyi] Error: req_id: 6fe99e3556 PluginInvokeError: {\"args\":{},\"error_type\":\"SSLError\",\"message\":\"HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: \/api\/v1\/services\/aigc\/text-generation\/generation (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)')))\"}","status":400}
+
+AI服务错误: 400 Client Error: BAD REQUEST for url: http://localhost/v1/chat-messages
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+Dify API响应状态: 200
+使用已有会话ID: 4f75961e-b3af-4292-9a06-bc8e99651d96
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+使用已有会话ID: 4f75961e-b3af-4292-9a06-bc8e99651d96
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "请告诉我固体胶材料", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}, "conversation_id": "4f75961e-b3af-4292-9a06-bc8e99651d96"}
+Dify API响应状态: 200
+使用已有会话ID: 4f75961e-b3af-4292-9a06-bc8e99651d96
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "检索出可以降低热膨胀系数的填料及简述理由?", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}, "conversation_id": "4f75961e-b3af-4292-9a06-bc8e99651d96"}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "撒大苏打", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "撒大苏打", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+使用已有会话ID: 2d60adb1-0a72-40a0-829a-19df4dd1bb1f
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "啊实打实的", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}, "conversation_id": "2d60adb1-0a72-40a0-829a-19df4dd1bb1f"}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "啊啊啊啊", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+使用已有会话ID: 2846bcad-8bd3-4dd9-8575-5a70f44dd585
+调用Dify API: http://localhost/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "通义千问"}, "conversation_id": "2846bcad-8bd3-4dd9-8575-5a70f44dd585"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试

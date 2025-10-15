@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}知识库 - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h1>知识库</h1>
+        {% if user.is_authenticated %}
+        <div>
+            <a href="{% url 'add_knowledge' %}" class="btn btn-primary" style="margin-right: 10px;">添加知识</a>
+            <a href="{% url 'upload_document' %}" class="btn btn-primary">上传文档</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 搜索框 -->
+    <div style="margin-bottom: 30px;">
+        <form method="get" action="{% url 'search_knowledge' %}" style="display: flex; gap: 10px;">
+            <input type="text" name="q" placeholder="搜索知识库..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+            <button type="submit" class="btn btn-primary">搜索</button>
+        </form>
+    </div>
+
+    <!-- 知识条目列表 -->
+    <div class="knowledge-items">
+        {% if knowledge_list %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                {% for knowledge in knowledge_list %}
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="margin: 0 0 10px 0; color: #007bff;">{{ knowledge.title }}</h3>
+                    <p style="color: #666; margin-bottom: 15px;">
+                        {% if knowledge.content|length > 150 %}
+                            {{ knowledge.content|slice:":150" }}...
+                        {% else %}
+                            {{ knowledge.content }}
+                        {% endif %}
+                    </p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #999;">
+                        <span>
+                            {% if knowledge.category %}
+                                分类: {{ knowledge.category }}
+                            {% endif %}
+                        </span>
+                        <span>{{ knowledge.created_at|date:"Y-m-d" }}</span>
+                    </div>
+                    {% if knowledge.tags %}
+                    <div style="margin-top: 10px;">
+                        <span style="background: #e9ecef; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 5px;">{{ knowledge.tags }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 50px; background: white; border-radius: 8px;">
+                <h3>暂无知识条目</h3>
+                <p>知识库为空，请添加一些知识条目。</p>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'add_knowledge' %}" class="btn btn-primary">添加第一个知识条目</a>
+                {% else %}
+                    <p><a href="{% url 'login' %}">登录</a> 后可以添加知识条目</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #0056b3;
+}
+
+.btn-primary {
+    background: #007bff;
+}
+
+.container {
+    padding: 20px;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}上传文档 - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2>上传文档</h2>
+    
+    <form method="post" enctype="multipart/form-data" style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="title">文档标题 *</label>
+            <input type="text" id="title" name="title" required class="form-control" placeholder="请输入文档标题">
+        </div>
+        
+        <div class="form-group">
+            <label for="file">选择文件</label>
+            <input type="file" id="file" name="file" class="form-control" accept=".txt,.pdf,.doc,.docx">
+            <small style="color: #666;">支持的文件格式：TXT, PDF, DOC, DOCX</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="content">文档内容</label>
+            <textarea id="content" name="content" class="form-control" rows="10" placeholder="如果不上传文件，请在此处直接输入文档内容..."></textarea>
+        </div>
+        
+        <div style="text-align: center;">
+            <button type="submit" class="btn btn-primary">上传文档</button>
+            <a href="{% url 'knowledge_index' %}" class="btn" style="background: #6c757d; margin-left: 10px;">取消</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 200px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn:hover {
+    background: #0056b3;
+}
+
+input[type="file"] {
+    padding: 5px;
+}
+
+small {
+    display: block;
+    margin-top: 5px;
+}
+</style>
+{% endblock %}
