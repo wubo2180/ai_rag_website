@@ -196,3 +196,76 @@ Dify API响应状态: 200
 使用模型: 通义千问
 请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}}
 Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "固体胶材料", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 腾讯混元
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "腾讯混元"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: ????
+请求 payload: {"query": "????", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "????"}}
+Dify API响应状态: 400
+Dify API错误响应: {"code":"invalid_param","message":"largeModel in input form must be one of the following: ['deepseek\u6df1\u5ea6\u601d\u8003', '\u901a\u4e49\u5343\u95ee', '\u817e\u8baf\u6df7\u5143', '\u8c46\u5305', 'Kimi', 'GPT-5', 'Claude4', 'Gemini2.5', 'Grok-4', 'Llama4']","status":400}
+
+Dify API错误详情: largeModel in input form must be one of the following: ['deepseek深度思考', '通义千问', '腾讯混元', '豆包', 'Kimi', 'GPT-5', 'Claude4', 'Gemini2.5', 'Grok-4', 'Llama4']
+AI服务错误: Dify API 错误 (400): largeModel in input form must be one of the following: ['deepseek深度思考', '通义千问', '腾讯混元', '豆包', 'Kimi', 'GPT-5', 'Claude4', 'Gemini2.5', 'Grok-4', 'Llama4']
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "???session_id", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 腾讯混元
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "腾讯混元"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+使用已有会话ID: c4134946-a532-40e6-a78c-c2f24b906340
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: ????
+请求 payload: {"query": "????", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "????"}, "conversation_id": "c4134946-a532-40e6-a78c-c2f24b906340"}
+Dify API响应状态: 404
+Dify API错误响应: {"code":"not_found","message":"Conversation Not Exists. You have requested this URI [\/v1\/chat-messages] but did you mean \/v1\/chat-messages or \/api\/chat-messages or \/v1\/chat-messages\/<string:task_id>\/stop ?","status":404}
+
+Dify API错误详情: Conversation Not Exists. You have requested this URI [/v1/chat-messages] but did you mean /v1/chat-messages or /api/chat-messages or /v1/chat-messages/<string:task_id>/stop ?
+AI服务错误: Dify API 错误 (404): Conversation Not Exists. You have requested this URI [/v1/chat-messages] but did you mean /v1/chat-messages or /api/chat-messages or /v1/chat-messages/<string:task_id>/stop ?
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "?????", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200

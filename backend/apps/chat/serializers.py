@@ -49,14 +49,47 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 class ChatMessageCreateSerializer(serializers.Serializer):
     """创建聊天消息的序列化器"""
     message = serializers.CharField(max_length=5000, help_text="用户消息内容")
-    session_id = serializers.UUIDField(required=False, allow_null=True, help_text="会话ID（可选，不提供则创建新会话）")
+    session_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text="会话ID（可选，不提供则创建新会话）")
     model = serializers.CharField(required=False, allow_blank=True, help_text="使用的AI模型（可选）")
     
     def validate_message(self, value):
         """验证消息内容"""
-        if not value.strip():
+        if not value or not value.strip():
             raise serializers.ValidationError("消息内容不能为空")
         return value.strip()
+    
+    def validate_session_id(self, value):
+        """验证会话ID - 支持整数ID和UUID格式"""
+        # 处理空值情况
+        if not value or (isinstance(value, str) and value.strip() == ''):
+            return None
+        
+        # 如果是字符串，去除空白字符
+        if isinstance(value, str):
+            value = value.strip()
+            
+        # 处理特殊值
+        if value in ['null', 'undefined', 'None', '']:
+            return None
+        
+        # 尝试转换为整数（数据库主键）
+        try:
+            int_value = int(value)
+            if int_value <= 0:
+                raise serializers.ValidationError("会话ID必须是正整数")
+            return int_value
+        except (ValueError, TypeError):
+            pass
+        
+        # 如果不是整数，尝试UUID格式（向后兼容）
+        import uuid
+        try:
+            uuid_obj = uuid.UUID(str(value))
+            return str(uuid_obj)
+        except (ValueError, TypeError, AttributeError):
+            raise serializers.ValidationError(
+                f"会话ID格式无效: '{value}'。请提供有效的整数ID、UUID格式或留空创建新会话。"
+            )
 
 
 class ChatSessionCreateSerializer(serializers.ModelSerializer):

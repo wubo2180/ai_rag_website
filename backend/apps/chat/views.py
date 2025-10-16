@@ -9,15 +9,20 @@ from .models import ChatSession, ChatMessage
 from apps.ai_service.services import ai_service
 
 def chat_index(request):
-    """聊天主页"""
-    sessions = []
-    if request.user.is_authenticated:
-        sessions = ChatSession.objects.filter(user=request.user)[:10]
+    """聊天主页 - 直接返回Vue.js应用"""
+    # 直接返回Vue.js的index.html文件
+    from django.http import FileResponse
+    import os
+    from django.conf import settings
     
-    return render(request, 'chat/index.html', {
-        'sessions': sessions,
-        'user': request.user
-    })
+    # 构建Vue.js构建文件的路径
+    vue_index_path = os.path.join(settings.BASE_DIR.parent, 'frontend', 'dist', 'index.html')
+    
+    if os.path.exists(vue_index_path):
+        return FileResponse(open(vue_index_path, 'rb'), content_type='text/html')
+    else:
+        from django.http import HttpResponse
+        return HttpResponse("Vue.js应用未构建，请运行 'npm run build'", status=404)
 
 @csrf_exempt
 @require_http_methods(["POST"])

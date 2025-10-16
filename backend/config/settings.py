@@ -73,7 +73,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [BASE_DIR.parent / 'frontend' / 'dist'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -114,8 +114,12 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+# 生产环境收集静态文件的目录
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# 开发环境下的静态文件目录
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR.parent, "frontend/dist/static/"),  # Vue.js构建的静态文件
+]
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -125,7 +129,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # AI模型配置 - Dify API
 DIFY_API_KEY = os.environ.get('DIFY_API_KEY', 'app-2WflAIBZKQGLwUImUXbYaLsN')
 DIFY_BASE_URL = os.environ.get('DIFY_BASE_URL', 'http://172.20.46.18:8088/v1')
-DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', '通义千问')  # 默认模型
+DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
 
 # 可用的AI模型列表
 AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思考,通义千问,腾讯混元,豆包,Kimi,GPT-5,Claude4,Gemini2.5,Grok-4,Llama4').split(',')
