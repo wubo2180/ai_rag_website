@@ -269,3 +269,20 @@ AI服务错误: Dify API 错误 (404): Conversation Not Exists. You have requested thi
 使用模型: deepseek深度思考
 请求 payload: {"query": "?????", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "deepseek深度思考"}}
 Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}}
+Dify API响应状态: 200
+使用已有会话ID: dad779fb-497e-47f1-ad63-fde952191160
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: GPT-5
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}, "conversation_id": "dad779fb-497e-47f1-ad63-fde952191160"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+使用已有会话ID: dad779fb-497e-47f1-ad63-fde952191160
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "检索出可以降低热膨胀系数的填料及简述理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}, "conversation_id": "dad779fb-497e-47f1-ad63-fde952191160"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
