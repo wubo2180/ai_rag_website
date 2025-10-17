@@ -213,3 +213,34 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# ======================== AI 服务配置 ========================
+# AI_UI_928_2 集成 - 外部AI服务配置
+# 使用经过验证的API配置
+DIFY_API_URL = os.environ.get(
+    'DIFY_API_URL', 
+    'http://172.20.46.18:8088/v1/chat-messages'
+)
+DIFY_API_KEY = os.environ.get(
+    'DIFY_API_KEY', 
+    'app-2WflAIBZKQGLwUImUXbYaLsN'
+)
+
+# 模型配置
+DEFAULT_AI_MODEL = os.environ.get('DEFAULT_AI_MODEL', 'deepseek')
+ENABLE_DEEP_THINKING = os.environ.get('ENABLE_DEEP_THINKING', 'True') == 'True'
+
+# 流式响应配置
+STREAM_TIMEOUT = int(os.environ.get('STREAM_TIMEOUT', '120'))  # 增加到120秒
+MAX_STREAM_RETRIES = int(os.environ.get('MAX_STREAM_RETRIES', '3'))
+
+# AI模型特定超时配置（秒）
+AI_MODEL_TIMEOUTS = {
+    'deepseek深度思考': 240,  # 深度思考模式需要更长时间
+    'GPT-5': 240,             # GPT-5响应较慢
+    '豆包': 90,               # 豆包中等速度
+    '通义千问': 60,           # 通义千问较快
+    'Claude4': 120,           # Claude4中等速度
+    'Kimi': 90,               # Kimi中等速度
+    'default': 90             # 默认超时
+}

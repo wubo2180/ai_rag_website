@@ -21,6 +21,9 @@ class ChatMessage(models.Model):
     dify_message_id = models.CharField(max_length=100, blank=True, null=True, verbose_name='Dify消息ID')
     timestamp = models.DateTimeField(auto_now_add=True)
     
+    # AI_UI_928_2 整合 - 元数据支持（深度思考等）
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='消息元数据')
+    
     class Meta:
         ordering = ['timestamp']
     

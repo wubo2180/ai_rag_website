@@ -8,6 +8,13 @@ from .api_views import (
     AvailableModelsAPIView,
     ChatSessionRenameAPIView,
 )
+# AI_UI_928_2 集成 - 增强版API导入
+from .enhanced_views import (
+    StreamChatAPIView, 
+    RelatedQuestionsAPIView,
+    EnhancedModelsAPIView,
+    ChatModelSwitchAPIView
+)
 
 app_name = 'chat_api'
 
@@ -23,4 +30,10 @@ urlpatterns = [
     
     # 可用模型API
     path('models/', AvailableModelsAPIView.as_view(), name='available-models'),
+    
+    # AI_UI_928_2 集成 - 增强版API路由
+    path('api/stream/', StreamChatAPIView.as_view(), name='stream_chat'),
+    path('api/suggestions/', RelatedQuestionsAPIView.as_view(), name='related_questions'),
+    path('api/enhanced-models/', EnhancedModelsAPIView.as_view(), name='enhanced_models'),
+    path('api/model-switch/', ChatModelSwitchAPIView.as_view(), name='model_switch'),
 ]

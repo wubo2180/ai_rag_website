@@ -25,6 +25,15 @@ const routes = [
     meta: { requiresAuth: false } // 允许匿名访问聊天
   },
   {
+    path: '/enhanced-chat',
+    name: 'EnhancedChat',
+    component: () => import('@/views/EnhancedChat.vue'),
+    meta: { 
+      requiresAuth: false, 
+      title: '智能对话' 
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),

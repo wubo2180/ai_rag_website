@@ -50,7 +50,7 @@ class ChatMessageCreateSerializer(serializers.Serializer):
     """创建聊天消息的序列化器"""
     message = serializers.CharField(max_length=5000, help_text="用户消息内容")
     session_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text="会话ID（可选，不提供则创建新会话）")
-    model = serializers.CharField(required=False, allow_blank=True, help_text="使用的AI模型（可选）")
+    model = serializers.CharField(required=False, allow_blank=True, default='deepseek', help_text="使用的AI模型（可选）")
     
     def validate_message(self, value):
         """验证消息内容"""

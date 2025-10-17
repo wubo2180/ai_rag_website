@@ -286,3 +286,163 @@ AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
 ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄÌîÁÏ¼°¼òÊöÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "¶¹°ü"}, "conversation_id": "dad779fb-497e-47f1-ad63-fde952191160"}
 Dify API ÇëÇó³¬Ê±
 AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: deepseekÉî¶ÈË¼¿¼
+ÇëÇó payload: {"query": "¹ÌÌå½º", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseekÉî¶ÈË¼¿¼"}}
+Dify APIÏìÓ¦×´Ì¬: 401
+Dify API´íÎóÏìÓ¦: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+Dify API´íÎóÏêÇé: Access token is invalid
+AI·şÎñ´íÎó: Dify API ´íÎó (401): Access token is invalid
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: deepseekÉî¶ÈË¼¿¼
+ÇëÇó payload: {"query": "¹ÌÌå½º", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseekÉî¶ÈË¼¿¼"}}
+Dify APIÏìÓ¦×´Ì¬: 401
+Dify API´íÎóÏìÓ¦: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+Dify API´íÎóÏêÇé: Access token is invalid
+AI·şÎñ´íÎó: Dify API ´íÎó (401): Access token is invalid
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: deepseekÉî¶ÈË¼¿¼
+ÇëÇó payload: {"query": "¹ÌÌå½º", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseekÉî¶ÈË¼¿¼"}}
+Dify APIÏìÓ¦×´Ì¬: 401
+Dify API´íÎóÏìÓ¦: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+Dify API´íÎóÏêÇé: Access token is invalid
+AI·şÎñ´íÎó: Dify API ´íÎó (401): Access token is invalid
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: deepseekÉî¶ÈË¼¿¼
+ÇëÇó payload: {"query": "¹ÌÌå½º", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseekÉî¶ÈË¼¿¼"}}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: Í¨ÒåÇ§ÎÊ
+ÇëÇó payload: {"query": "¹ÌÌå½º", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Í¨ÒåÇ§ÎÊ"}}
+Dify APIÏìÓ¦×´Ì¬: 200
+Ê¹ÓÃÒÑÓĞ»á»°ID: 1293ea53-71ce-4c96-b596-e45eab7f60dc
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: Í¨ÒåÇ§ÎÊ
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Í¨ÒåÇ§ÎÊ"}, "conversation_id": "1293ea53-71ce-4c96-b596-e45eab7f60dc"}
+Dify APIÏìÓ¦×´Ì¬: 200
+Ê¹ÓÃÒÑÓĞ»á»°ID: 1293ea53-71ce-4c96-b596-e45eab7f60dc
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: GPT-5
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}, "conversation_id": "1293ea53-71ce-4c96-b596-e45eab7f60dc"}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+Ê¹ÓÃÒÑÓĞ»á»°ID: 1293ea53-71ce-4c96-b596-e45eab7f60dc
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: ÌÚÑ¶»ìÔª
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "ÌÚÑ¶»ìÔª"}, "conversation_id": "1293ea53-71ce-4c96-b596-e45eab7f60dc"}
+Dify APIÏìÓ¦×´Ì¬: 400
+Dify API´íÎóÏìÓ¦: {"code":"invalid_param","message":"Run failed: [hunyuan] Error: req_id: d5d14b928e PluginInvokeError: {\"args\":{\"description\":\"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages \u4e2d user\uff08tool\uff09 \u548c assistant \u89d2\u8272\u9700\u4ea4\u66ff\u51fa\u73b0 (\u4e00\u95ee\u4e00\u7b54)\uff0c\u4ee5 user \u63d0\u95ee\u5f00\u59cb\uff0c user\uff08tool\uff09\u63d0\u95ee\u7ed3\u675f, tool \u53ef\u4ee5\u8fde\u7eed\u51fa\u73b0\u591a\u6b21 requestId:14062613-e3df-46a4-98c8-933097058b7d\"},\"error_type\":\"InvokeError\",\"message\":\"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages \u4e2d user\uff08tool\uff09 \u548c assistant \u89d2\u8272\u9700\u4ea4\u66ff\u51fa\u73b0 (\u4e00\u95ee\u4e00\u7b54)\uff0c\u4ee5 user \u63d0\u95ee\u5f00\u59cb\uff0c user\uff08tool\uff09\u63d0\u95ee\u7ed3\u675f, tool \u53ef\u4ee5\u8fde\u7eed\u51fa\u73b0\u591a\u6b21 requestId:14062613-e3df-46a4-98c8-933097058b7d\"}","status":400}
+
+Dify API´íÎóÏêÇé: Run failed: [hunyuan] Error: req_id: d5d14b928e PluginInvokeError: {"args":{"description":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages ÖĞ user£¨tool£© ºÍ assistant ½ÇÉ«Ğè½»Ìæ³öÏÖ (Ò»ÎÊÒ»´ğ)£¬ÒÔ user ÌáÎÊ¿ªÊ¼£¬ user£¨tool£©ÌáÎÊ½áÊø, tool ¿ÉÒÔÁ¬Ğø³öÏÖ¶à´Î requestId:14062613-e3df-46a4-98c8-933097058b7d"},"error_type":"InvokeError","message":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages ÖĞ user£¨tool£© ºÍ assistant ½ÇÉ«Ğè½»Ìæ³öÏÖ (Ò»ÎÊÒ»´ğ)£¬ÒÔ user ÌáÎÊ¿ªÊ¼£¬ user£¨tool£©ÌáÎÊ½áÊø, tool ¿ÉÒÔÁ¬Ğø³öÏÖ¶à´Î requestId:14062613-e3df-46a4-98c8-933097058b7d"}
+AI·şÎñ´íÎó: Dify API ´íÎó (400): Run failed: [hunyuan] Error: req_id: d5d14b928e PluginInvokeError: {"args":{"description":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages ÖĞ user£¨tool£© ºÍ assistant ½ÇÉ«Ğè½»Ìæ³öÏÖ (Ò»ÎÊÒ»´ğ)£¬ÒÔ user ÌáÎÊ¿ªÊ¼£¬ user£¨tool£©ÌáÎÊ½áÊø, tool ¿ÉÒÔÁ¬Ğø³öÏÖ¶à´Î requestId:14062613-e3df-46a4-98c8-933097058b7d"},"error_type":"InvokeError","message":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages ÖĞ user£¨tool£© ºÍ assistant ½ÇÉ«Ğè½»Ìæ³öÏÖ (Ò»ÎÊÒ»´ğ)£¬ÒÔ user ÌáÎÊ¿ªÊ¼£¬ user£¨tool£©ÌáÎÊ½áÊø, tool ¿ÉÒÔÁ¬Ğø³öÏÖ¶à´Î requestId:14062613-e3df-46a4-98c8-933097058b7d"}
+Ê¹ÓÃÒÑÓĞ»á»°ID: 1293ea53-71ce-4c96-b596-e45eab7f60dc
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: ¶¹°ü
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "¶¹°ü"}, "conversation_id": "1293ea53-71ce-4c96-b596-e45eab7f60dc"}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+åˆ›å»ºæ–°ä¼šè¯
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: è…¾è®¯æ··å…ƒ
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "è…¾è®¯æ··å…ƒ"}}
+Dify APIå“åº”çŠ¶æ€: 200
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: è±†åŒ…
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "è±†åŒ…"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify API è¯·æ±‚è¶…æ—¶
+AIæœåŠ¡é”™è¯¯: AI æœåŠ¡å“åº”è¶…æ—¶ï¼Œè¯·ç¨åå†è¯•
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Kimi
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Kimi"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 200
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: GPT-5
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify API è¯·æ±‚è¶…æ—¶
+AIæœåŠ¡é”™è¯¯: AI æœåŠ¡å“åº”è¶…æ—¶ï¼Œè¯·ç¨åå†è¯•
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Claude4
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Claude4"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 200
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Gemini2.5
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Gemini2.5"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify API è¯·æ±‚è¶…æ—¶
+AIæœåŠ¡é”™è¯¯: AI æœåŠ¡å“åº”è¶…æ—¶ï¼Œè¯·ç¨åå†è¯•
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Grok-4
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Grok-4"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 400
+Dify APIé”™è¯¯å“åº”: {"code":"invalid_param","message":"Run failed: Model x-ai\/grok-4 not exist.","status":400}
+
+Dify APIé”™è¯¯è¯¦æƒ…: Run failed: Model x-ai/grok-4 not exist.
+AIæœåŠ¡é”™è¯¯: Dify API é”™è¯¯ (400): Run failed: Model x-ai/grok-4 not exist.
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Llama4
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Llama4"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 400
+Dify APIé”™è¯¯å“åº”: {"code":"invalid_param","message":"Run failed: Model meta-llama\/llama-4-maverick not exist.","status":400}
+
+Dify APIé”™è¯¯è¯¦æƒ…: Run failed: Model meta-llama/llama-4-maverick not exist.
+AIæœåŠ¡é”™è¯¯: Dify API é”™è¯¯ (400): Run failed: Model meta-llama/llama-4-maverick not exist.
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Gemini2.5
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Gemini2.5"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 200
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Grok-4
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Grok-4"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 200
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: Llama4
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Llama4"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify APIå“åº”çŠ¶æ€: 200
+ä½¿ç”¨å·²æœ‰ä¼šè¯ID: f336a731-5b24-4562-a515-96eed973acf4
+è°ƒç”¨Dify API: http://172.20.46.18:8088/v1/chat-messages
+ä½¿ç”¨æ¨¡å‹: GPT-5
+è¯·æ±‚ payload: {"query": "æ£€ç´¢å‡ºå¯ä»¥é™ä½çƒ­è†¨èƒ€ç³»æ•°çš„ç¯æ°§æ ‘è„‚ï¼Œå†™å‡ºç»“æ„å¼åŠç®€è¿°å…¶ç†ç”±?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify API è¯·æ±‚è¶…æ—¶
+AIæœåŠ¡é”™è¯¯: AI æœåŠ¡å“åº”è¶…æ—¶ï¼Œè¯·ç¨åå†è¯•
+Ê¹ÓÃÒÑÓĞ»á»°ID: f336a731-5b24-4562-a515-96eed973acf4
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: deepseekÉî¶ÈË¼¿¼
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseekÉî¶ÈË¼¿¼"}, "conversation_id": "f336a731-5b24-4562-a515-96eed973acf4"}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: deepseekÉî¶ÈË¼¿¼
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseekÉî¶ÈË¼¿¼"}}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: GPT-5
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ
+´´½¨ĞÂ»á»°
+µ÷ÓÃDify API: http://172.20.46.18:8088/v1/chat-messages
+Ê¹ÓÃÄ£ĞÍ: GPT-5
+ÇëÇó payload: {"query": "¼ìË÷³ö¿ÉÒÔ½µµÍÈÈÅòÕÍÏµÊıµÄ»·ÑõÊ÷Ö¬£¬Ğ´³ö½á¹¹Ê½¼°¼òÊöÆäÀíÓÉ?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}}
+Dify API ÇëÇó³¬Ê±
+AI·şÎñ´íÎó: AI ·şÎñÏìÓ¦³¬Ê±£¬ÇëÉÔºóÔÙÊÔ

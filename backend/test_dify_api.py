@@ -6,7 +6,7 @@ import json
 import re
 
 # Dify 配置
-API_KEY = "app-UHCuOveWDfSTnDSgeqTYqxiB"
+API_KEY = "app-2WflAIBZKQGLwUImUXbYaLsN"
 BASE_URL = "http://172.20.46.18:8088/v1"
 
 def analyze_markdown_content(text):

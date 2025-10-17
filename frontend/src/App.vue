@@ -1,12 +1,20 @@
 <template>
   <div id="app">
-    <router-view />
+    <Navigation />
+    <main class="main-content">
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script>
+import Navigation from '@/components/Navigation.vue'
+
 export default {
-  name: 'App'
+  name: 'App',
+  components: {
+    Navigation
+  }
 }
 </script>
 
@@ -30,5 +38,12 @@ html, body {
 
 #app {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
 }
 </style>
