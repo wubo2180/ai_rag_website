@@ -50,6 +50,15 @@ const routes = [
     name: 'Documents',
     component: () => import('@/views/Documents.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/knowledge-base',
+    name: 'KnowledgeBase',
+    component: () => import('@/views/KnowledgeBase.vue'),
+    meta: { 
+      requiresAuth: false,
+      title: '知识库管理'
+    }
   }
 ]
 

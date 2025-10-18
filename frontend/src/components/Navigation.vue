@@ -13,13 +13,21 @@
         智能对话
         <span class="badge">增强版</span>
       </router-link>
-      <router-link to="/sessions" class="nav-link" v-if="isAuthenticated">
-        <i class="icon">📝</i>
-        历史记录
-      </router-link>
-      <router-link to="/documents" class="nav-link" v-if="isAuthenticated">
+      <a 
+        @click="navigateToKnowledgeBase" 
+        class="nav-link knowledge-base-link"
+        style="cursor: pointer;"
+      >
+        <i class="icon">�️</i>
+        知识库
+      </a>
+      <router-link to="/documents" class="nav-link">
         <i class="icon">📁</i>
         文档管理
+      </router-link>
+      <router-link to="/sessions" class="nav-link" v-if="isAuthenticated">
+        <i class="icon">�</i>
+        历史记录
       </router-link>
     </div>
     <div class="nav-user">
@@ -72,9 +80,41 @@ export default {
       }
     }
 
+    const handleKnowledgeBaseClick = () => {
+      console.log('🗃️ 知识库按钮被点击了!')
+      // 添加一个小提示确认点击
+      ElMessage.info('正在跳转到知识库页面...')
+      // 执行路由跳转
+      router.push('/knowledge-base')
+    }
+
+    const testKnowledgeBaseClick = (event) => {
+      console.log('🔍 测试知识库按钮点击事件', event)
+      ElMessage.success('知识库按钮点击检测成功!')
+    }
+
+    const navigateToKnowledgeBase = () => {
+      console.log('🗃️ 开始导航到知识库页面')
+      console.log('当前路由:', router.currentRoute.value.path)
+      
+      ElMessage.info('正在跳转到知识库页面...')
+      
+      // 使用router.push进行导航
+      router.push('/knowledge-base').then(() => {
+        console.log('✅ 导航成功完成')
+        ElMessage.success('成功跳转到知识库页面!')
+      }).catch((error) => {
+        console.error('❌ 导航失败:', error)
+        ElMessage.error('跳转失败: ' + error.message)
+      })
+    }
+
     return {
       isAuthenticated,
-      handleLogout
+      handleLogout,
+      handleKnowledgeBaseClick,
+      testKnowledgeBaseClick,
+      navigateToKnowledgeBase
     }
   }
 }
@@ -157,6 +197,18 @@ export default {
 
 .logout-btn:hover {
   background: rgba(255, 107, 107, 0.8);
+}
+
+/* 知识库链接特殊样式 */
+.knowledge-base-link {
+  z-index: 999;
+  pointer-events: auto !important;
+  position: relative;
+}
+
+.knowledge-base-link:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-1px);
 }
 
 /* 响应式设计 */

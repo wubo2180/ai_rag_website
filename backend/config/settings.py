@@ -8,7 +8,8 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here'
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = ['*']
 
 # 数据库配置 - 支持SQLite和MySQL
 if os.environ.get('DATABASE_TYPE') == 'mysql':
@@ -224,6 +225,16 @@ DIFY_API_URL = os.environ.get(
 DIFY_API_KEY = os.environ.get(
     'DIFY_API_KEY', 
     'app-2WflAIBZKQGLwUImUXbYaLsN'
+)
+
+# Dify 知识库配置
+DIFY_DATASET_BASE_URL = os.environ.get(
+    'DIFY_DATASET_BASE_URL',
+    'http://172.20.46.18:8088/v1'
+)
+DIFY_DATASET_API_KEY = os.environ.get(
+    'DIFY_DATASET_API_KEY',
+    'dataset-XGhjOXFbkSkJqagNLbs0SDEy'
 )
 
 # 模型配置
