@@ -25,6 +25,10 @@
         <i class="icon">📁</i>
         文档管理
       </router-link>
+      <router-link to="/knowledge-graph" class="nav-link">
+        <i class="icon">🔗</i>
+        知识图谱
+      </router-link>
       <router-link to="/sessions" class="nav-link" v-if="isAuthenticated">
         <i class="icon">�</i>
         历史记录

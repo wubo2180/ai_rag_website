@@ -59,6 +59,15 @@ const routes = [
       requiresAuth: false,
       title: '知识库管理'
     }
+  },
+  {
+    path: '/knowledge-graph',
+    name: 'KnowledgeGraph',
+    component: () => import('@/views/KnowledgeGraph.vue'),
+    meta: { 
+      requiresAuth: false,
+      title: '材料知识图谱'
+    }
   }
 ]
 
