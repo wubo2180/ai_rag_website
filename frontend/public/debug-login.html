@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录调试</title>
+</head>
+<body>
+    <h1>登录调试页面</h1>
+    <form id="loginForm">
+        <div>
+            <label for="username">用户名:</label>
+            <input type="text" id="username" value="admin" required>
+        </div>
+        <div>
+            <label for="password">密码:</label>
+            <input type="password" id="password" value="admin123" required>
+        </div>
+        <button type="submit">登录</button>
+    </form>
+    
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            console.log('尝试登录:', { username, password });
+            
+            try {
+                const response = await fetch('/api/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                console.log('响应状态:', response.status);
+                console.log('响应头:', [...response.headers.entries()]);
+                
+                const data = await response.json();
+                console.log('响应数据:', data);
+                
+                resultDiv.innerHTML = `
+                    <h3>响应结果:</h3>
+                    <p>状态码: ${response.status}</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                if (response.status === 500) {
+                    resultDiv.innerHTML += '<p style="color: red;">服务器内部错误 (500)</p>';
+                }
+                
+            } catch (error) {
+                console.error('请求错误:', error);
+                resultDiv.innerHTML = `
+                    <h3>请求错误:</h3>
+                    <p style="color: red;">${error.message}</p>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

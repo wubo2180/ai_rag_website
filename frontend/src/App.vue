@@ -8,42 +8,46 @@
 </template>
 
 <script>
-import Navigation from '@/components/Navigation.vue'
+  import Navigation from '@/components/Navigation.vue'
 
-export default {
-  name: 'App',
-  components: {
-    Navigation
+  export default {
+    name: 'App',
+    components: {
+      Navigation,
+    },
   }
-}
 </script>
 
 <style>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
-}
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+  html,
+  body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* 防止页面级别的滚动 */
+  }
 
-html, body {
-  height: 100%;
-}
+  #app {
+    font-family: Avenir, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #2c3e50;
+    height: 100vh; /* 使用视口高度 */
+    width: 100vw; /* 使用视口宽度 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* 防止应用级别的滚动 */
+  }
 
-#app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-}
+  .main-content {
+    flex: 1; /* 占用剩余空间 */
+    overflow: hidden; /* 移除滚动，让子组件自己处理 */
+    width: 100%;
+    height: 100%;
+  }
 </style>

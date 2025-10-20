@@ -7,23 +7,24 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
-    }
+      '@': resolve(__dirname, 'src'),
+    },
   },
   server: {
     port: 3000,
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://172.20.46.18:8002',
         changeOrigin: true,
-        secure: false
-      }
-    }
+        secure: false,
+        logLevel: 'debug',
+      },
+    },
   },
   build: {
     outDir: 'dist',
     assetsDir: 'static/',
-    sourcemap: false
-  }
+    sourcemap: false,
+  },
 })
