@@ -219,9 +219,13 @@ CORS_ALLOW_HEADERS = [
 # ======================== AI 服务配置 ========================
 # AI_UI_928_2 集成 - 外部AI服务配置
 # 使用经过验证的API配置
+# DIFY_API_URL = os.environ.get(
+#     'DIFY_API_URL', 
+#     'http://172.20.46.18:8088/v1/chat-messages'
+# )
 DIFY_API_URL = os.environ.get(
     'DIFY_API_URL', 
-    'http://172.20.46.18:8088/v1/chat-messages'
+    'http://localhost:8088/v1/chat-messages'
 )
 DIFY_API_KEY = os.environ.get(
     'DIFY_API_KEY', 
@@ -229,9 +233,13 @@ DIFY_API_KEY = os.environ.get(
 )
 
 # Dify 知识库配置
+# DIFY_DATASET_BASE_URL = os.environ.get(
+#     'DIFY_DATASET_BASE_URL',
+#     'http://172.20.46.18:8088/v1'
+# )
 DIFY_DATASET_BASE_URL = os.environ.get(
     'DIFY_DATASET_BASE_URL',
-    'http://172.20.46.18:8088/v1'
+    'http://localhost:8088/v1'
 )
 DIFY_DATASET_API_KEY = os.environ.get(
     'DIFY_DATASET_API_KEY',
