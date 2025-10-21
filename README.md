@@ -13,10 +13,20 @@ AI RAG智能问答系统是一个现代化的知识问答平台，结合了检�
 - **上下文理解**: 基于历史对话提供连贯的回答
 
 ### 📚 文档知识管理
-- **文档上传**: 支持PDF、Word、TXT等多种文档格式
-- **智能分类**: 自动识别文档类型，支持自定义分类
+- **文档上传**: 支持PDF、Word、TXT、CSV等多种文档格式
+- **智能分类**: 自动识别文档类型，支持自定义分类和文件夹管理
+- **批量操作**: 支持批量上传、删除和分类管理
 - **全文搜索**: 快速检索文档内容，精准定位信息
 - **权限控制**: 支持文档访问权限设置和分享管理
+- **统计分析**: 实时统计文档数量、类型分布和存储使用情况
+
+### 🔗 知识图谱系统
+- **CSV数据导入**: 支持CSV文件上传并自动转换为知识图谱数据
+- **四级数据链**: 构建原材料→中间体→配方→性能的完整关联体系
+- **图谱可视化**: 基于ECharts的交互式知识图谱展示
+- **节点详情**: 点击节点查看详细信息，支持多维度数据展示
+- **关系追踪**: 追溯材料使用链路，分析配方组成和性能表现
+- **数据统计**: 实时统计图谱实体数量和关系分布
 
 ### 👥 用户系统
 - **用户注册/登录**: 安全的身份认证机制
@@ -51,7 +61,9 @@ AI RAG智能问答系统是一个现代化的知识问答平台，结合了检�
 
 - 🤖 智能聊天对话
 - 📄 文档上传与管理 
-- 👤 用户认证与会话管理
+- � CSV转知识图谱系统
+- 📊 材料数据可视化分析
+- �👤 用户认证与会话管理
 - 🔍 文档搜索与分类
 - 📱 响应式现代化UI界面
 - 🔗 RESTful API接口
@@ -60,8 +72,8 @@ AI RAG智能问答系统是一个现代化的知识问答平台，结合了检�
 
 ### 环境要求
 
-- Python 3.8+
-- Node.js 16+
+- Python 3.13+
+- Node.js 18+
 - npm 或 yarn
 
 ### 1. 克隆项目
@@ -161,6 +173,8 @@ npm run build
 - **聊天API**: `POST /api/chat/chat/`
 - **会话管理**: `GET/POST /api/chat/sessions/`
 - **文档管理**: `GET/POST /api/documents/`
+- **知识图谱**: `GET /api/kg/graph/full_graph/`
+- **CSV处理**: `POST /api/kg/process-csv-documents/`
 - **用户认证**: `POST /api/auth/login/`
 - **可用模型**: `GET /api/chat/models/`
 
@@ -175,6 +189,32 @@ POST /api/chat/chat/
 }
 ```
 
+### CSV转知识图谱API示例
+
+```json
+POST /api/kg/process-csv-documents/
+{
+    "document_ids": [1, 2, 3]  // CSV文档ID列表
+}
+
+// 响应示例
+{
+    "message": "处理完成，共处理3个文件，成功2个",
+    "total_processed": 3,
+    "successful": 2,
+    "results": [
+        {
+            "document_id": 1,
+            "success": true,
+            "materials_created": 5,
+            "intermediates_created": 3,
+            "formulas_created": 2,
+            "performances_created": 8
+        }
+    ]
+}
+```
+
 ## 目录结构
 
 ```
@@ -185,7 +225,7 @@ ai_rag_website/
 │   │   ├── accounts/       # 用户认证
 │   │   ├── chat/          # 聊天功能
 │   │   ├── documents/     # 文档管理
-│   │   ├── knowledge/     # 知识库
+│   │   ├── knowledge/     # 知识图谱系统
 │   │   └── ai_service/    # AI服务集成
 │   ├── manage.py
 │   └── requirements.txt
@@ -198,6 +238,11 @@ ai_rag_website/
 │   ├── dist/              # 构建输出
 │   ├── package.json
 │   └── vite.config.js
+├── docs/                   # 项目文档
+│   ├── features/          # 功能说明
+│   ├── guides/            # 使用指南
+│   ├── development/       # 开发文档
+│   └── reports/           # 开发报告
 └── README.md              # 本文件
 ```
 
