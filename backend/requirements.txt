@@ -5,13 +5,32 @@ django-cors-headers==4.4.0
 djangorestframework-simplejwt==5.3.0
 dj-rest-auth==6.0.0
 whitenoise==6.7.0
+django-extensions==3.2.3
 
-# 数据库
-psycopg2-binary==2.9.9
+# ASGI 异步服务器和中间件
+uvicorn==0.30.6                    # 高性能 ASGI 服务器
+uvicorn[standard]==0.30.6          # 包含额外依赖 (uvloop, httptools, websockets)
+gunicorn==23.0.0                   # WSGI/ASGI 服务器
+asgiref==3.8.1                     # ASGI 参考实现
+uvloop==0.20.0                     # 高性能事件循环 (Unix only)
+httptools==0.6.1                   # HTTP 解析器
+websockets==12.0                   # WebSocket 支持
 
-# HTTP请求和服务器
-requests==2.32.3
-gunicorn==23.0.0
+# 数据库 (异步支持)
+psycopg2-binary==2.9.9             # PostgreSQL 同步驱动
+asyncpg==0.29.0                    # PostgreSQL 异步驱动
+aiosqlite==0.20.0                  # SQLite 异步驱动 (开发用)
+
+# 缓存 (异步支持)
+redis==5.0.8                       # Redis 客户端
+hiredis==2.3.2                     # Redis 高性能解析器
+django-redis==5.4.0                # Django Redis 缓存后端
+
+# HTTP请求和服务器 (异步支持)
+requests==2.32.3                   # 同步 HTTP 客户端
+httpx==0.27.2                      # 异步 HTTP 客户端
+aiohttp==3.10.5                    # 异步 HTTP 库
+aiofiles==24.1.0                   # 异步文件操作
 
 # 图像处理
 Pillow==10.4.0
@@ -22,6 +41,16 @@ numpy==2.1.2
 
 # 开发和调试工具
 django-debug-toolbar==4.4.6
+python-dotenv==1.0.1               # 环境变量管理
+
+# 任务队列 (异步)
+celery==5.4.0                      # 分布式任务队列
+kombu==5.4.0                       # 消息传递库
+
+# 监控和性能
+structlog==24.4.0                  # 结构化日志
+rich==13.8.0                       # 终端美化输出
+orjson==3.10.7                     # 高性能 JSON 序列化
 
 # 安全相关
 cryptography==43.0.1
