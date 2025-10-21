@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Document, DocumentCategory, DocumentAccess
+from .models import Document, DocumentCategory, DocumentAccess, DocumentFolder
 
 
 class DocumentCategorySerializer(serializers.ModelSerializer):
@@ -17,7 +17,10 @@ class DocumentCategorySerializer(serializers.ModelSerializer):
     
     def get_document_count(self, obj):
         """获取分类下的文档数量"""
-        return obj.documents.count()
+        try:
+            return obj.documents.count()
+        except Exception:
+            return 0
     
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user
@@ -30,7 +33,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = [
-            'title', 'description', 'file', 'category', 'tags', 'is_public'
+            'title', 'description', 'file', 'category', 'folder', 'tags', 'is_public'
         ]
     
     def validate_file(self, value):
@@ -42,7 +45,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         
         # 检查文件类型
         allowed_extensions = [
-            '.pdf', '.doc', '.docx', '.txt', '.md',
+            '.pdf', '.doc', '.docx', '.txt', '.md', '.csv',
             '.ppt', '.pptx', '.xls', '.xlsx',
             '.jpg', '.jpeg', '.png', '.gif', '.bmp'
         ]
@@ -57,7 +60,45 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
+        import os
+        
+        # 自动设置上传者
         validated_data['uploaded_by'] = self.context['request'].user
+        
+        # 自动提取文件信息
+        file = validated_data.get('file')
+        if file:
+            # 设置原始文件名
+            validated_data['original_filename'] = file.name
+            
+            # 设置文件大小
+            validated_data['file_size'] = file.size
+            
+            # 根据扩展名设置文件类型
+            ext = os.path.splitext(file.name)[1].lower()
+            type_mapping = {
+                '.pdf': 'pdf',
+                '.doc': 'doc',
+                '.docx': 'docx',
+                '.txt': 'txt',
+                '.md': 'md',
+                '.csv': 'csv',
+                '.ppt': 'ppt',
+                '.pptx': 'pptx',
+                '.xls': 'xls',
+                '.xlsx': 'xlsx',
+                '.jpg': 'image',
+                '.jpeg': 'image',
+                '.png': 'image',
+                '.gif': 'image',
+                '.bmp': 'image',
+            }
+            validated_data['file_type'] = type_mapping.get(ext, 'other')
+            
+            # 如果没有提供标题，使用文件名（不含扩展名）
+            if not validated_data.get('title'):
+                validated_data['title'] = os.path.splitext(file.name)[0]
+        
         return super().create(validated_data)
 
 
@@ -122,3 +163,34 @@ class DocumentAccessSerializer(serializers.ModelSerializer):
         model = DocumentAccess
         fields = ['id', 'user', 'user_name', 'access_time', 'action']
         read_only_fields = ['user', 'access_time']
+
+
+class DocumentFolderSerializer(serializers.ModelSerializer):
+    """文档文件夹序列化器"""
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    parent_name = serializers.CharField(source='parent.name', read_only=True)
+    document_count = serializers.ReadOnlyField()
+    total_document_count = serializers.ReadOnlyField()
+    full_path = serializers.CharField(source='get_full_path', read_only=True)
+    subfolders = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DocumentFolder
+        fields = [
+            'id', 'name', 'description', 'category', 'category_name',
+            'parent', 'parent_name', 'full_path',
+            'document_count', 'total_document_count',
+            'created_by', 'created_by_name',
+            'created_at', 'updated_at', 'subfolders'
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+    
+    def get_subfolders(self, obj):
+        """获取子文件夹列表（仅一级）"""
+        subfolders = obj.subfolders.all()
+        return [{
+            'id': folder.id,
+            'name': folder.name,
+            'document_count': folder.document_count
+        } for folder in subfolders]

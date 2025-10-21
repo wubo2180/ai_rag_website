@@ -87,7 +87,7 @@
       const handleKnowledgeBaseClick = () => {
         console.log('🗃️ 知识库按钮被点击了!')
         // 添加一个小提示确认点击
-        ElMessage.info('正在跳转到知识库页面...')
+        // ElMessage.info('正在跳转到知识库页面...')
         // 执行路由跳转
         router.push('/knowledge-base')
       }
@@ -101,14 +101,14 @@
         console.log('🗃️ 开始导航到知识库页面')
         console.log('当前路由:', router.currentRoute.value.path)
 
-        ElMessage.info('正在跳转到知识库页面...')
+        // ElMessage.info('正在跳转到知识库页面...')
 
         // 使用router.push进行导航
         router
           .push('/knowledge-base')
           .then(() => {
             console.log('✅ 导航成功完成')
-            ElMessage.success('成功跳转到知识库页面!')
+            // ElMessage.success('成功跳转到知识库页面!')
           })
           .catch((error) => {
             console.error('❌ 导航失败:', error)

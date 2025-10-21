@@ -3,19 +3,13 @@
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-content">
-        <h1>
-          <el-icon><Document /></el-icon>
-          文献资料管理
-        </h1>
-        <p>管理您的文献资料，支持多种文件格式的上传和分类整理</p>
+        <h1>📚 文档管理系统</h1>
+        <p>支持分类、文件夹管理和批量上传</p>
       </div>
       
       <div class="header-actions">
-        <el-button type="primary" @click="showUploadDialog" icon="Plus">
-          上传文档
-        </el-button>
-        <el-button @click="showCategoryDialog" icon="FolderAdd">
-          新建分类
+        <el-button type="primary" @click="showCategoryDialog">
+          <el-icon><Plus /></el-icon> 新建分类
         </el-button>
       </div>
     </div>
@@ -62,222 +56,219 @@
       </el-row>
     </div>
 
-    <!-- 搜索和筛选 -->
-    <div class="search-filter-section">
-      <div class="search-bar">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索文档标题、描述或标签..."
-          @input="handleSearch"
-          clearable
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-      </div>
+    <!-- 分类选择 -->
+    <el-card class="category-section" shadow="hover">
+      <template #header>
+        <div class="card-header">
+          <span>📁 文档分类</span>
+          <el-button type="text" @click="loadCategories" :loading="categoriesLoading">
+            <el-icon><Refresh /></el-icon> 刷新
+          </el-button>
+        </div>
+      </template>
       
-      <div class="filter-controls">
-        <el-select
-          v-model="selectedCategory"
-          placeholder="选择分类"
-          @change="handleFilter"
-          clearable
-        >
-          <el-option
+      <el-scrollbar height="150px">
+        <div class="categories-grid">
+          <div
             v-for="category in categories"
-            :key="category.id"
-            :label="category.name"
-            :value="category.id"
-          />
-        </el-select>
-        
-        <el-select
-          v-model="selectedFileType"
-          placeholder="文件类型"
-          @change="handleFilter"
-          clearable
-        >
-          <el-option
-            v-for="type in fileTypes"
-            :key="type.value"
-            :label="type.label"
-            :value="type.value"
-          />
-        </el-select>
-        
-        <el-select
-          v-model="sortBy"
-          placeholder="排序方式"
-          @change="handleFilter"
-        >
-          <el-option label="最新上传" value="-created_at" />
-          <el-option label="最早上传" value="created_at" />
-          <el-option label="标题 A-Z" value="title" />
-          <el-option label="标题 Z-A" value="-title" />
-          <el-option label="文件大小" value="file_size" />
-        </el-select>
-      </div>
-    </div>
-
-    <!-- 文档列表 -->
-    <div class="documents-content">
-      <el-card class="documents-list-card">
-        <template #header>
-          <div class="card-header">
-            <span>文档列表 ({{ documents.length }})</span>
-            <div class="view-controls">
-              <el-radio-group v-model="viewMode" size="small">
-                <el-radio-button label="card">卡片</el-radio-button>
-                <el-radio-button label="list">列表</el-radio-button>
-              </el-radio-group>
+            :key="category?.id || Math.random()"
+            :class="['category-item', { active: category && selectedCategory === category.id }]"
+            @click="category && selectCategory(category.id)"
+          >
+            <div class="category-color" :style="{ backgroundColor: category?.color || '#999' }"></div>
+            <div class="category-info">
+              <div class="category-name">{{ category?.name || '未知分类' }}</div>
+              <div class="category-count">
+                {{ category?.document_count || 0 }} 文档
+                <span v-if="category?.folder_count"> · {{ category.folder_count }} 文件夹</span>
+              </div>
             </div>
           </div>
-        </template>
-
-        <!-- 卡片视图 -->
-        <div v-if="viewMode === 'card'" class="card-view">
-          <el-row :gutter="20">
-            <el-col :span="6" v-for="document in documents" :key="document.id">
-              <div class="document-card">
-                <div class="document-icon">
-                  <span class="file-type-icon">{{ document.file_type_icon }}</span>
-                  <span class="file-type">{{ document.file_type.toUpperCase() }}</span>
-                </div>
-                
-                <div class="document-info">
-                  <h3 class="document-title" :title="document.title">
-                    {{ document.title }}
-                  </h3>
-                  
-                  <p class="document-desc" v-if="document.description">
-                    {{ document.description }}
-                  </p>
-                  
-                  <div class="document-meta">
-                    <div class="meta-item">
-                      <el-icon><Clock /></el-icon>
-                      {{ formatDate(document.created_at) }}
-                    </div>
-                    <div class="meta-item">
-                      <el-icon><Folder /></el-icon>
-                      {{ document.file_size_human }}
-                    </div>
-                  </div>
-                  
-                  <div class="document-category" v-if="document.category_name">
-                    <el-tag :color="document.category_color" size="small">
-                      {{ document.category_name }}
-                    </el-tag>
-                  </div>
-                  
-                  <div class="document-tags" v-if="document.tags_list.length">
-                    <el-tag
-                      v-for="tag in document.tags_list.slice(0, 3)"
-                      :key="tag"
-                      size="small"
-                      type="info"
-                    >
-                      {{ tag }}
-                    </el-tag>
-                    <span v-if="document.tags_list.length > 3" class="more-tags">
-                      +{{ document.tags_list.length - 3 }}
-                    </span>
-                  </div>
-                </div>
-                
-                <div class="document-actions">
-                  <el-button size="small" @click="viewDocument(document)">
-                    查看
-                  </el-button>
-                  <el-button size="small" @click="downloadDocument(document)" type="primary">
-                    下载
-                  </el-button>
-                  <el-dropdown @command="handleDocAction">
-                    <el-button size="small" type="info">
-                      更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
-                    </el-button>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item :command="{action: 'edit', doc: document}">
-                          编辑
-                        </el-dropdown-item>
-                        <el-dropdown-item :command="{action: 'delete', doc: document}" divided>
-                          删除
-                        </el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
-                </div>
-              </div>
-            </el-col>
-          </el-row>
         </div>
+      </el-scrollbar>
+    </el-card>
 
-        <!-- 列表视图 -->
-        <div v-else class="list-view">
-          <el-table :data="documents" stripe>
-            <el-table-column width="60">
-              <template #default="{ row }">
-                <span class="file-icon">{{ row.file_type_icon }}</span>
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="文档名称" min-width="200">
-              <template #default="{ row }">
-                <div class="document-name">
-                  <div class="title">{{ row.title }}</div>
-                  <div class="filename">{{ row.original_filename }}</div>
-                </div>
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="分类" width="120">
-              <template #default="{ row }">
-                <el-tag v-if="row.category_name" :color="row.category_color" size="small">
-                  {{ row.category_name }}
-                </el-tag>
-                <span v-else class="text-gray">未分类</span>
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="文件大小" width="100">
-              <template #default="{ row }">
-                {{ row.file_size_human }}
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="上传时间" width="150">
-              <template #default="{ row }">
-                {{ formatDate(row.created_at) }}
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="操作" width="200">
-              <template #default="{ row }">
-                <el-button size="small" @click="viewDocument(row)">
-                  查看
+    <!-- 当前路径面包屑 -->
+    <el-card v-if="selectedCategory" class="path-breadcrumb" shadow="never">
+      <el-breadcrumb separator="/">
+        <el-breadcrumb-item @click="navigateToRoot">
+          <el-icon><HomeFilled /></el-icon> {{ currentCategoryName }}
+        </el-breadcrumb-item>
+        <el-breadcrumb-item
+          v-for="(folder, index) in breadcrumbPath"
+          :key="folder.id"
+          @click="navigateToFolder(folder.id, index)"
+        >
+          {{ folder.name }}
+        </el-breadcrumb-item>
+      </el-breadcrumb>
+    </el-card>
+
+    <!-- 文件夹和文档列表 -->
+    <el-card v-if="selectedCategory" v-loading="loading">
+      <template #header>
+        <div class="card-header">
+          <span>📂 文件夹列表</span>
+          <div class="toolbar">
+            <el-button
+              type="primary"
+              size="small"
+              @click="showUploadDialog"
+            >
+              <el-icon><Upload /></el-icon> 上传文档
+            </el-button>
+            <el-button
+              type="success"
+              size="small"
+              @click="showBatchUploadDialog"
+            >
+              <el-icon><FolderAdd /></el-icon> 批量上传
+            </el-button>
+            <el-button
+              v-if="currentFolderId"
+              size="small"
+              @click="createFolder"
+            >
+              <el-icon><FolderAdd /></el-icon> 新建子文件夹
+            </el-button>
+            <el-button
+              v-else
+              size="small"
+              @click="createFolder"
+            >
+              <el-icon><FolderAdd /></el-icon> 新建文件夹
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 文件夹列表 -->
+      <div v-if="folders.length > 0" class="folders-section">
+        <h4>📁 文件夹</h4>
+        <el-row :gutter="20">
+          <el-col
+            v-for="folder in folders"
+            :key="'folder-' + folder.id"
+            :span="6"
+          >
+            <div class="folder-card" @dblclick="navigateToFolder(folder.id)">
+              <div class="folder-icon">📁</div>
+              <div class="folder-name">{{ folder.name }}</div>
+              <div class="folder-stats">{{ folder.document_count }} 个文件</div>
+              <div class="folder-actions">
+                <el-button
+                  type="primary"
+                  text
+                  size="small"
+                  @click.stop="navigateToFolder(folder.id)"
+                >
+                  打开
                 </el-button>
-                <el-button size="small" type="primary" @click="downloadDocument(row)">
-                  下载
-                </el-button>
-                <el-button size="small" @click="editDocument(row)">
-                  编辑
-                </el-button>
-                <el-button size="small" type="danger" @click="deleteDocument(row)">
+                <el-button
+                  type="danger"
+                  text
+                  size="small"
+                  @click.stop="deleteFolder(folder.id)"
+                >
                   删除
                 </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+        <el-divider />
+      </div>
+
+      <!-- 文档列表 -->
+      <div v-if="documents.length > 0" class="documents-section">
+        <div class="documents-header">
+          <h4>📄 文档</h4>
+          <div class="batch-actions" v-if="selectedDocuments.length > 0">
+            <span class="selected-count">已选择 {{ selectedDocuments.length }} 个CSV文件</span>
+            <el-button 
+              type="success" 
+              size="small" 
+              @click="transferToKnowledgeGraph"
+              :disabled="!hasCSVFiles"
+            >
+              <el-icon><Connection /></el-icon> 转到知识图谱
+            </el-button>
+          </div>
         </div>
+        <el-table 
+          :data="documents" 
+          stripe
+          row-key="id"
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column 
+            type="selection" 
+            width="55" 
+            :selectable="isCSVFile"
+            reserve-selection
+          />
+          <el-table-column label="文件名" min-width="200">
+            <template #default="{ row }">
+              <div class="file-info">
+                <span class="file-icon">{{ row.file_type_icon }}</span>
+                <span class="file-name">{{ row.original_filename || row.title }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          
+          <el-table-column label="大小" width="100">
+            <template #default="{ row }">
+              {{ row.file_size_human }}
+            </template>
+          </el-table-column>
+          
+          <el-table-column label="上传者" width="120">
+            <template #default="{ row }">
+              {{ row.uploaded_by_name }}
+            </template>
+          </el-table-column>
+          
+          <el-table-column label="上传时间" width="180">
+            <template #default="{ row }">
+              {{ formatDate(row.created_at) }}
+            </template>
+          </el-table-column>
+          
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                type="primary"
+                text
+                size="small"
+                @click="viewDocument(row)"
+              >
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button
+                type="success"
+                text
+                size="small"
+                @click="downloadDocument(row.id)"
+              >
+                <el-icon><Download /></el-icon> 下载
+              </el-button>
+              <el-button
+                type="danger"
+                text
+                size="small"
+                @click="deleteDocument(row.id)"
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
-        <!-- 空状态 -->
-        <el-empty v-if="documents.length === 0" description="暂无文档，点击上传按钮开始添加文档" />
-      </el-card>
-    </div>
+      <el-empty v-if="folders.length === 0 && documents.length === 0" description="暂无数据" />
+    </el-card>
 
-    <!-- 上传文档对话框 -->
+    <!-- 上传对话框 -->
     <el-dialog v-model="uploadDialogVisible" title="上传文档" width="600px">
       <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-width="100px">
         <el-form-item label="选择文件" prop="file">
@@ -290,7 +281,7 @@
             :limit="1"
             accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.bmp"
           >
-            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">
               将文件拖到此处，或<em>点击上传</em>
             </div>
@@ -315,17 +306,6 @@
           />
         </el-form-item>
         
-        <el-form-item label="选择分类">
-          <el-select v-model="uploadForm.category" placeholder="选择分类" clearable>
-            <el-option
-              v-for="category in categories"
-              :key="category.id"
-              :label="category.name"
-              :value="category.id"
-            />
-          </el-select>
-        </el-form-item>
-        
         <el-form-item label="标签">
           <el-input
             v-model="uploadForm.tags"
@@ -335,8 +315,8 @@
         
         <el-form-item label="权限设置">
           <el-radio-group v-model="uploadForm.is_public">
-            <el-radio :label="false">私有</el-radio>
-            <el-radio :label="true">公开</el-radio>
+            <el-radio :value="false">私有</el-radio>
+            <el-radio :value="true">公开</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -344,113 +324,206 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitUpload" :loading="uploading">
+          <el-button type="primary" @click="handleUpload" :loading="uploading">
             上传
           </el-button>
         </span>
       </template>
     </el-dialog>
 
-    <!-- 分类管理对话框 -->
-    <el-dialog v-model="categoryDialogVisible" title="新建分类" width="500px">
-      <el-form :model="categoryForm" :rules="categoryRules" ref="categoryFormRef" label-width="100px">
-        <el-form-item label="分类名称" prop="name">
-          <el-input v-model="categoryForm.name" placeholder="请输入分类名称" />
+    <!-- 批量上传对话框 -->
+    <el-dialog v-model="batchUploadDialogVisible" title="批量上传文档" width="600px">
+      <el-form label-width="100px">
+        <el-form-item label="选择文件">
+          <el-upload
+            class="upload-demo"
+            drag
+            :auto-upload="false"
+            multiple
+            :file-list="batchFileList"
+            :on-change="handleBatchFileChange"
+            :on-remove="handleBatchFileRemove"
+            accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.bmp"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">
+              将多个文件拖到此处，或<em>点击选择</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持同时上传多个文件，文件大小不超过50MB
+              </div>
+            </template>
+          </el-upload>
         </el-form-item>
-        
-        <el-form-item label="分类描述">
-          <el-input
-            v-model="categoryForm.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入分类描述（可选）"
-          />
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="batchUploadDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleBatchUpload" :loading="batchUploading">
+          上传 {{ batchFileList.length }} 个文件
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新建分类对话框 -->
+    <el-dialog v-model="categoryDialogVisible" title="新建分类" width="500px">
+      <el-form :model="categoryForm" label-width="100px">
+        <el-form-item label="分类名称">
+          <el-input v-model="categoryForm.name" placeholder="请输入分类名称" />
         </el-form-item>
         
         <el-form-item label="分类颜色">
           <el-color-picker v-model="categoryForm.color" />
         </el-form-item>
+        
+        <el-form-item label="描述">
+          <el-input
+            v-model="categoryForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="分类描述"
+          />
+        </el-form-item>
       </el-form>
       
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="categoryDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitCategory">
-            创建
-          </el-button>
-        </span>
+        <el-button @click="categoryDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="createCategory" :loading="categoryCreating">
+          创建
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新建文件夹对话框 -->
+    <el-dialog v-model="folderDialogVisible" title="新建文件夹" width="500px">
+      <el-form :model="folderForm" label-width="100px">
+        <el-form-item label="文件夹名称">
+          <el-input v-model="folderForm.name" placeholder="请输入文件夹名称" />
+        </el-form-item>
+        
+        <el-form-item label="描述">
+          <el-input
+            v-model="folderForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="文件夹描述（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="folderDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateFolder" :loading="folderCreating">
+          创建
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 文档查看对话框 -->
+    <el-dialog v-model="viewDialogVisible" :title="currentDocument?.title" width="800px">
+      <div v-if="currentDocument" class="document-detail">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="文件名">
+            {{ currentDocument.original_filename }}
+          </el-descriptions-item>
+          <el-descriptions-item label="文件大小">
+            {{ currentDocument.file_size_human }}
+          </el-descriptions-item>
+          <el-descriptions-item label="文件类型">
+            {{ currentDocument.file_type_icon }} {{ currentDocument.file_type }}
+          </el-descriptions-item>
+          <el-descriptions-item label="上传者">
+            {{ currentDocument.uploaded_by_name }}
+          </el-descriptions-item>
+          <el-descriptions-item label="上传时间" :span="2">
+            {{ formatDate(currentDocument.created_at) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="描述" :span="2">
+            {{ currentDocument.description || '无' }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+      
+      <template #footer>
+        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button
+          type="primary"
+          @click="downloadDocument(currentDocument.id)"
+        >
+          <el-icon><Download /></el-icon> 下载
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Document,
-  Plus,
-  FolderAdd,
-  Search,
-  Clock,
-  Folder,
-  ArrowDown,
-  UploadFilled
+  Upload, FolderAdd, Plus, Refresh, HomeFilled,
+  View, Download, Delete, Search, UploadFilled, Connection
 } from '@element-plus/icons-vue'
-import apiClient from '@/utils/api'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import apiClient from '@/utils/api'
 
+const API_BASE = '/documents'  // apiClient 已经包含 /api 前缀
 const router = useRouter()
 const userStore = useUserStore()
 
-// 响应式数据
-const documents = ref([])
+// 数据
 const categories = ref([])
-const stats = ref({})
-const searchKeyword = ref('')
-const selectedCategory = ref('')
-const selectedFileType = ref('')
-const sortBy = ref('-created_at')
-const viewMode = ref('card')
+const folders = ref([])
+const documents = ref([])
+const selectedCategory = ref(null)
+const currentFolderId = ref(null)
+const breadcrumbPath = ref([])
+const stats = ref({
+  total_documents: 0,
+  total_categories: 0,
+  total_size_human: '0 B',
+  file_type_stats: {}
+})
 
-// 对话框状态
-const uploadDialogVisible = ref(false)
-const categoryDialogVisible = ref(false)
+// 文件选择相关
+const selectedDocuments = ref([])
+const hasCSVFiles = computed(() => {
+  return selectedDocuments.value.some(doc => 
+    doc.original_filename && doc.original_filename.toLowerCase().endsWith('.csv')
+  )
+})
+
+// 加载状态
+const loading = ref(false)
+const categoriesLoading = ref(false)
 const uploading = ref(false)
+const batchUploading = ref(false)
+const categoryCreating = ref(false)
+const folderCreating = ref(false)
 
-// 表单数据
-const uploadForm = ref({
+// 对话框
+const uploadDialogVisible = ref(false)
+const batchUploadDialogVisible = ref(false)
+const categoryDialogVisible = ref(false)
+const folderDialogVisible = ref(false)
+const viewDialogVisible = ref(false)
+
+// 表单
+const uploadForm = reactive({
   title: '',
   description: '',
   file: null,
-  category: '',
   tags: '',
   is_public: false
 })
 
-const categoryForm = ref({
-  name: '',
-  description: '',
-  color: '#1890ff'
-})
-
+const batchFileList = ref([])
 const fileList = ref([])
 
-// 文件类型选项
-const fileTypes = [
-  { label: 'PDF文档', value: 'pdf' },
-  { label: 'Word文档', value: 'doc' },
-  { label: 'Word文档', value: 'docx' },
-  { label: '文本文件', value: 'txt' },
-  { label: 'Markdown', value: 'md' },
-  { label: 'PowerPoint', value: 'ppt' },
-  { label: 'PowerPoint', value: 'pptx' },
-  { label: 'Excel表格', value: 'xls' },
-  { label: 'Excel表格', value: 'xlsx' },
-  { label: '图片文件', value: 'image' },
-  { label: '其他文件', value: 'other' }
-]
+// 表单引用
+const uploadFormRef = ref()
 
 // 表单验证规则
 const uploadRules = {
@@ -462,120 +535,207 @@ const uploadRules = {
   ]
 }
 
-const categoryRules = {
-  name: [
-    { required: true, message: '请输入分类名称', trigger: 'blur' }
-  ]
-}
+const categoryForm = reactive({
+  name: '',
+  color: '#1890ff',
+  description: ''
+})
 
-const uploadFormRef = ref()
-const categoryFormRef = ref()
+const folderForm = reactive({
+  name: '',
+  description: ''
+})
+
+const currentDocument = ref(null)
+
+// 计算属性
+const currentCategoryName = computed(() => {
+  if (!selectedCategory.value || !Array.isArray(categories.value)) {
+    return ''
+  }
+  const category = categories.value.find(c => c && c.id === selectedCategory.value)
+  return category ? category.name : ''
+})
 
 // 方法
-const fetchDocuments = async () => {
+const loadCategories = async () => {
+  categoriesLoading.value = true
   try {
-    const params = {
-      search: searchKeyword.value,
-      category: selectedCategory.value,
-      file_type: selectedFileType.value,
-      ordering: sortBy.value
+    // 检查登录状态
+    if (!userStore.isLoggedIn) {
+      ElMessage.warning('请先登录')
+      router.push('/login')
+      return
     }
     
-    const response = await apiClient.get('/documents/list/', { params })
-    documents.value = response.data.results || response.data
-  } catch (error) {
-    if (error.response?.status === 401) {
-      ElMessage.warning('登录已过期，请重新登录')
-      userStore.clearAuth()
-      router.push('/login')
+    const response = await apiClient.get(`${API_BASE}/categories/`)
+    console.log('Categories response:', response.data) // 调试信息
+    
+    // 处理可能的分页格式或直接数组格式
+    if (Array.isArray(response.data)) {
+      categories.value = response.data
+    } else if (response.data && Array.isArray(response.data.results)) {
+      // 分页格式
+      categories.value = response.data.results
     } else {
-      ElMessage.error('获取文档列表失败')
+      console.error('Unexpected categories data format:', response.data)
+      categories.value = []
     }
-    console.error('Error fetching documents:', error)
-  }
-}
-
-const fetchCategories = async () => {
-  try {
-    const response = await apiClient.get('/documents/categories/')
-    categories.value = response.data.results || response.data
+    
+    console.log('Parsed categories:', categories.value) // 调试信息
   } catch (error) {
+    console.error('Load categories error:', error) // 调试信息
+    ElMessage.error('加载分类失败: ' + (error.response?.data?.detail || error.message))
     if (error.response?.status === 401) {
-      ElMessage.warning('登录已过期，请重新登录')
-      userStore.clearAuth()
       router.push('/login')
-    } else {
-      ElMessage.error('获取分类列表失败')
     }
-    console.error('Error fetching categories:', error)
+    categories.value = [] // 出错时设置为空数组
+  } finally {
+    categoriesLoading.value = false
   }
 }
 
 const fetchStats = async () => {
   try {
-    const response = await apiClient.get('/documents/stats/')
+    const response = await apiClient.get(`${API_BASE}/stats/`)
     stats.value = response.data
   } catch (error) {
-    if (error.response?.status === 401) {
-      ElMessage.warning('登录已过期，请重新登录')
-      userStore.clearAuth()
-      router.push('/login')
-    } else {
-      ElMessage.error('获取统计信息失败')
-    }
     console.error('Error fetching stats:', error)
+    if (error.response?.status === 401) {
+      router.push('/login')
+    }
   }
 }
 
-const showUploadDialog = () => {
-  uploadDialogVisible.value = true
-  uploadForm.value = {
-    title: '',
-    description: '',
-    file: null,
-    category: '',
-    tags: '',
-    is_public: false
+const selectCategory = async (categoryId) => {
+  console.log('Selecting category:', categoryId) // 调试信息
+  selectedCategory.value = categoryId
+  currentFolderId.value = null
+  breadcrumbPath.value = []
+  await loadCategoryContents()
+}
+
+const loadCategoryContents = async () => {
+  loading.value = true
+  try {
+    let url = `${API_BASE}/categories/${selectedCategory.value}/documents/`
+    
+    if (currentFolderId.value) {
+      url += `?folder=${currentFolderId.value}`
+    }
+    
+    console.log('Loading category contents from:', url) // 调试信息
+    const response = await apiClient.get(url)
+    console.log('Category contents response:', response.data) // 调试信息
+    
+    folders.value = response.data.folders || []
+    documents.value = response.data.documents || []
+    
+    // 调试输出
+    console.log('加载的文档数据:', documents.value)
+    console.log('文档数量:', documents.value.length)
+  } catch (error) {
+    console.error('Load category contents error:', error) // 调试信息
+    console.error('Error response:', error.response) // 调试信息
+    ElMessage.error('加载内容失败: ' + (error.response?.data?.detail || error.response?.data?.error || error.message))
+  } finally {
+    loading.value = false
   }
+}
+
+const navigateToRoot = () => {
+  currentFolderId.value = null
+  breadcrumbPath.value = []
+  loadCategoryContents()
+}
+
+const navigateToFolder = async (folderId, breadcrumbIndex = null) => {
+  if (breadcrumbIndex !== null) {
+    breadcrumbPath.value = breadcrumbPath.value.slice(0, breadcrumbIndex + 1)
+  } else {
+    const folder = folders.value.find(f => f.id === folderId)
+    if (folder) {
+      breadcrumbPath.value.push({ id: folder.id, name: folder.name })
+    }
+  }
+  
+  currentFolderId.value = folderId
+  await loadCategoryContents()
+}
+
+const showUploadDialog = () => {
+  if (!selectedCategory.value) {
+    ElMessage.warning('请先选择一个分类')
+    return
+  }
+  uploadDialogVisible.value = true
+  // 重置表单
+  uploadForm.title = ''
+  uploadForm.description = ''
+  uploadForm.file = null
+  uploadForm.tags = ''
+  uploadForm.is_public = false
   fileList.value = []
+}
+
+const showBatchUploadDialog = () => {
+  if (!selectedCategory.value) {
+    ElMessage.warning('请先选择一个分类')
+    return
+  }
+  batchUploadDialogVisible.value = true
+  batchFileList.value = []
 }
 
 const showCategoryDialog = () => {
   categoryDialogVisible.value = true
-  categoryForm.value = {
-    name: '',
-    description: '',
-    color: '#1890ff'
-  }
 }
 
 const handleFileChange = (file) => {
-  uploadForm.value.file = file.raw
-  if (!uploadForm.value.title) {
-    uploadForm.value.title = file.name.split('.')[0]
+  uploadForm.file = file.raw
+  // 自动填充标题
+  if (!uploadForm.title) {
+    uploadForm.title = file.name.split('.')[0]
   }
 }
 
-const submitUpload = async () => {
+const handleBatchFileChange = (file, fileList) => {
+  batchFileList.value = fileList
+}
+
+const handleBatchFileRemove = (file, fileList) => {
+  batchFileList.value = fileList
+}
+
+const handleUpload = async () => {
   if (!uploadFormRef.value) return
   
   await uploadFormRef.value.validate(async (valid) => {
     if (valid) {
       uploading.value = true
-      
-      const formData = new FormData()
-      formData.append('file', uploadForm.value.file)
-      formData.append('title', uploadForm.value.title)
-      formData.append('description', uploadForm.value.description)
-      formData.append('tags', uploadForm.value.tags)
-      formData.append('is_public', uploadForm.value.is_public)
-      
-      if (uploadForm.value.category) {
-        formData.append('category', uploadForm.value.category)
-      }
-      
       try {
-        await apiClient.post('/documents/upload/', formData, {
+        const formData = new FormData()
+        formData.append('file', uploadForm.file)
+        formData.append('title', uploadForm.title)
+        formData.append('description', uploadForm.description)
+        formData.append('tags', uploadForm.tags)
+        formData.append('is_public', uploadForm.is_public)
+        formData.append('category', selectedCategory.value)
+        
+        if (currentFolderId.value) {
+          formData.append('folder', currentFolderId.value)
+        }
+        
+        console.log('Upload data:', {
+          file: uploadForm.file.name,
+          title: uploadForm.title,
+          category: selectedCategory.value,
+          folder: currentFolderId.value,
+          tags: uploadForm.tags,
+          is_public: uploadForm.is_public
+        })
+        
+        await apiClient.post(`${API_BASE}/upload/`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
@@ -583,10 +743,38 @@ const submitUpload = async () => {
         
         ElMessage.success('文档上传成功')
         uploadDialogVisible.value = false
-        fetchDocuments()
-        fetchStats()
+        await loadCategoryContents()
+        await fetchStats() // 更新统计数据
       } catch (error) {
-        ElMessage.error(error.response?.data?.errors || '上传失败')
+        console.error('Upload error:', error.response?.data || error)
+        
+        let errorMessage = '上传失败'
+        
+        if (error.response?.data) {
+          if (error.response.data.errors) {
+            // 处理验证错误
+            if (typeof error.response.data.errors === 'object') {
+              const errorMessages = Object.values(error.response.data.errors).flat().join(', ')
+              errorMessage = `上传失败: ${errorMessages}`
+            } else {
+              errorMessage = `上传失败: ${error.response.data.errors}`
+            }
+          } else if (error.response.data.error) {
+            errorMessage = `上传失败: ${error.response.data.error}`
+          } else if (error.response.data.message) {
+            errorMessage = `上传失败: ${error.response.data.message}`
+          } else if (typeof error.response.data === 'string') {
+            errorMessage = `上传失败: ${error.response.data}`
+          } else {
+            errorMessage = `上传失败: ${JSON.stringify(error.response.data)}`
+          }
+        } else if (error.message) {
+          errorMessage = `上传失败: ${error.message}`
+        } else {
+          errorMessage = '上传失败: 未知错误'
+        }
+        
+        ElMessage.error(errorMessage)
       } finally {
         uploading.value = false
       }
@@ -594,184 +782,299 @@ const submitUpload = async () => {
   })
 }
 
-const submitCategory = async () => {
-  if (!categoryFormRef.value) return
+const handleBatchUpload = async () => {
+  if (batchFileList.value.length === 0) {
+    ElMessage.warning('请选择要上传的文件')
+    return
+  }
   
-  await categoryFormRef.value.validate(async (valid) => {
-    if (valid) {
-      try {
-        await apiClient.post('/documents/categories/', categoryForm.value)
-        ElMessage.success('分类创建成功')
-        categoryDialogVisible.value = false
-        fetchCategories()
-        fetchStats()
-      } catch (error) {
-        ElMessage.error('创建分类失败')
-      }
-    }
-  })
-}
-
-const handleSearch = () => {
-  fetchDocuments()
-}
-
-const handleFilter = () => {
-  fetchDocuments()
-}
-
-const viewDocument = async (document) => {
+  batchUploading.value = true
   try {
-    await apiClient.get(`/documents/${document.id}/`)
-    // 这里可以添加文档预览逻辑
-    ElMessage.success('查看文档')
+    const formData = new FormData()
+    
+    batchFileList.value.forEach(fileItem => {
+      formData.append('files', fileItem.raw)
+    })
+    
+    formData.append('category', selectedCategory.value)
+    if (currentFolderId.value) {
+      formData.append('folder', currentFolderId.value)
+    }
+    
+    console.log('Batch upload data:', {
+      filesCount: batchFileList.value.length,
+      category: selectedCategory.value,
+      folder: currentFolderId.value
+    })
+    
+    const response = await apiClient.post(`${API_BASE}/batch-upload/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    ElMessage.success(response.data.message)
+    batchUploadDialogVisible.value = false
+    batchFileList.value = []
+    await loadCategoryContents()
+    await fetchStats() // 更新统计数据
   } catch (error) {
-    ElMessage.error('无法查看文档')
+    console.error('Batch upload error:', error.response?.data || error)
+    
+    let errorMessage = '批量上传失败'
+    
+    if (error.response?.data) {
+      if (error.response.data.errors) {
+        // 处理验证错误
+        if (typeof error.response.data.errors === 'object') {
+          const errorMessages = Object.values(error.response.data.errors).flat().join(', ')
+          errorMessage = `批量上传失败: ${errorMessages}`
+        } else {
+          errorMessage = `批量上传失败: ${error.response.data.errors}`
+        }
+      } else if (error.response.data.error) {
+        errorMessage = `批量上传失败: ${error.response.data.error}`
+      } else if (error.response.data.message) {
+        errorMessage = `批量上传失败: ${error.response.data.message}`
+      } else if (typeof error.response.data === 'string') {
+        errorMessage = `批量上传失败: ${error.response.data}`
+      } else {
+        errorMessage = `批量上传失败: ${JSON.stringify(error.response.data)}`
+      }
+    } else if (error.message) {
+      errorMessage = `批量上传失败: ${error.message}`
+    } else {
+      errorMessage = '批量上传失败: 未知错误'
+    }
+    
+    ElMessage.error(errorMessage)
+  } finally {
+    batchUploading.value = false
   }
 }
 
-const downloadDocument = async (document) => {
+const createCategory = async () => {
+  if (!categoryForm.name) {
+    ElMessage.warning('请输入分类名称')
+    return
+  }
+  
+  categoryCreating.value = true
   try {
-    const response = await apiClient.get(`/documents/${document.id}/download/`, {
+    const createResponse = await apiClient.post(`${API_BASE}/categories/`, categoryForm)
+    console.log('Create category response:', createResponse.data) // 调试信息
+    
+    ElMessage.success('创建成功')
+    categoryDialogVisible.value = false
+    categoryForm.name = ''
+    categoryForm.color = '#1890ff'
+    categoryForm.description = ''
+    await loadCategories()
+    await fetchStats() // 更新统计数据
+    console.log('Categories after reload:', categories.value) // 调试信息
+  } catch (error) {
+    console.error('Create category error:', error) // 调试信息
+    ElMessage.error('创建失败: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    categoryCreating.value = false
+  }
+}
+
+const createFolder = () => {
+  folderDialogVisible.value = true
+}
+
+const handleCreateFolder = async () => {
+  if (!folderForm.name) {
+    ElMessage.warning('请输入文件夹名称')
+    return
+  }
+  
+  folderCreating.value = true
+  try {
+    const data = {
+      name: folderForm.name,
+      description: folderForm.description,
+      category: selectedCategory.value,
+      parent: currentFolderId.value
+    }
+    
+    await apiClient.post(`${API_BASE}/folders/`, data)
+    
+    ElMessage.success('文件夹创建成功')
+    folderDialogVisible.value = false
+    folderForm.name = ''
+    folderForm.description = ''
+    await loadCategoryContents()
+  } catch (error) {
+    ElMessage.error('创建失败: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    folderCreating.value = false
+  }
+}
+
+const deleteFolder = async (folderId) => {
+  try {
+    await ElMessageBox.confirm('确定要删除此文件夹吗？', '提示', {
+      type: 'warning'
+    })
+    
+    await apiClient.delete(`${API_BASE}/folders/${folderId}/`)
+    
+    ElMessage.success('删除成功')
+    await loadCategoryContents()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败: ' + (error.response?.data?.error || error.message))
+    }
+  }
+}
+
+const viewDocument = (doc) => {
+  currentDocument.value = doc
+  viewDialogVisible.value = true
+}
+
+const downloadDocument = async (docId) => {
+  try {
+    const response = await apiClient.get(`${API_BASE}/${docId}/download/`, {
       responseType: 'blob'
     })
     
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', document.original_filename)
+    
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'download'
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/)
+      if (filenameMatch) {
+        filename = filenameMatch[1]
+      }
+    }
+    
+    link.setAttribute('download', filename)
     document.body.appendChild(link)
     link.click()
-    link.remove()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
     
-    ElMessage.success('下载开始')
+    ElMessage.success('下载成功')
   } catch (error) {
-    ElMessage.error('下载失败')
+    ElMessage.error('下载失败: ' + (error.response?.data?.detail || error.message))
   }
 }
 
-const editDocument = (document) => {
-  // 编辑文档逻辑
-  ElMessage.info('编辑功能开发中')
-}
-
-const deleteDocument = async (document) => {
+const deleteDocument = async (docId) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除文档 "${document.title}" 吗？此操作不可撤销。`,
-      '确认删除',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
+    await ElMessageBox.confirm('确定要删除此文档吗？', '提示', {
+      type: 'warning'
+    })
     
-    await apiClient.delete(`/documents/${document.id}/delete/`)
-    ElMessage.success('文档删除成功')
-    fetchDocuments()
-    fetchStats()
+    await apiClient.delete(`${API_BASE}/${docId}/delete/`)
+    
+    ElMessage.success('删除成功')
+    await loadCategoryContents()
+    await fetchStats() // 更新统计数据
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error('删除失败: ' + (error.response?.data?.detail || error.message))
     }
   }
 }
 
-const handleDocAction = (command) => {
-  if (command.action === 'edit') {
-    editDocument(command.doc)
-  } else if (command.action === 'delete') {
-    deleteDocument(command.doc)
-  }
-}
-
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('zh-CN')
+  const date = new Date(dateString)
+  return date.toLocaleString('zh-CN')
 }
 
-// 检查用户认证状态
-const checkAuth = async () => {
-  console.log('检查认证状态:', userStore.isLoggedIn)
+// 文件选择相关方法
+const handleSelectionChange = (selection) => {
+  selectedDocuments.value = selection
+}
+
+const isCSVFile = (row) => {
+  // 调试输出
+  console.log('isCSVFile 检查行数据:', row)
+  console.log('原始文件名:', row.original_filename)
   
-  if (!userStore.isLoggedIn) {
-    ElMessage.warning('请先登录后访问文档管理页面')
-    router.push('/login')
-    return false
-  }
-  
-  // 验证token有效性
-  const isValid = await userStore.validateToken()
-  if (!isValid) {
-    ElMessage.warning('登录已过期，请重新登录')
-    router.push('/login')
-    return false
-  }
-  
+  // 临时：让所有文件都可以选择，用于测试
   return true
+  
+  // 检查原始文件名而不是URL路径
+  // const result = row.original_filename && row.original_filename.toLowerCase().endsWith('.csv')
+  // return result
 }
 
-// 初始化数据加载
-const initializeData = async () => {
-  const authOk = await checkAuth()
-  if (!authOk) return
+const transferToKnowledgeGraph = async () => {
+  const csvFiles = selectedDocuments.value.filter(doc => 
+    doc.original_filename && doc.original_filename.toLowerCase().endsWith('.csv')
+  )
+  
+  if (csvFiles.length === 0) {
+    ElMessage.warning('请选择至少一个CSV文件')
+    return
+  }
   
   try {
-    await Promise.all([
-      fetchDocuments(),
-      fetchCategories(),
-      fetchStats()
-    ])
+    ElMessage({
+      type: 'info',
+      message: `正在处理 ${csvFiles.length} 个CSV文件...`,
+      duration: 2000
+    })
+    
+    // 调用API处理CSV文件
+    const response = await apiClient.post('/kg/process-csv-documents/', {
+      document_ids: csvFiles.map(doc => doc.id)
+    })
+    
+    ElMessage.success(`成功处理 ${csvFiles.length} 个CSV文件，已转换为知识图谱数据`)
+    
+    // 跳转到知识图谱页面
+    router.push('/knowledge-graph')
+    
   } catch (error) {
-    console.error('初始化数据加载失败:', error)
-    ElMessage.error('页面数据加载失败，请刷新重试')
+    console.error('Transfer to knowledge graph error:', error)
+    ElMessage.error('处理CSV文件失败: ' + (error.response?.data?.detail || error.message))
   }
 }
 
-// 组件挂载时加载数据
-onMounted(() => {
-  initializeData()
+// 生命周期
+onMounted(async () => {
+  await loadCategories()
+  await fetchStats()
 })
 </script>
 
 <style scoped>
 .documents-container {
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
-  padding: 30px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
 }
 
 .header-content h1 {
-  margin: 0;
-  color: #2d3748;
-  font-size: 28px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  font-size: 2rem;
+  margin: 0 0 5px 0;
+  color: #333;
 }
 
 .header-content p {
-  margin: 8px 0 0 0;
-  color: #718096;
-  font-size: 16px;
+  margin: 0;
+  color: #666;
 }
 
 .header-actions {
   display: flex;
-  gap: 15px;
+  gap: 10px;
 }
 
 .stats-cards {
@@ -810,6 +1113,10 @@ onMounted(() => {
 .stat-icon.size { background: linear-gradient(45deg, #4facfe, #00f2fe); }
 .stat-icon.types { background: linear-gradient(45deg, #43e97b, #38f9d7); }
 
+.stat-content {
+  flex: 1;
+}
+
 .stat-number {
   font-size: 28px;
   font-weight: 700;
@@ -823,38 +1130,8 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-.search-filter-section {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 30px;
-  padding: 25px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.search-bar {
-  flex: 1;
-}
-
-.filter-controls {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-}
-
-.documents-content {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-.documents-list-card {
-  border: none;
-  box-shadow: none;
-  background: transparent;
+.category-section {
+  margin-bottom: 20px;
 }
 
 .card-header {
@@ -863,157 +1140,127 @@ onMounted(() => {
   align-items: center;
 }
 
-.card-view {
-  margin-top: 20px;
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
 }
 
-.document-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.document-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
-
-.document-icon {
-  text-align: center;
-  margin-bottom: 15px;
-}
-
-.file-type-icon {
-  font-size: 48px;
-  display: block;
-  margin-bottom: 8px;
-}
-
-.file-type {
-  font-size: 12px;
-  color: #718096;
-  font-weight: 600;
-}
-
-.document-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #2d3748;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.document-desc {
-  font-size: 14px;
-  color: #718096;
-  margin: 0 0 15px 0;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.document-meta {
-  margin-bottom: 12px;
-}
-
-.meta-item {
+.category-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #718096;
-  margin-bottom: 4px;
+  padding: 15px;
+  border: 2px solid #e4e7ed;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
 }
 
-.document-category {
+.category-item:hover {
+  border-color: #409eff;
+  background: #f0f9ff;
+}
+
+.category-item.active {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.category-color {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  margin-right: 15px;
+}
+
+.category-name {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.category-count {
+  font-size: 12px;
+  color: #909399;
+}
+
+.path-breadcrumb {
+  margin-bottom: 20px;
+}
+
+.folders-section,
+.documents-section {
+  margin-bottom: 20px;
+}
+
+.folder-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 20px;
+}
+
+.folder-card:hover {
+  border-color: #409eff;
+  background: #f0f9ff;
+  transform: translateY(-2px);
+}
+
+.folder-icon {
+  font-size: 48px;
   margin-bottom: 10px;
 }
 
-.document-tags {
-  margin-bottom: 15px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.more-tags {
-  font-size: 12px;
-  color: #718096;
-}
-
-.document-actions {
-  margin-top: auto;
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.list-view .file-icon {
-  font-size: 24px;
-}
-
-.document-name .title {
+.folder-name {
   font-weight: 600;
-  color: #2d3748;
+  margin-bottom: 5px;
 }
 
-.document-name .filename {
+.folder-stats {
   font-size: 12px;
-  color: #718096;
-  margin-top: 2px;
+  color: #909399;
+  margin-bottom: 10px;
 }
 
-.text-gray {
-  color: #a0aec0;
+.folder-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
 }
 
-.upload-demo {
-  width: 100%;
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.el-upload-dragger {
-  width: 100% !important;
+.file-icon {
+  font-size: 20px;
 }
 
-/* 响应式设计 */
-@media (max-width: 1200px) {
-  .stat-card {
-    margin-bottom: 15px;
-  }
+.toolbar {
+  display: flex;
+  gap: 10px;
 }
 
-@media (max-width: 768px) {
-  .documents-container {
-    padding: 15px;
-  }
+.documents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
 
-  .page-header {
-    flex-direction: column;
-    gap: 20px;
-    text-align: center;
-  }
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
 
-  .search-filter-section {
-    flex-direction: column;
-  }
-
-  .filter-controls {
-    justify-content: stretch;
-  }
-
-  .filter-controls > * {
-    flex: 1;
-  }
+.selected-count {
+  color: #409eff;
+  font-weight: 500;
+  font-size: 14px;
 }
 </style>

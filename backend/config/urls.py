@@ -4,7 +4,7 @@ from django.views.generic import RedirectView
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.conf.urls.static import static
-from apps.chat.api_views import AvailableModelsAPIView
+from apps.chat.views import AvailableModelsAPIView  # 修改：从 api_views 改为 views
 from django.views.generic import TemplateView
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 

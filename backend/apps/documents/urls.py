@@ -18,4 +18,14 @@ urlpatterns = [
     
     # 统计信息
     path('stats/', views.DocumentStatsAPIView.as_view(), name='document-stats'),
+    
+    # 文件夹相关
+    path('folders/', views.DocumentFolderListCreateAPIView.as_view(), name='folder-list'),
+    path('folders/<int:pk>/', views.DocumentFolderDetailAPIView.as_view(), name='folder-detail'),
+    
+    # 批量上传
+    path('batch-upload/', views.DocumentBatchUploadAPIView.as_view(), name='batch-upload'),
+    
+    # 按分类获取文档
+    path('categories/<int:category_id>/documents/', views.DocumentsByCategoryAPIView.as_view(), name='documents-by-category'),
 ]

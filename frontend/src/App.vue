@@ -46,7 +46,7 @@
 
   .main-content {
     flex: 1; /* 占用剩余空间 */
-    overflow: hidden; /* 移除滚动，让子组件自己处理 */
+    overflow: auto; /* 允许滚动 */
     width: 100%;
     height: 100%;
   }

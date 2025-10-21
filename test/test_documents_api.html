@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试文档API</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <h1>文档管理 API 测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 登录</h2>
+        <input type="text" id="username" placeholder="用户名" value="admin">
+        <input type="password" id="password" placeholder="密码" value="admin123">
+        <button onclick="login()">登录</button>
+        <div id="login-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. 获取分类列表</h2>
+        <button onclick="getCategories()">获取分类</button>
+        <div id="categories-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 获取分类下的文档</h2>
+        <input type="number" id="category-id" placeholder="分类ID" value="1">
+        <button onclick="getCategoryDocuments()">获取文档</button>
+        <div id="documents-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. 获取统计信息</h2>
+        <button onclick="getStats()">获取统计</button>
+        <div id="stats-result" class="result"></div>
+    </div>
+
+    <script>
+        let accessToken = '';
+        const API_BASE = 'http://localhost:8000/api/documents';
+        
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('login-result');
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/token/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                accessToken = data.access;
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '登录成功！\nToken: ' + accessToken.substring(0, 50) + '...';
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '登录失败: ' + error.message;
+            }
+        }
+        
+        async function getCategories() {
+            const resultDiv = document.getElementById('categories-result');
+            
+            if (!accessToken) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '请先登录！';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/categories/`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '获取成功！\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '获取失败: ' + error.message;
+            }
+        }
+        
+        async function getCategoryDocuments() {
+            const categoryId = document.getElementById('category-id').value;
+            const resultDiv = document.getElementById('documents-result');
+            
+            if (!accessToken) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '请先登录！';
+                return;
+            }
+            
+            const url = `${API_BASE}/categories/${categoryId}/documents/`;
+            console.log('Requesting URL:', url);
+            
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
+                }
+                
+                const data = await response.json();
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '获取成功！\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '获取失败: ' + error.message;
+            }
+        }
+        
+        async function getStats() {
+            const resultDiv = document.getElementById('stats-result');
+            
+            if (!accessToken) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '请先登录！';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/stats/`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '获取成功！\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '获取失败: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

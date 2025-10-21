@@ -485,3 +485,304 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
             'count': len(paths),
             'paths': paths
         })
+
+
+from rest_framework.views import APIView
+from apps.documents.models import Document
+import pandas as pd
+import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class ProcessCSVDocumentsAPIView(APIView):
+    """处理CSV文档转知识图谱"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        处理选中的CSV文档，解析材料数据并转换为知识图谱
+        """
+        document_ids = request.data.get('document_ids', [])
+        
+        if not document_ids:
+            return Response(
+                {'error': '请提供文档ID列表'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # 获取CSV文档
+            documents = Document.objects.filter(
+                id__in=document_ids,
+                file__iendswith='.csv'
+            )
+            
+            if not documents.exists():
+                return Response(
+                    {'error': '未找到有效的CSV文档'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            processed_results = []
+            
+            for doc in documents:
+                try:
+                    result = self._process_single_csv(doc, request.user)
+                    processed_results.append(result)
+                except Exception as e:
+                    logger.error(f"处理CSV文件 {doc.title} 失败: {str(e)}")
+                    processed_results.append({
+                        'document_id': doc.id,
+                        'document_name': doc.title,
+                        'success': False,
+                        'error': str(e)
+                    })
+            
+            # 统计结果
+            total_processed = len(processed_results)
+            successful = sum(1 for r in processed_results if r.get('success', False))
+            
+            return Response({
+                'message': f'处理完成，共处理{total_processed}个文件，成功{successful}个',
+                'total_processed': total_processed,
+                'successful': successful,
+                'results': processed_results
+            })
+            
+        except Exception as e:
+            logger.error(f"批量处理CSV文件失败: {str(e)}")
+            return Response(
+                {'error': f'处理失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _process_single_csv(self, document, user):
+        """处理单个CSV文件"""
+        import os
+        from django.conf import settings
+        
+        file_path = document.file.path
+        
+        # 读取CSV文件
+        try:
+            # 尝试不同的编码
+            encodings = ['utf-8', 'gbk', 'gb2312', 'utf-8-sig']
+            df = None
+            
+            for encoding in encodings:
+                try:
+                    df = pd.read_csv(file_path, encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if df is None:
+                raise ValueError("无法读取CSV文件，编码格式不支持")
+            
+        except Exception as e:
+            raise ValueError(f"读取CSV文件失败: {str(e)}")
+        
+        # 根据图片中的CSV格式解析数据
+        materials_created = []
+        intermediates_created = []
+        formulas_created = []
+        performances_created = []
+        
+        try:
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    # 从CSV中提取数据（根据图片中的列结构）
+                    material_type = str(row.iloc[0]) if len(row) > 0 and pd.notna(row.iloc[0]) else ""
+                    raw_materials = str(row.iloc[1]) if len(row) > 1 and pd.notna(row.iloc[1]) else ""
+                    intermediate_system = str(row.iloc[2]) if len(row) > 2 and pd.notna(row.iloc[2]) else ""
+                    formula_features = str(row.iloc[3]) if len(row) > 3 and pd.notna(row.iloc[3]) else ""
+                    performance_indicators = str(row.iloc[4]) if len(row) > 4 and pd.notna(row.iloc[4]) else ""
+                    
+                    # 跳过空行或无效数据
+                    if not material_type or material_type in ['材料类型', 'nan']:
+                        continue
+                    
+                    # 1. 处理原材料
+                    if raw_materials:
+                        raw_material_names = self._split_materials(raw_materials)
+                        for name in raw_material_names:
+                            if name.strip():
+                                # 如果 user 不是一个持久化 User 实例（例如 AnonymousUser），使用 None
+                                created_by_user = user if hasattr(user, 'id') and user.id else None
+                                raw_material, created = RawMaterial.objects.get_or_create(
+                                    name=name.strip(),
+                                    defaults={
+                                        'material_type': material_type,
+                                        'code': f"RM_{len(materials_created)+1:04d}",
+                                        'created_by': created_by_user
+                                    }
+                                )
+                                if created:
+                                    materials_created.append(raw_material)
+                    
+                    # 2. 处理中间体
+                    if intermediate_system:
+                        intermediate_names = self._split_materials(intermediate_system)
+                        for name in intermediate_names:
+                            if name.strip():
+                                created_by_user = user if hasattr(user, 'id') and user.id else None
+                                import uuid
+                                unique_code = f"INT_{uuid.uuid4().hex[:8]}"
+                                intermediate, created = Intermediate.objects.get_or_create(
+                                    name=name.strip(),
+                                    defaults={
+                                        'code': unique_code,
+                                        'description': name.strip(),
+                                        'preparation_method': formula_features or "未指定",
+                                        'properties': {'composition': name.strip()},
+                                        'created_by': created_by_user
+                                    }
+                                )
+                                if created:
+                                    intermediates_created.append(intermediate)
+                    
+                    # 3. 处理配方
+                    if formula_features:
+                        created_by_user = user if hasattr(user, 'id') and user.id else None
+                        import uuid
+                        formula_name = f"{material_type}配方_{index+1}"
+                        formula_code = f"FML_{uuid.uuid4().hex[:8]}"
+                        formula, created = Formula.objects.get_or_create(
+                            name=formula_name,
+                            defaults={
+                                'code': formula_code,
+                                'description': formula_features,
+                                'properties': {'source_material_type': material_type},
+                                'created_by': created_by_user
+                            }
+                        )
+                        if created:
+                            formulas_created.append(formula)
+                    
+                    # 4. 处理性能指标
+                    if performance_indicators:
+                        performance_data = self._parse_performance(performance_indicators)
+                        for perf_data in performance_data:
+                            # 如果没有对应的 formula（例如配方未创建），跳过该性能条目
+                            target_formula = locals().get('formula', None)
+                            if target_formula is None:
+                                logger.warning(f"CSV 行 {index+1} 中未找到对应配方，跳过性能创建: {perf_data}")
+                                continue
+
+                            # 构建 Performance 的基础字段
+                            import datetime
+                            created_by_user = user if hasattr(user, 'id') and user.id else None
+                            test_batch = (perf_data.get('conditions', '')[:50] or f"batch_{index+1}")
+                            test_date = datetime.date.today()
+                            test_method = 'other'
+
+                            # 将解析到的性能名称映射到模型字段
+                            numeric_fields = {}
+                            name_lower = perf_data.get('name', '').lower()
+                            try:
+                                value_float = float(perf_data.get('value'))
+                            except Exception:
+                                value_float = None
+
+                            if value_float is not None:
+                                if any(k in name_lower for k in ['拉伸', '强度', 'tensile']):
+                                    numeric_fields['tensile_strength'] = value_float
+                                elif any(k in name_lower for k in ['伸长', 'elongation']):
+                                    numeric_fields['elongation_at_break'] = value_float
+                                elif any(k in name_lower for k in ['硬度', '硬']):
+                                    numeric_fields['hardness'] = value_float
+                                elif any(k in name_lower for k in ['密度', 'density']):
+                                    numeric_fields['density'] = value_float
+                                else:
+                                    # 非映射字段保存到 additional_properties
+                                    numeric_fields['additional_properties'] = {perf_data.get('name'): perf_data.get('value')}
+                            else:
+                                numeric_fields['additional_properties'] = {perf_data.get('name'): perf_data.get('value')}
+
+                            perf_kwargs = {
+                                'formula': target_formula,
+                                'test_batch': test_batch,
+                                'test_date': test_date,
+                                'test_method': test_method,
+                                'test_conditions': perf_data.get('conditions', ''),
+                                'tested_by': created_by_user,
+                            }
+                            perf_kwargs.update(numeric_fields)
+
+                            performance = Performance.objects.create(**perf_kwargs)
+                            performances_created.append(performance)
+        
+        except Exception as e:
+            raise ValueError(f"解析CSV数据失败: {str(e)}")
+        
+        return {
+            'document_id': document.id,
+            'document_name': document.title,
+            'success': True,
+            'materials_created': len(materials_created),
+            'intermediates_created': len(intermediates_created),
+            'formulas_created': len(formulas_created),
+            'performances_created': len(performances_created),
+            'details': {
+                'materials': [m.name for m in materials_created[:5]],  # 只返回前5个
+                'intermediates': [i.name for i in intermediates_created[:5]],
+                'formulas': [f.name for f in formulas_created[:5]],
+                'performances': [p.test_batch for p in performances_created[:5]]
+            }
+        }
+    
+    def _split_materials(self, text):
+        """分割材料名称，支持多种分隔符"""
+        if not text or text.strip() == '':
+            return []
+        
+        # 使用多种分隔符分割
+        separators = ['+', '/', '、', '，', ',', '；', ';', '\n']
+        materials = [text]
+        
+        for sep in separators:
+            temp = []
+            for material in materials:
+                temp.extend([m.strip() for m in material.split(sep) if m.strip()])
+            materials = temp
+        
+        return materials
+    
+    def _parse_performance(self, text):
+        """解析性能指标文本"""
+        performances = []
+        
+        if not text or text.strip() == '':
+            return performances
+        
+        # 使用正则表达式提取性能数据
+        # 匹配模式如: "热导率1.144 W/(m·K)" 或 "密度<1.5 g/cm³"
+        patterns = [
+            r'(热导率|密度|硬度|温度|强度)([><!≥≤]?)(\d+\.?\d*)\s*([^\s,，；;]*)',
+            r'([^0-9<>!≥≤]+)([><!≥≤]?)(\d+\.?\d*)\s*([^\s,，；;]*)'
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            for match in matches:
+                if len(match) >= 3:
+                    performances.append({
+                        'name': match[0].strip(),
+                        'operator': match[1] if len(match) > 1 else '',
+                        'value': match[2],
+                        'unit': match[3] if len(match) > 3 else '',
+                        'conditions': text  # 保存原始文本作为测试条件
+                    })
+        
+        # 如果没有匹配到具体数值，至少保存文本描述
+        if not performances:
+            performances.append({
+                'name': '综合性能',
+                'value': '0',
+                'unit': '',
+                'conditions': text
+            })
+        
+        return performances

@@ -5,7 +5,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .kg_views import (
     RawMaterialViewSet, IntermediateViewSet,
-    FormulaViewSet, PerformanceViewSet, KnowledgeGraphViewSet
+    FormulaViewSet, PerformanceViewSet, KnowledgeGraphViewSet,
+    ProcessCSVDocumentsAPIView
 )
 
 # 创建路由器
@@ -21,4 +22,5 @@ router.register(r'graph', KnowledgeGraphViewSet, basename='knowledge-graph')
 # URL模式
 urlpatterns = [
     path('', include(router.urls)),
+    path('process-csv-documents/', ProcessCSVDocumentsAPIView.as_view(), name='process-csv-documents'),
 ]

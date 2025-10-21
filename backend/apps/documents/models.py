@@ -20,6 +20,72 @@ class DocumentCategory(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def document_count(self):
+        """返回该分类下的文档数量"""
+        return self.documents.count()
+
+    @property
+    def folder_count(self):
+        """返回该分类下的文件夹数量"""
+        return self.folders.count()
+
+
+class DocumentFolder(models.Model):
+    """文档文件夹模型"""
+    name = models.CharField(max_length=200, verbose_name='文件夹名称')
+    description = models.TextField(blank=True, verbose_name='文件夹描述')
+    category = models.ForeignKey(
+        DocumentCategory,
+        on_delete=models.CASCADE,
+        related_name='folders',
+        verbose_name='所属分类'
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='subfolders',
+        verbose_name='父文件夹'
+    )
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='创建者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        verbose_name = '文档文件夹'
+        verbose_name_plural = '文档文件夹'
+        ordering = ['name']
+        unique_together = [['category', 'name', 'parent']]
+
+    def __str__(self):
+        if self.parent:
+            return f"{self.parent.name}/{self.name}"
+        return self.name
+
+    @property
+    def document_count(self):
+        """返回文件夹中的文档数量（不包括子文件夹）"""
+        return self.documents.count()
+
+    @property
+    def total_document_count(self):
+        """返回文件夹及其子文件夹中的文档总数"""
+        count = self.documents.count()
+        for subfolder in self.subfolders.all():
+            count += subfolder.total_document_count
+        return count
+
+    def get_full_path(self):
+        """获取完整路径"""
+        path = [self.name]
+        parent = self.parent
+        while parent:
+            path.insert(0, parent.name)
+            parent = parent.parent
+        return '/'.join(path)
+
 
 class Document(models.Model):
     """文献资料模型"""
@@ -29,6 +95,7 @@ class Document(models.Model):
         ('docx', 'Word文档'),
         ('txt', '文本文件'),
         ('md', 'Markdown文档'),
+        ('csv', 'CSV文件'),
         ('ppt', 'PowerPoint'),
         ('pptx', 'PowerPoint'),
         ('xls', 'Excel表格'),
@@ -51,6 +118,15 @@ class Document(models.Model):
         blank=True,
         related_name='documents',
         verbose_name='所属分类'
+    )
+    
+    folder = models.ForeignKey(
+        'DocumentFolder',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents',
+        verbose_name='所属文件夹'
     )
     
     tags = models.CharField(max_length=500, blank=True, verbose_name='标签（逗号分隔）')
@@ -92,6 +168,7 @@ class Document(models.Model):
             'docx': '📝',
             'txt': '📋',
             'md': '📝',
+            'csv': '📊',
             'ppt': '📊',
             'pptx': '📊',
             'xls': '📈',
@@ -121,6 +198,7 @@ class Document(models.Model):
                     '.docx': 'docx',
                     '.txt': 'txt',
                     '.md': 'md',
+                    '.csv': 'csv',
                     '.ppt': 'ppt',
                     '.pptx': 'pptx',
                     '.xls': 'xls',

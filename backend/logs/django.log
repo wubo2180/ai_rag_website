@@ -446,3 +446,30 @@ AI服务错误: AI 服务响应超时，请稍后再试
 请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}}
 Dify API 请求超时
 AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "1", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "anonymous", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "你好，你叫什么名字", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+使用已有会话ID: 5d8b3f1c-c37b-4d0a-b568-defef9e5938a
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "你叫湘江实验室", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}, "conversation_id": "5d8b3f1c-c37b-4d0a-b568-defef9e5938a"}
+Dify API响应状态: 200

@@ -9,14 +9,15 @@ from django.http import Http404, HttpResponse
 from django.contrib.auth.models import User
 import os
 
-from .models import Document, DocumentCategory, DocumentAccess
+from .models import Document, DocumentCategory, DocumentAccess, DocumentFolder
 from .serializers import (
     DocumentUploadSerializer,
     DocumentListSerializer,
     DocumentDetailSerializer,
     DocumentUpdateSerializer,
     DocumentCategorySerializer,
-    DocumentAccessSerializer
+    DocumentAccessSerializer,
+    DocumentFolderSerializer
 )
 
 
@@ -266,3 +267,197 @@ class DocumentStatsAPIView(APIView):
                 return f"{bytes_size:.1f} {unit}"
             bytes_size /= 1024.0
         return f"{bytes_size:.1f} TB"
+
+
+class DocumentFolderListCreateAPIView(generics.ListCreateAPIView):
+    """文档文件夹列表和创建API"""
+    serializer_class = DocumentFolderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """获取文件夹查询集"""
+        queryset = DocumentFolder.objects.select_related('category', 'parent', 'created_by')
+        
+        # 按分类过滤
+        category_id = self.request.query_params.get('category')
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+        
+        # 按父文件夹过滤
+        parent_id = self.request.query_params.get('parent')
+        if parent_id:
+            queryset = queryset.filter(parent_id=parent_id)
+        elif parent_id == '':
+            # 只显示根文件夹
+            queryset = queryset.filter(parent__isnull=True)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class DocumentFolderDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """文档文件夹详情API"""
+    serializer_class = DocumentFolderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = DocumentFolder.objects.all()
+    
+    def destroy(self, request, *args, **kwargs):
+        """删除文件夹（需要检查是否为空）"""
+        instance = self.get_object()
+        
+        # 检查文件夹是否包含文档
+        if instance.documents.exists():
+            return Response({
+                'error': '文件夹中还有文档，无法删除'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 检查是否有子文件夹
+        if instance.subfolders.exists():
+            return Response({
+                'error': '文件夹中还有子文件夹，无法删除'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.perform_destroy(instance)
+        return Response({
+            'success': True,
+            'message': '文件夹删除成功'
+        }, status=status.HTTP_200_OK)
+
+
+class DocumentBatchUploadAPIView(APIView):
+    """批量上传文档到文件夹API"""
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        """批量上传文档"""
+        files = request.FILES.getlist('files')
+        category_id = request.data.get('category')
+        folder_id = request.data.get('folder')
+        
+        if not files:
+            return Response({
+                'success': False,
+                'error': '请选择要上传的文件'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 验证分类
+        category = None
+        if category_id:
+            try:
+                category = DocumentCategory.objects.get(id=category_id)
+            except DocumentCategory.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'error': '分类不存在'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 验证文件夹
+        folder = None
+        if folder_id:
+            try:
+                folder = DocumentFolder.objects.get(id=folder_id)
+            except DocumentFolder.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'error': '文件夹不存在'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 批量创建文档
+        uploaded_documents = []
+        errors = []
+        
+        for file in files:
+            try:
+                # 获取文件扩展名和类型
+                ext = os.path.splitext(file.name)[1].lower()
+                type_mapping = {
+                    '.pdf': 'pdf',
+                    '.doc': 'doc',
+                    '.docx': 'docx',
+                    '.txt': 'txt',
+                    '.md': 'md',
+                    '.csv': 'csv',
+                    '.ppt': 'ppt',
+                    '.pptx': 'pptx',
+                    '.xls': 'xls',
+                    '.xlsx': 'xlsx',
+                    '.jpg': 'image',
+                    '.jpeg': 'image',
+                    '.png': 'image',
+                    '.gif': 'image',
+                }
+                file_type = type_mapping.get(ext, 'other')
+                
+                # 创建文档
+                document = Document.objects.create(
+                    title=os.path.splitext(file.name)[0],
+                    file=file,
+                    file_type=file_type,
+                    file_size=file.size,
+                    original_filename=file.name,
+                    category=category,
+                    folder=folder,
+                    uploaded_by=request.user
+                )
+                uploaded_documents.append(DocumentListSerializer(document).data)
+            except Exception as e:
+                errors.append({
+                    'filename': file.name,
+                    'error': str(e)
+                })
+        
+        return Response({
+            'success': True,
+            'message': f'成功上传 {len(uploaded_documents)} 个文件',
+            'uploaded_documents': uploaded_documents,
+            'errors': errors if errors else None
+        }, status=status.HTTP_201_CREATED)
+
+
+class DocumentsByCategoryAPIView(APIView):
+    """按分类获取文档API"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, category_id):
+        """获取指定分类下的所有文档和文件夹"""
+        try:
+            category = DocumentCategory.objects.get(id=category_id)
+        except DocumentCategory.DoesNotExist:
+            return Response({
+                'error': '分类不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # 获取用户权限
+        user = request.user
+        if user.is_staff:
+            documents = Document.objects.filter(category=category)
+        else:
+            documents = Document.objects.filter(
+                category=category
+            ).filter(
+                Q(uploaded_by=user) | Q(is_public=True)
+            )
+        
+        # 获取文件夹
+        folders = DocumentFolder.objects.filter(
+            category=category,
+            parent__isnull=True  # 只获取根文件夹
+        )
+        
+        # 按文件夹过滤
+        folder_id = request.query_params.get('folder')
+        if folder_id:
+            documents = documents.filter(folder_id=folder_id)
+            folders = DocumentFolder.objects.filter(parent_id=folder_id)
+        else:
+            # 只显示没有文件夹的文档
+            documents = documents.filter(folder__isnull=True)
+        
+        return Response({
+            'category': DocumentCategorySerializer(category).data,
+            'folders': DocumentFolderSerializer(folders, many=True).data,
+            'documents': DocumentListSerializer(documents, many=True).data
+        })

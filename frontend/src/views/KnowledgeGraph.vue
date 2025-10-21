@@ -123,7 +123,7 @@
 <script>
 import { ref, onMounted, reactive } from 'vue'
 import * as echarts from 'echarts'
-import axios from 'axios'
+import apiClient from '@/utils/api'
 import { ElMessage } from 'element-plus'
 
 export default {
@@ -174,7 +174,7 @@ export default {
     const loadGraphData = async () => {
       loading.value = true
       try {
-        const response = await axios.get('http://localhost:8000/api/kg/graph/full_graph/')
+        const response = await apiClient.get('/kg/graph/full_graph/')
         const data = response.data
 
         graphData.nodes = data.nodes || []
