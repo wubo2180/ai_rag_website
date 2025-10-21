@@ -1,10 +1,31 @@
-Django==4.2
-djangorestframework==3.14.0
-psycopg2-binary==2.9.6
-requests==2.31.0
-gunicorn==21.2.0
-whitenoise==6.5.0
-django-cors-headers==3.14.0
-Pillow==10.0.0
-djangorestframework-simplejwt==5.2.2
-dj-rest-auth==4.0.1
+# Django 框架和扩展
+Django==5.1.2
+djangorestframework==3.15.2
+django-cors-headers==4.4.0
+djangorestframework-simplejwt==5.3.0
+dj-rest-auth==6.0.0
+whitenoise==6.7.0
+
+# 数据库
+psycopg2-binary==2.9.9
+
+# HTTP请求和服务器
+requests==2.32.3
+gunicorn==23.0.0
+
+# 图像处理
+Pillow==10.4.0
+
+# 数据处理 (知识图谱功能)
+pandas==2.2.3
+numpy==2.1.2
+
+# 开发和调试工具
+django-debug-toolbar==4.4.6
+
+# 安全相关
+cryptography==43.0.1
+
+# 其他实用工具
+python-dateutil==2.9.0
+pytz==2024.2
