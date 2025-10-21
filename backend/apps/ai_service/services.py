@@ -17,6 +17,11 @@ class AIService:
         self.base_url = settings.DIFY_BASE_URL
         self.default_model = getattr(settings, 'DIFY_DEFAULT_MODEL', '通义千问')
     
+    def _get_model_timeout(self, model):
+        """根据模型获取对应的超时时间"""
+        timeouts = getattr(settings, 'AI_MODEL_TIMEOUTS', {})
+        return timeouts.get(model, timeouts.get('default', 90))
+    
     def generate_response(self, message, user_id="default_user", session_id=None, model=None):
         """
         生成AI响应
@@ -68,6 +73,9 @@ class AIService:
         Returns:
             dict: API响应
         """
+        # 获取模型对应的超时时间
+        timeout = self._get_model_timeout(model)
+        
         url = f"{self.base_url}/chat-messages"
         
         headers = {
@@ -99,10 +107,11 @@ class AIService:
         
         logger.info(f"调用Dify API: {url}")
         logger.info(f"使用模型: {model}")
+        logger.info(f"超时时间: {timeout}秒")
         logger.info(f"请求 payload: {json.dumps(payload, ensure_ascii=False)}")
         
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
             
             # 记录响应状态
             logger.info(f"Dify API响应状态: {response.status_code}")

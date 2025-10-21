@@ -7,7 +7,7 @@
       v-if="userStore.isLoggedIn"
     >
       <div class="sidebar-header">
-        <h2 class="sidebar-title">AI 智能助手</h2>
+        <h2 class="sidebar-title">AI 材料智能助手</h2>
         <el-button
           class="sidebar-close-icon"
           link
@@ -81,7 +81,7 @@
           <h3 v-if="chatStore.currentSession">
             {{ chatStore.currentSession.title || '新对话' }}
           </h3>
-          <h3 v-else>AI 智能助手</h3>
+          <h3 v-else>AI 材料智能助手</h3>
         </div>
 
         <div class="header-right">

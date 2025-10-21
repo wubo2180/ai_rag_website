@@ -473,3 +473,146 @@ Dify API响应状态: 200
 使用模型: 通义千问
 请求 payload: {"query": "你叫湘江实验室", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}, "conversation_id": "5d8b3f1c-c37b-4d0a-b568-defef9e5938a"}
 Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 腾讯混元
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "腾讯混元"}}
+Dify API响应状态: 200
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API响应状态: 200
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API响应状态: 200
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+使用已有会话ID: 300748cb-1618-4a68-9a3e-508c9cc93a8d
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 腾讯混元
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "腾讯混元"}, "conversation_id": "300748cb-1618-4a68-9a3e-508c9cc93a8d"}
+Dify API响应状态: 400
+Dify API错误响应: {"code":"invalid_param","message":"Run failed: [hunyuan] Error: req_id: 0e2db279e6 PluginInvokeError: {\"args\":{\"description\":\"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages \u4e2d user\uff08tool\uff09 \u548c assistant \u89d2\u8272\u9700\u4ea4\u66ff\u51fa\u73b0 (\u4e00\u95ee\u4e00\u7b54)\uff0c\u4ee5 user \u63d0\u95ee\u5f00\u59cb\uff0c user\uff08tool\uff09\u63d0\u95ee\u7ed3\u675f, tool \u53ef\u4ee5\u8fde\u7eed\u51fa\u73b0\u591a\u6b21 requestId:1d606bdd-1175-4fac-94e5-8ac4555ee115\"},\"error_type\":\"InvokeError\",\"message\":\"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages \u4e2d user\uff08tool\uff09 \u548c assistant \u89d2\u8272\u9700\u4ea4\u66ff\u51fa\u73b0 (\u4e00\u95ee\u4e00\u7b54)\uff0c\u4ee5 user \u63d0\u95ee\u5f00\u59cb\uff0c user\uff08tool\uff09\u63d0\u95ee\u7ed3\u675f, tool \u53ef\u4ee5\u8fde\u7eed\u51fa\u73b0\u591a\u6b21 requestId:1d606bdd-1175-4fac-94e5-8ac4555ee115\"}","status":400}
+
+Dify API错误详情: Run failed: [hunyuan] Error: req_id: 0e2db279e6 PluginInvokeError: {"args":{"description":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages 中 user（tool） 和 assistant 角色需交替出现 (一问一答)，以 user 提问开始， user（tool）提问结束, tool 可以连续出现多次 requestId:1d606bdd-1175-4fac-94e5-8ac4555ee115"},"error_type":"InvokeError","message":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages 中 user（tool） 和 assistant 角色需交替出现 (一问一答)，以 user 提问开始， user（tool）提问结束, tool 可以连续出现多次 requestId:1d606bdd-1175-4fac-94e5-8ac4555ee115"}
+AI服务错误: Dify API 错误 (400): Run failed: [hunyuan] Error: req_id: 0e2db279e6 PluginInvokeError: {"args":{"description":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages 中 user（tool） 和 assistant 角色需交替出现 (一问一答)，以 user 提问开始， user（tool）提问结束, tool 可以连续出现多次 requestId:1d606bdd-1175-4fac-94e5-8ac4555ee115"},"error_type":"InvokeError","message":"[models] None, [TencentCloudSDKException] code:InvalidParameter message:Messages 中 user（tool） 和 assistant 角色需交替出现 (一问一答)，以 user 提问开始， user（tool）提问结束, tool 可以连续出现多次 requestId:1d606bdd-1175-4fac-94e5-8ac4555ee115"}
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 通义千问
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "通义千问"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 腾讯混元
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "腾讯混元"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: 豆包
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "豆包"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: Kimi
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Kimi"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: GPT-5
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: Claude4
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Claude4"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: Gemini2.5
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Gemini2.5"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: Grok-4
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Grok-4"}}
+Dify API 请求超时
+AI服务错误: AI 服务响应超时，请稍后再试
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: Llama4
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Llama4"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200
+使用已有会话ID: f24e27cf-99c2-4a55-a7b2-826642539107
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: GPT-5
+超时时间: 240秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "GPT-5"}, "conversation_id": "f24e27cf-99c2-4a55-a7b2-826642539107"}
+Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: Grok-4
+超时时间: 120秒
+请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Grok-4"}}
+Dify API响应状态: 200

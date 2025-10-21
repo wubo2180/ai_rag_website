@@ -248,11 +248,11 @@ MAX_STREAM_RETRIES = int(os.environ.get('MAX_STREAM_RETRIES', '3'))
 
 # AI模型特定超时配置（秒）
 AI_MODEL_TIMEOUTS = {
-    'deepseek深度思考': 240,  # 深度思考模式需要更长时间
+    'deepseek深度思考': 500,  # 深度思考模式需要更长时间
     'GPT-5': 240,             # GPT-5响应较慢
     '豆包': 90,               # 豆包中等速度
     '通义千问': 60,           # 通义千问较快
     'Claude4': 120,           # Claude4中等速度
     'Kimi': 90,               # Kimi中等速度
-    'default': 90             # 默认超时
+    'default': 120             # 默认超时
 }

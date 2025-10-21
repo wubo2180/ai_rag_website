@@ -68,7 +68,7 @@
           <h3 v-if="chatStore.currentSession">
             {{ chatStore.currentSession.title || '新对话' }}
           </h3>
-          <h3 v-else>AI 智能助手</h3>
+          <h3 v-else>AI 材料智能助手</h3>
         </div>
 
         <div class="header-right">
@@ -128,7 +128,7 @@
       <!-- 消息区域 -->
       <div class="messages-container" ref="messagesContainer">
         <div v-if="chatStore.messages.length === 0" class="welcome-message">
-          <h2>欢迎使用 AI 智能助手</h2>
+          <h2>欢迎使用 AI 材料智能助手</h2>
           <p>您可以向我提问任何问题，我会尽力为您解答。</p>
         </div>
 

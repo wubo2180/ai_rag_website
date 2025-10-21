@@ -162,7 +162,7 @@ def test_dify_api():
     
     payload2 = {
         'inputs': {
-            'largeModel': '通义千问'
+            'largeModel': 'GPT-5'
         },
         'query': '你好',
         'response_mode': 'blocking',
