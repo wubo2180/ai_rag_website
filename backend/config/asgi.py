@@ -40,5 +40,6 @@ async def application(scope, receive, send):
         # 不支持的协议类型
         raise ValueError(f"Unknown scope type: {scope['type']}")
 
-# 为了兼容性，也导出 django_asgi_app
-__all__ = ['application', 'django_asgi_app']
+# 为了兼容性，也导出 django_asgi_app 和 app
+app = application  # 一些 ASGI 服务器期望找到 'app' 属性
+__all__ = ['application', 'app', 'django_asgi_app']
