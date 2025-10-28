@@ -72,7 +72,7 @@
         </div>
 
         <div class="header-right">
-          <el-select
+          <!-- <el-select
             v-model="chatStore.selectedModel"
             placeholder="选择模型"
             size="small"
@@ -84,7 +84,7 @@
               :label="model"
               :value="model"
             />
-          </el-select>
+          </el-select> -->
 
           <div class="user-actions" v-if="userStore.isLoggedIn">
             <el-dropdown @command="handleUserAction">

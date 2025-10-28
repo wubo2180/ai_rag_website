@@ -86,7 +86,7 @@
 
         <div class="header-right">
           <!-- 模型选择 -->
-          <el-select
+          <!-- <el-select
             v-model="selectedModel"
             placeholder="选择AI模型"
             size="small"
@@ -98,7 +98,7 @@
               :label="model.label"
               :value="model.value"
             />
-          </el-select>
+          </el-select> -->
 
           <!-- 深度思考开关 -->
           <el-switch
