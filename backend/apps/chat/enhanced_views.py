@@ -65,9 +65,11 @@ class StreamChatAPIView(APIView):
     def generate_stream_response(self, message, model, deep_thinking, session=None, request=None):
         """生成流式响应"""
         try:
-            # API配置 - 从AI_UI_928_2整合
-            api_url = getattr(settings, 'DIFY_API_URL', 'http://744149f.r31.cpolar.top/v1/chat-messages')
-            api_key = getattr(settings, 'DIFY_API_KEY', 'app-K9fjgkD8JbNrNfTH2ECIv4jw')
+            # API配置 - 从环境变量读取
+            api_url = getattr(settings, 'DIFY_API_URL', 'http://localhost:8088/v1/chat-messages')
+            api_key = settings.DIFY_API_KEY
+            if not api_key:
+                raise ValueError("DIFY_API_KEY not configured")
             
             # 模型映射 - 修复：使用经过验证的模型名
             model_mapping = {

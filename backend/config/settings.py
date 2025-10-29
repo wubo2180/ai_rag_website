@@ -1,12 +1,17 @@
 from pathlib import Path
+import environ
 import os
-
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
+env = environ.Env()
+# 读取 .env 文件
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+# print("DIFY_BASE_URL", env('DIFY_BASE_URL'))
+print(os.environ.get('DATABASE_TYPE'))
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-your-secret-key-here')
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+# print("SECRET_KEY", SECRET_KEY)
+DEBUG = env.bool('DEBUG', default=True)
 
 # ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 ALLOWED_HOSTS = ['*']
@@ -16,9 +21,9 @@ if os.environ.get('DATABASE_TYPE') == 'mysql':
         DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
-            'NAME': os.environ.get('MYSQL_DATABASE', 'ai_rag_db'),
-            'USER': os.environ.get('MYSQL_USER', 'ai_rag_user'),
-            'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'airag_user123'),
+            'NAME': os.environ.get('MYSQL_DATABASE'),
+            'USER': os.environ.get('MYSQL_USER'),
+            'PASSWORD': os.environ.get('MYSQL_PASSWORD'),
             'HOST': os.environ.get('MYSQL_HOST', 'localhost'),
             'PORT': os.environ.get('MYSQL_PORT', '3306'),
             'OPTIONS': {
@@ -129,12 +134,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # AI模型配置 - Dify API
-DIFY_API_KEY = os.environ.get('DIFY_API_KEY', 'app-2WflAIBZKQGLwUImUXbYaLsN')
-DIFY_BASE_URL = os.environ.get('DIFY_BASE_URL', 'http://172.20.46.18:8088/v1')
-DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
+
 
 # 可用的AI模型列表
-AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思考,通义千问,腾讯混元,豆包,Kimi,GPT-5,Claude4,Gemini2.5,Grok-4,Llama4').split(',')
+AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', '').split(',')
 
 # 可选：其他AI服务配置
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
@@ -217,34 +220,24 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # ======================== AI 服务配置 ========================
-# AI_UI_928_2 集成 - 外部AI服务配置
-# 使用经过验证的API配置
-# DIFY_API_URL = os.environ.get(
-#     'DIFY_API_URL', 
-#     'http://172.20.46.18:8088/v1/chat-messages'
-# )
+DIFY_API_KEY = os.environ.get('DIFY_API_KEY')
+DIFY_BASE_URL = os.environ.get('DIFY_BASE_URL')
+DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
+
 DIFY_API_URL = os.environ.get(
     'DIFY_API_URL', 
     'http://localhost:8088/v1/chat-messages'
 )
-DIFY_API_KEY = os.environ.get(
-    'DIFY_API_KEY', 
-    'app-2WflAIBZKQGLwUImUXbYaLsN'
-)
+# Dify API 配置 - 从环境变量读取，生产环境中必须设置
+DIFY_API_KEY = os.environ.get('DIFY_API_KEY')
+if not DIFY_API_KEY:
+    raise ValueError("DIFY_API_KEY must be set in environment variables (.env file)")
 
-# Dify 知识库配置
-# DIFY_DATASET_BASE_URL = os.environ.get(
-#     'DIFY_DATASET_BASE_URL',
-#     'http://172.20.46.18:8088/v1'
-# )
-DIFY_DATASET_BASE_URL = os.environ.get(
-    'DIFY_DATASET_BASE_URL',
-    'http://localhost:8088/v1'
-)
-DIFY_DATASET_API_KEY = os.environ.get(
-    'DIFY_DATASET_API_KEY',
-    'dataset-XGhjOXFbkSkJqagNLbs0SDEy'
-)
+# Dify 知识库配置 - 从环境变量读取，生产环境中必须设置
+DIFY_DATASET_BASE_URL = os.environ.get('DIFY_DATASET_BASE_URL')
+DIFY_DATASET_API_KEY = os.environ.get('DIFY_DATASET_API_KEY')
+if not DIFY_DATASET_API_KEY:
+    raise ValueError("DIFY_DATASET_API_KEY must be set in environment variables (.env file)")
 
 # 模型配置
 DEFAULT_AI_MODEL = os.environ.get('DEFAULT_AI_MODEL', 'deepseek')

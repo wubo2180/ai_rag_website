@@ -4,10 +4,18 @@
 import requests
 import json
 import re
+import os
+from dotenv import load_dotenv
 
-# Dify 配置
-API_KEY = "app-2WflAIBZKQGLwUImUXbYaLsN"
-BASE_URL = "http://172.20.46.18:8088/v1"
+# 加载环境变量
+load_dotenv('../.env')
+
+# Dify 配置 - 从环境变量读取
+API_KEY = os.getenv('DIFY_API_KEY')
+BASE_URL = os.getenv('DIFY_BASE_URL', 'http://172.20.46.18:8088/v1')
+
+if not API_KEY:
+    raise ValueError("DIFY_API_KEY not found in environment variables")
 
 def analyze_markdown_content(text):
     """分析文本内容是否为Markdown格式"""

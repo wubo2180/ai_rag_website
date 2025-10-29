@@ -24,8 +24,8 @@ class DifyDatasetListAPIView(APIView):
             tag_ids = request.GET.getlist('tag_ids')
 
             # 构建API请求 - 使用正确的Dify API配置
-            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL', 'http://172.20.46.18:8088/v1')
-            api_key = getattr(settings, 'DIFY_DATASET_API_KEY', 'dataset-XGhjOXFbkSkJqagNLbs0SDEy')
+            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
+            api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
             
             url = f"{base_url}/datasets"
             headers = {
@@ -118,9 +118,9 @@ class DifyDatasetDetailAPIView(APIView):
     def get(self, request, dataset_id):
         """获取指定知识库的详情"""
         try:
-            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL', 'http://172.20.46.18:8088/v1')
-            api_key = getattr(settings, 'DIFY_DATASET_API_KEY', 'dataset-XGhjOXFbkSkJqagNLbs0SDEy')
-            
+            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
+            api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
+
             url = f"{base_url}/datasets/{dataset_id}"
             headers = {
                 'Authorization': f'Bearer {api_key}'
@@ -177,9 +177,9 @@ class DifyDatasetDocumentsAPIView(APIView):
             page = int(request.GET.get('page', 1))
             limit = int(request.GET.get('limit', 20))
 
-            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL', 'http://172.20.46.18:8088/v1')
-            api_key = getattr(settings, 'DIFY_DATASET_API_KEY', 'dataset-XGhjOXFbkSkJqagNLbs0SDEy')
-            
+            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
+            api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
+
             url = f"{base_url}/datasets/{dataset_id}/documents"
             headers = {
                 'Authorization': f'Bearer {api_key}'
