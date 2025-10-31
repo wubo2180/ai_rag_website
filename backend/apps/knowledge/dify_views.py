@@ -27,7 +27,11 @@ class DifyDatasetListAPIView(APIView):
             base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
             api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
             
-            url = f"{base_url}/datasets"
+            # 确保base_url正确：如果已经包含datasets路径，直接使用；否则拼接
+            if base_url.endswith('/datasets'):
+                url = base_url
+            else:
+                url = f"{base_url}/datasets"
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
@@ -121,7 +125,11 @@ class DifyDatasetDetailAPIView(APIView):
             base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
             api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
 
-            url = f"{base_url}/datasets/{dataset_id}"
+            # 确保URL正确拼接
+            if base_url.endswith('/datasets'):
+                url = f"{base_url}/{dataset_id}"
+            else:
+                url = f"{base_url}/datasets/{dataset_id}"
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
@@ -180,7 +188,11 @@ class DifyDatasetDocumentsAPIView(APIView):
             base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
             api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
 
-            url = f"{base_url}/datasets/{dataset_id}/documents"
+            # 确保URL正确拼接
+            if base_url.endswith('/datasets'):
+                url = f"{base_url}/{dataset_id}/documents"
+            else:
+                url = f"{base_url}/datasets/{dataset_id}/documents"
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
