@@ -66,7 +66,7 @@ class StreamChatAPIView(APIView):
         """生成流式响应"""
         try:
             # API配置 - 从环境变量读取
-            api_url = getattr(settings, 'DIFY_API_URL', 'http://localhost:8088/v1/chat-messages')
+            api_url = getattr(settings, 'DIFY_API_URL')
             api_key = settings.DIFY_API_KEY
             if not api_key:
                 raise ValueError("DIFY_API_KEY not configured")
