@@ -616,3 +616,9 @@ Dify API响应状态: 200
 超时时间: 120秒
 请求 payload: {"query": "检索出可以降低热膨胀系数的环氧树脂，写出结构式及简述其理由?", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "Grok-4"}}
 Dify API响应状态: 200
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200

@@ -174,7 +174,7 @@ export default {
     const loadGraphData = async () => {
       loading.value = true
       try {
-        const response = await apiClient.get('/kg/graph/full_graph/')
+        const response = await apiClient.get('/knowledgegraph/graph/full_graph/')
         const data = response.data
 
         graphData.nodes = data.nodes || []

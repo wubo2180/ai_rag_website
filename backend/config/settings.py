@@ -57,9 +57,10 @@ INSTALLED_APPS = [
     # Local apps
     'apps.accounts',
     'apps.chat',
-    'apps.knowledge',
+    'apps.knowledgegraph',
     'apps.ai_service',
     'apps.documents',
+    'apps.knowledgebase',
 ]
 
 MIDDLEWARE = [

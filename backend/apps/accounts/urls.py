@@ -1,22 +1,31 @@
 from django.urls import path
-from django.contrib.auth import views as auth_views
-from . import views
+from rest_framework_simplejwt.views import (
+    TokenRefreshView,
+    TokenVerifyView,
+)
+from .api_views import (
+    RegisterAPIView,
+    LoginAPIView,
+    LogoutAPIView,
+    UserProfileAPIView,
+    ChangePasswordAPIView,
+    UserInfoAPIView,
+)
+
+app_name = 'accounts_api'
 
 urlpatterns = [
-    # API 端点
-    path('api/register/', views.register_page, name='api_register'),
-    path('api/login/', views.login_view, name='api_login'),
-    path('api/logout/', views.logout_view, name='api_logout'),
-    path('api/profile/', views.profile, name='api_profile'),
-    path('api/profile/update/', views.update_profile, name='api_update_profile'),
-    path('api/change-password/', views.change_password_api, name='api_change_password'),
-    path('api/upload-avatar/', views.upload_avatar, name='api_upload_avatar'),
+    # JWT Token 相关
+    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('token/verify/', TokenVerifyView.as_view(), name='token-verify'),
     
-    # 传统视图（用于兼容）
-    path('profile/', views.profile_view, name='profile'),
-    path('edit/', views.edit_profile, name='edit_profile'),
-    path('password/', views.change_password, name='change_password'),
-    path('login/', views.login_page, name='login'),
-    path('register/', views.register_page, name='register'),
-    path('logout/', views.logout_page, name='logout'),
+    # 用户认证
+    path('register/', RegisterAPIView.as_view(), name='register'),
+    path('login/', LoginAPIView.as_view(), name='login'),
+    path('logout/', LogoutAPIView.as_view(), name='logout'),
+    
+    # 用户信息
+    path('profile/', UserProfileAPIView.as_view(), name='profile'),
+    path('user-info/', UserInfoAPIView.as_view(), name='user-info'),
+    path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
 ]

@@ -13,7 +13,7 @@ django.setup()
 
 from django.contrib.auth.models import User
 from apps.documents.models import Document, DocumentCategory, DocumentFolder
-from apps.knowledge.models import RawMaterial, Intermediate, Formula, Performance
+from apps.knowledgegraph.models import RawMaterial, Intermediate, Formula, Performance
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 

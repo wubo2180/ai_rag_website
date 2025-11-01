@@ -128,7 +128,7 @@ class AIService:
     def search_knowledge(self, query: str, limit: int = 5) -> List[dict]:
         """搜索知识库"""
         try:
-            from apps.knowledge.models import Knowledge
+            from apps.knowledgegraph.models import Knowledge
             
             results = Knowledge.objects.filter(
                 title__icontains=query,
