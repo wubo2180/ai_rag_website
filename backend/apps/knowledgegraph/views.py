@@ -600,8 +600,12 @@ class ProcessCSVDocumentsAPIView(APIView):
                     formula_features = str(row.iloc[3]) if len(row) > 3 and pd.notna(row.iloc[3]) else ""
                     performance_indicators = str(row.iloc[4]) if len(row) > 4 and pd.notna(row.iloc[4]) else ""
                     
-                    # 跳过空行或无效数据
+                    # 增强的标题行检测和跳过逻辑
                     if not material_type or material_type in ['材料类型', 'nan']:
+                        continue
+                    
+                    # 检测可能的英文标题行
+                    if self._is_header_row(material_type, raw_materials, intermediate_system):
                         continue
                     
                     # 1. 处理原材料
@@ -749,6 +753,33 @@ class ProcessCSVDocumentsAPIView(APIView):
             materials = temp
         
         return materials
+    
+    def _is_header_row(self, material_type, raw_materials, intermediate_system):
+        """检测是否为标题行"""
+        # 检测常见的英文标题关键词
+        header_keywords = [
+            'effect', 'influence', 'study', 'investigation', 'analysis',
+            'properties', 'performance', 'behavior', 'characterization',
+            'evaluation', 'comparison', 'experimental', 'thermal', 'mechanical'
+        ]
+        
+        # 将所有字段转换为小写进行检测
+        all_text = f"{material_type} {raw_materials} {intermediate_system}".lower()
+        
+        # 如果包含多个标题关键词，很可能是标题行
+        keyword_count = sum(1 for keyword in header_keywords if keyword in all_text)
+        if keyword_count >= 2:
+            return True
+        
+        # 检测是否包含文件名模式（如 "配方_6"）
+        if '配方_' in all_text and any(char.isdigit() for char in all_text):
+            return True
+        
+        # 检测是否为很长的描述性文本（超过50个字符，可能是论文标题）
+        if len(material_type) > 50:
+            return True
+        
+        return False
     
     def _parse_performance(self, text):
         """解析性能指标文本"""
