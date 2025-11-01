@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'apps.ai_service',
     'apps.documents',
     'apps.knowledgebase',
+    'apps.smart_agent'
 ]
 
 MIDDLEWARE = [

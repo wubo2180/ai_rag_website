@@ -59,6 +59,7 @@ urlpatterns = [
     
     # 文档管理 API
     path('api/documents/', include('apps.documents.urls')),
+    path('api/smart-agent/', include('apps.smart_agent.urls')),
     
     
     # Favicon 处理
