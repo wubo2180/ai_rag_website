@@ -13,12 +13,21 @@
         智能对话
         <span class="badge">PRO</span>
       </router-link>
+      <router-link to="/smart-agents" class="nav-link smart-agent-link">
+        <i class="icon">🤖</i>
+        AI智能体
+        <span class="badge new">NEW</span>
+      </router-link>
+      <router-link to="/agent-tasks" class="nav-link" v-if="isAuthenticated">
+        <i class="icon">📋</i>
+        我的任务
+      </router-link>
       <a
         @click="navigateToKnowledgeBase"
         class="nav-link knowledge-base-link"
         style="cursor: pointer"
       >
-        <i class="icon">�️</i>
+        <i class="icon">🗃️</i>
         知识库
       </a>
       <router-link to="/documents" class="nav-link">
@@ -30,7 +39,7 @@
         知识图谱
       </router-link>
       <router-link to="/sessions" class="nav-link" v-if="isAuthenticated">
-        <i class="icon">�</i>
+        <i class="icon">📊</i>
         历史记录
       </router-link>
     </div>
@@ -194,6 +203,25 @@
     font-weight: bold;
   }
 
+  .badge.new {
+    background: #ff4757;
+    color: white;
+    animation: pulse 2s infinite;
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.4);
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
   .icon {
     font-size: 1.2rem;
   }
@@ -205,6 +233,71 @@
 
   .logout-btn:hover {
     background: rgba(255, 107, 107, 0.8);
+  }
+
+  /* 智能体相关链接特殊样式 */
+  .nav-link[href="/smart-agents"],
+  .nav-link[href="/agent-tasks"] {
+    background: rgba(0, 255, 255, 0.1);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    font-weight: 500;
+  }
+
+  .nav-link[href="/smart-agents"]:hover,
+  .nav-link[href="/agent-tasks"]:hover {
+    background: rgba(0, 255, 255, 0.2);
+    border-color: rgba(0, 255, 255, 0.4);
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.2);
+  }
+
+  .nav-link[href="/smart-agents"] .icon {
+    filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.5));
+  }
+
+  /* 智能体链接特殊样式 */
+  .smart-agent-link {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    font-weight: 600 !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .smart-agent-link:hover {
+    background: linear-gradient(135deg, #43a3f5 0%, #00e5f5 100%) !important;
+    transform: translateY(-3px) !important;
+    box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4) !important;
+  }
+
+  .smart-agent-link::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transform: rotate(45deg);
+    transition: all 0.5s;
+    opacity: 0;
+  }
+
+  .smart-agent-link:hover::before {
+    animation: shine 0.5s ease-in-out;
+  }
+
+  @keyframes shine {
+    0% {
+      opacity: 0;
+      transform: translateX(-100%) translateY(-100%) rotate(45deg);
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(100%) translateY(100%) rotate(45deg);
+    }
   }
 
   /* 知识库链接特殊样式 */

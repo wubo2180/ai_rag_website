@@ -10,6 +10,7 @@ export const useUserStore = defineStore('user', () => {
 
   // 计算属性
   const isLoggedIn = computed(() => !!accessToken.value)
+  const isAuthenticated = computed(() => !!accessToken.value) // 别名，与isLoggedIn相同
   const username = computed(() => user.value?.username || '')
 
   // 设置认证信息
@@ -156,6 +157,7 @@ export const useUserStore = defineStore('user', () => {
     
     // 计算属性
     isLoggedIn,
+    isAuthenticated,
     username,
     
     // 方法
