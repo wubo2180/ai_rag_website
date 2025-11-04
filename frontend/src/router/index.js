@@ -4,82 +4,82 @@ import { useUserStore } from '@/stores/user'
 const routes = [
   {
     path: '/',
-    redirect: '/chat'
+    redirect: '/chat',
   },
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
-    meta: { requiresAuth: false }
+    meta: { requiresAuth: false },
   },
   {
     path: '/register',
     name: 'Register',
     component: () => import('@/views/Register.vue'),
-    meta: { requiresAuth: false }
+    meta: { requiresAuth: false },
   },
   {
     path: '/chat',
     name: 'Chat',
-    component: () => import('@/views/Chat.vue'),
-    meta: { requiresAuth: false } // 允许匿名访问聊天
+    component: () => import('@/views/ChatNewUI.vue'),
+    meta: { requiresAuth: false }, // 允许匿名访问聊天
   },
   {
     path: '/enhanced-chat',
     name: 'EnhancedChat',
     component: () => import('@/views/EnhancedChat.vue'),
-    meta: { 
-      requiresAuth: false, 
-      title: '智能对话' 
-    }
+    meta: {
+      requiresAuth: false,
+      title: '智能对话',
+    },
   },
   {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   {
     path: '/sessions',
     name: 'ChatSessions',
     component: () => import('@/views/ChatSessions.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   {
     path: '/documents',
     name: 'Documents',
     component: () => import('@/views/Documents.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   {
     path: '/knowledge-base',
     name: 'KnowledgeBase',
     component: () => import('@/views/KnowledgeBase.vue'),
-    meta: { 
+    meta: {
       requiresAuth: false,
-      title: '知识库管理'
-    }
+      title: '知识库管理',
+    },
   },
   {
     path: '/knowledge-graph',
     name: 'KnowledgeGraph',
     component: () => import('@/views/KnowledgeGraph.vue'),
-    meta: { 
+    meta: {
       requiresAuth: false,
-      title: '材料知识图谱'
-    }
-  }
+      title: '材料知识图谱',
+    },
+  },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
-  
+
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next('/login')
   } else {
