@@ -15,11 +15,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-<<<<<<< HEAD
-        target: 'http://172.20.46.18:8003',
-=======
         target: 'http://localhost:8000',
->>>>>>> 5c54b44cdb670a4caa569061f1e0120d11425e30
         changeOrigin: true,
         secure: false,
         logLevel: 'debug',
