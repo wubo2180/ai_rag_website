@@ -24,17 +24,39 @@
           />
         </div>
         
-        <div class="filter-buttons">
-          <button 
-            v-for="category in categories"
+        <div class="category-cards">
+          <div 
+            v-for="category in categories.slice(1)"
             :key="category.value"
-            :class="['filter-btn', { active: selectedCategory === category.value }]"
+            :class="['category-card', { active: selectedCategory === category.value }]"
             @click="selectCategory(category.value)"
           >
-            <i :class="category.icon"></i>
-            {{ category.label }}
-            <span v-if="category.count" class="count">{{ category.count }}</span>
-          </button>
+            <div class="card-icon">
+              <i :class="category.icon"></i>
+            </div>
+            <div class="card-content">
+              <h3 class="card-title">{{ category.label }}</h3>
+              <p class="card-description">{{ getCategoryDescription(category.value) }}</p>
+              <div class="card-stats">
+                <span class="agent-count">{{ category.count || 0 }} 个智能体</span>
+                <span class="popularity">⭐ 4.{{ Math.floor(Math.random() * 5) + 5 }}</span>
+              </div>
+            </div>
+            <div class="card-arrow">
+              <i class="fas fa-chevron-right"></i>
+            </div>
+          </div>
+          
+          <!-- 全部分类按钮 -->
+          <div class="all-categories-btn">
+            <button 
+              :class="['filter-btn-all', { active: selectedCategory === 'all' }]"
+              @click="selectCategory('all')"
+            >
+              <i class="fas fa-th-large"></i>
+              查看全部 ({{ categories[0].count || 0 }})
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -224,6 +246,12 @@ const updateCategoryCounts = () => {
 }
 
 const selectCategory = (category) => {
+  // 如果点击的是知识抽取类别，直接跳转到知识抽取页面
+  if (category === 'knowledge_extraction') {
+    router.push({ name: 'KnowledgeExtraction' })
+    return
+  }
+  
   selectedCategory.value = category
 }
 
@@ -249,6 +277,17 @@ const handleTaskCreated = (task) => {
   // 任务创建成功后的处理
   console.log('任务已创建:', task)
   router.push({ name: 'agent-tasks' })
+}
+
+const getCategoryDescription = (category) => {
+  const descriptions = {
+    data_analysis: '分析材料数据，发现隐藏模式和趋势',
+    property_prediction: '预测材料性能，优化设计方案',
+    process_optimization: '优化工艺参数，提升生产效率',
+    knowledge_extraction: '从文献中提取关键知识和信息',
+    decision_support: '提供智能决策建议和风险评估'
+  }
+  return descriptions[category] || '专业的AI智能助手'
 }
 
 const getThemeColor = (theme) => {
@@ -363,44 +402,179 @@ onMounted(() => {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.filter-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
+/* 分类卡片样式 */
+.category-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1rem;
 }
 
-.filter-btn {
-  padding: 0.5rem 1rem;
-  border: 2px solid #ecf0f1;
-  background: white;
-  border-radius: 25px;
+.category-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.category-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.category-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 48px rgba(31, 38, 135, 0.3);
+  border-color: #667eea;
+}
+
+.category-card:hover::before {
+  transform: scaleX(1);
+}
+
+.category-card.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  transform: translateY(-8px);
+  box-shadow: 0 16px 48px rgba(102, 126, 234, 0.4);
+}
+
+.category-card.active::before {
+  transform: scaleX(1);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.card-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.category-card.active .card-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 0.5rem 0;
+}
+
+.category-card.active .card-title {
+  color: white;
+}
+
+.card-description {
   font-size: 0.9rem;
+  color: #7f8c8d;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.category-card.active .card-description {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.card-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.agent-count {
+  font-size: 0.8rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.category-card.active .agent-count {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.popularity {
+  font-size: 0.8rem;
+  color: #f39c12;
+  font-weight: 500;
+}
+
+.card-arrow {
+  color: #bdc3c7;
+  transition: all 0.3s ease;
+}
+
+.category-card:hover .card-arrow {
+  color: #667eea;
+  transform: translateX(5px);
+}
+
+.category-card.active .card-arrow {
+  color: white;
+}
+
+/* 全部分类按钮 */
+.all-categories-btn {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.filter-btn-all {
+  padding: 1rem 2rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 25px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #2c3e50;
 }
 
-.filter-btn:hover {
-  border-color: #667eea;
-  transform: translateY(-2px);
-}
-
-.filter-btn.active {
-  background: #667eea;
-  color: white;
-  border-color: #667eea;
-}
-
-.count {
+.filter-btn-all:hover {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.filter-btn-all.active {
+  background: rgba(255, 255, 255, 0.95);
+  color: #667eea;
+  border-color: white;
 }
 
 .loading-container {
@@ -510,6 +684,7 @@ onMounted(() => {
   margin-bottom: 1rem;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -618,6 +793,27 @@ onMounted(() => {
     padding: 1rem;
   }
   
+  .category-cards {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .category-card {
+    padding: 1rem;
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .card-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.5rem;
+  }
+  
+  .card-stats {
+    justify-content: center;
+  }
+  
   .agents-grid {
     grid-template-columns: 1fr;
   }
@@ -629,6 +825,24 @@ onMounted(() => {
   
   .agent-actions {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .category-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .category-card {
+    padding: 1rem;
+  }
+  
+  .card-title {
+    font-size: 1rem;
+  }
+  
+  .card-description {
+    font-size: 0.85rem;
   }
 }
 </style>

@@ -55,7 +55,7 @@ urlpatterns = [
     path('api/knowledgegraph/', include('apps.knowledgegraph.urls')),
     
     # AI 服务 API
-    path('api/ai/', include('apps.ai_service.urls')),
+    path('api/ai-service/', include('apps.ai_service.urls')),
     
     # 文档管理 API
     path('api/documents/', include('apps.documents.urls')),

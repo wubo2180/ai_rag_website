@@ -622,3 +622,90 @@ Dify API响应状态: 200
 超时时间: 500秒
 请求 payload: {"query": "固体胶", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
 Dify API响应状态: 200
+开始上传文件: test_material_data.txt
+上传响应状态码: 201
+文件上传成功，文件ID: 026dff41-17fa-4ad4-80ca-366ca1d32734
+开始运行工作流，文件ID: 026dff41-17fa-4ad4-80ca-366ca1d32734
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 401
+文件上传失败，状态码: 401, 错误: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 401
+文件上传失败，状态码: 401, 错误: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 401
+文件上传失败，状态码: 401, 错误: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 401
+文件上传失败，状态码: 401, 错误: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 401
+文件上传失败，状态码: 401, 错误: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 401
+文件上传失败，状态码: 401, 错误: {"code":"unauthorized","message":"Access token is invalid","status":401}
+
+开始上传文件: test_material_data.txt
+上传响应状态码: 201
+文件上传成功，文件ID: 49b13f96-94fe-46d1-b5b0-60e1a3fa09ca
+开始运行工作流，文件ID: 49b13f96-94fe-46d1-b5b0-60e1a3fa09ca
+工作流响应状态码: 400
+工作流执行失败，状态码: 400, 错误: {"code":"not_workflow_app","message":"Please check if your app mode matches the right API route.","status":400}
+
+开始上传文件: test_material_data.txt
+上传响应状态码: 201
+文件上传成功，文件ID: ca31dc9e-417a-4a1c-bcff-4af15a209aa0
+开始运行工作流，文件ID: ca31dc9e-417a-4a1c-bcff-4af15a209aa0
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf, 大小: 1306298 bytes
+开始处理文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+开始上传文件: A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: b2e05c9c-17e3-45ca-baa6-22fac31b03dc
+开始运行工作流，文件ID: b2e05c9c-17e3-45ca-baa6-22fac31b03dc
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf, 大小: 289617 bytes
+开始处理文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf
+开始上传文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: a9f322d6-e09e-41fd-b534-b6c0ce8e3219
+开始运行工作流，文件ID: a9f322d6-e09e-41fd-b534-b6c0ce8e3219
+开始处理知识抽取请求，文件: test_material.txt, 大小: 372 bytes
+开始处理文件: test_material.txt
+开始上传文件: test_material.txt
+上传响应状态码: 201
+文件上传成功，文件ID: f747fa84-8f4e-4ec3-9569-ca60df5e7b2b
+开始运行工作流，文件ID: f747fa84-8f4e-4ec3-9569-ca60df5e7b2b
+工作流响应状态码: 200
+工作流执行成功
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: test_material.txt, 大小: 372 bytes
+开始处理文件: test_material.txt
+开始上传文件: test_material.txt
+上传响应状态码: 201
+文件上传成功，文件ID: ea99cc05-a8ba-4b89-80bc-07974e459836
+开始运行工作流，文件ID: ea99cc05-a8ba-4b89-80bc-07974e459836
+工作流响应状态码: 200
+工作流执行成功

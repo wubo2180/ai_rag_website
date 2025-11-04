@@ -214,10 +214,11 @@ CORS_ALLOW_HEADERS = [
 # ======================== AI 服务配置 ========================
 # Dify API 配置 - 从环境变量读取，生产环境中必须设置
 DIFY_API_KEY = os.environ.get('DIFY_API_KEY')
-if not DIFY_API_KEY:
-    raise ValueError("DIFY_API_KEY must be set in environment variables (.env file)")
+# 临时注释掉以允许开发环境不设置也能运行
+# if not DIFY_API_KEY:
+#     raise ValueError("DIFY_API_KEY must be set in environment variables (.env file)")
 
-DIFY_API_URL = os.environ.get('DIFY_API_URL', 'http://localhost:8088/v1/chat-messages')
+DIFY_API_URL = os.environ.get('DIFY_API_URL', 'http://localhost:8088/v1')
 DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
 
 AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思考,通义千问,腾讯混元,豆包,Kimi,GPT-5,Claude4,Gemini2.5,Grok-4,Llama4').split(',')
@@ -225,8 +226,10 @@ AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思�
 # Dify 知识库配置 - 从环境变量读取，生产环境中必须设置
 DIFY_DATASET_BASE_URL = os.environ.get('DIFY_DATASET_BASE_URL')
 DIFY_DATASET_API_KEY = os.environ.get('DIFY_DATASET_API_KEY')
-if not DIFY_DATASET_API_KEY:
-    raise ValueError("DIFY_DATASET_API_KEY must be set in environment variables (.env file)")
+DIFY_API_KEY_data4line = os.environ.get('DIFY_API_KEY_data4line')
+# 临时注释掉以允许开发环境不设置也能运行
+# if not DIFY_DATASET_API_KEY:
+#     raise ValueError("DIFY_DATASET_API_KEY must be set in environment variables (.env file)")
 
 # 模型配置
 DEFAULT_AI_MODEL = os.environ.get('DEFAULT_AI_MODEL', 'deepseek')

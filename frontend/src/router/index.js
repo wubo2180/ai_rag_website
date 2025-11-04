@@ -95,6 +95,15 @@ const routes = [
       requiresAuth: true,
       title: '我的任务'
     }
+  },
+  {
+    path: '/knowledge-extraction',
+    name: 'KnowledgeExtraction',
+    component: () => import('@/views/KnowledgeExtraction.vue'),
+    meta: { 
+      requiresAuth: false,
+      title: '知识抽取智能体'
+    }
   }
 ]
 
