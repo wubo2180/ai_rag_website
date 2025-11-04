@@ -1,24 +1,28 @@
 from pathlib import Path
 import os
-
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
+# 加载 .env 文件
+load_dotenv(BASE_DIR / '.env.dev')
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+# 基础配置
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 # ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 ALLOWED_HOSTS = ['*']
 
 # 数据库配置 - 支持SQLite和MySQL
-if os.environ.get('DATABASE_TYPE') == 'mysql':
+DATABASE_TYPE = os.environ.get('DATABASE_TYPE', 'sqlite')
+if DATABASE_TYPE == 'mysql':
         DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
             'NAME': os.environ.get('MYSQL_DATABASE', 'ai_rag_db'),
             'USER': os.environ.get('MYSQL_USER', 'ai_rag_user'),
-            'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'airag_user123'),
+            'PASSWORD': os.environ.get('MYSQL_PASSWORD'),
             'HOST': os.environ.get('MYSQL_HOST', 'localhost'),
             'PORT': os.environ.get('MYSQL_PORT', '3306'),
             'OPTIONS': {
@@ -53,9 +57,11 @@ INSTALLED_APPS = [
     # Local apps
     'apps.accounts',
     'apps.chat',
-    'apps.knowledge',
+    'apps.knowledgegraph',
     'apps.ai_service',
     'apps.documents',
+    'apps.knowledgebase',
+    'apps.smart_agent'
 ]
 
 MIDDLEWARE = [
@@ -128,17 +134,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# AI模型配置 - Dify API
-DIFY_API_KEY = os.environ.get('DIFY_API_KEY', 'app-2WflAIBZKQGLwUImUXbYaLsN')
-DIFY_BASE_URL = os.environ.get('DIFY_BASE_URL', 'http://172.20.46.18:8088/v1')
-DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
-
-# 可用的AI模型列表
-AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思考,通义千问,腾讯混元,豆包,Kimi,GPT-5,Claude4,Gemini2.5,Grok-4,Llama4').split(',')
-
-# 可选：其他AI服务配置
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-OPENAI_BASE_URL = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
 
 # 日志配置
 LOGGING = {
@@ -217,38 +212,25 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # ======================== AI 服务配置 ========================
-# AI_UI_928_2 集成 - 外部AI服务配置
-# 使用经过验证的API配置
-# DIFY_API_URL = os.environ.get(
-#     'DIFY_API_URL', 
-#     'http://172.20.46.18:8088/v1/chat-messages'
-# )
-DIFY_API_URL = os.environ.get(
-    'DIFY_API_URL', 
-    'http://localhost:8088/v1/chat-messages'
-)
-DIFY_API_KEY = os.environ.get(
-    'DIFY_API_KEY', 
-    'app-2WflAIBZKQGLwUImUXbYaLsN'
-)
+# Dify API 配置 - 从环境变量读取，生产环境中必须设置
+DIFY_API_KEY = os.environ.get('DIFY_API_KEY')
+if not DIFY_API_KEY:
+    raise ValueError("DIFY_API_KEY must be set in environment variables (.env file)")
 
-# Dify 知识库配置
-# DIFY_DATASET_BASE_URL = os.environ.get(
-#     'DIFY_DATASET_BASE_URL',
-#     'http://172.20.46.18:8088/v1'
-# )
-DIFY_DATASET_BASE_URL = os.environ.get(
-    'DIFY_DATASET_BASE_URL',
-    'http://localhost:8088/v1'
-)
-DIFY_DATASET_API_KEY = os.environ.get(
-    'DIFY_DATASET_API_KEY',
-    'dataset-XGhjOXFbkSkJqagNLbs0SDEy'
-)
+DIFY_API_URL = os.environ.get('DIFY_API_URL', 'http://localhost:8088/v1/chat-messages')
+DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
+
+AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思考,通义千问,腾讯混元,豆包,Kimi,GPT-5,Claude4,Gemini2.5,Grok-4,Llama4').split(',')
+
+# Dify 知识库配置 - 从环境变量读取，生产环境中必须设置
+DIFY_DATASET_BASE_URL = os.environ.get('DIFY_DATASET_BASE_URL')
+DIFY_DATASET_API_KEY = os.environ.get('DIFY_DATASET_API_KEY')
+if not DIFY_DATASET_API_KEY:
+    raise ValueError("DIFY_DATASET_API_KEY must be set in environment variables (.env file)")
 
 # 模型配置
 DEFAULT_AI_MODEL = os.environ.get('DEFAULT_AI_MODEL', 'deepseek')
-ENABLE_DEEP_THINKING = os.environ.get('ENABLE_DEEP_THINKING', 'True') == 'True'
+ENABLE_DEEP_THINKING = os.environ.get('ENABLE_DEEP_THINKING', 'True').lower() == 'true'
 
 # 流式响应配置
 STREAM_TIMEOUT = int(os.environ.get('STREAM_TIMEOUT', '120'))  # 增加到120秒

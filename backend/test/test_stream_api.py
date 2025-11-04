@@ -4,10 +4,18 @@
 """
 import requests
 import json
+import os
+from dotenv import load_dotenv
 
-# 使用与test_dify_api.py相同的配置
-API_KEY = "app-2WflAIBZKQGLwUImUXbYaLsN"
-BASE_URL = "http://172.20.46.18:8088/v1"
+# 加载环境变量
+load_dotenv('../.env')
+
+# 使用与test_dify_api.py相同的配置 - 从环境变量读取
+API_KEY = os.getenv('DIFY_API_KEY')
+BASE_URL = os.getenv('DIFY_BASE_URL', 'http://172.20.46.18:8088/v1')
+
+if not API_KEY:
+    raise ValueError("DIFY_API_KEY not found in environment variables")
 
 def test_streaming_request():
     """测试流式请求格式"""

@@ -1,9 +1,21 @@
 import requests
+import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv('../.env')
+
+# 从环境变量读取配置
+dataset_api_key = os.getenv('DIFY_DATASET_API_KEY')
+base_url = os.getenv('DIFY_DATASET_BASE_URL', 'http://172.20.46.18:8088/v1')
+
+if not dataset_api_key:
+    raise ValueError("DIFY_DATASET_API_KEY not found in environment variables")
 
 # 测试知识库列表API
 def test_datasets_list():
-    url = "http://172.20.46.18:8088/v1/datasets"
-    headers = {"Authorization": "Bearer dataset-XGhjOXFbkSkJqagNLbs0SDEy"}
+    url = f"{base_url}/datasets"
+    headers = {"Authorization": f"Bearer {dataset_api_key}"}
     querystring = {"page": "1", "limit": "20"}
     
     print("🔍 测试知识库列表API...")
@@ -31,8 +43,8 @@ def test_datasets_list():
 # 测试文档列表API
 def test_documents_list():
     dataset_id = "fba4f435-1d75-48a8-84b1-4eeb550d2bea"  # 用户提供的知识库ID
-    url = f"http://172.20.46.18:8088/v1/datasets/{dataset_id}/documents"
-    headers = {"Authorization": "Bearer dataset-XGhjOXFbkSkJqagNLbs0SDEy"}
+    url = f"{base_url}/datasets/{dataset_id}/documents"
+    headers = {"Authorization": f"Bearer {dataset_api_key}"}
     querystring = {"page": "1", "limit": "20"}
     
     print(f"\n🔍 测试文档列表API (知识库: {dataset_id})...")

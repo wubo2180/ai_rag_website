@@ -14,7 +14,7 @@ class AIService:
     
     def __init__(self):
         self.api_key = settings.DIFY_API_KEY
-        self.base_url = settings.DIFY_BASE_URL
+        self.base_url = settings.DIFY_API_URL
         self.default_model = getattr(settings, 'DIFY_DEFAULT_MODEL', '通义千问')
     
     def _get_model_timeout(self, model):

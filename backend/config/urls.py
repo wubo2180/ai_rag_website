@@ -40,13 +40,27 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     
     # API 路由 - 必须在前面，避免被Vue.js路由捕获
-    path('api/', include('api_urls')),
     path('api/test/', test_api, name='api-test'),
-    path('api/chat/models/', AvailableModelsAPIView.as_view(), name='api-chat-models'),
     
-    # Django API 端点（需要保留的后端路由）
-    path('accounts/', include('apps.accounts.urls')),
-    path('knowledge/', include('apps.knowledge.urls')),
+    # 用户认证 API
+    path('api/auth/', include('apps.accounts.urls')),
+    
+    # 聊天 API
+    path('api/chat/', include('apps.chat.urls')),
+    
+    # 知识库 API（Dify集成）
+    path('api/knowledgebase/', include('apps.knowledgebase.urls')),
+    
+    # 材料知识图谱 API
+    path('api/knowledgegraph/', include('apps.knowledgegraph.urls')),
+    
+    # AI 服务 API
+    path('api/ai/', include('apps.ai_service.urls')),
+    
+    # 文档管理 API
+    path('api/documents/', include('apps.documents.urls')),
+    path('api/smart-agent/', include('apps.smart_agent.urls')),
+    
     
     # Favicon 处理
     path('favicon.ico', favicon_ico_view, name='favicon_ico'),

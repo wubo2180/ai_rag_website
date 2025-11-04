@@ -23,7 +23,10 @@ def test_dify_connection():
     print("=" * 50)
     
     api_url = getattr(settings, 'DIFY_API_URL', 'http://172.20.46.18:8088/v1/chat-messages')
-    api_key = getattr(settings, 'DIFY_API_KEY', 'app-2WflAIBZKQGLwUImUXbYaLsN')
+    api_key = settings.DIFY_API_KEY
+    if not api_key:
+        print("❌ DIFY_API_KEY not configured in settings")
+        return False
     
     print(f"API URL: {api_url}")
     print(f"API Key: {api_key}")

@@ -340,7 +340,7 @@ export default {
         
         console.log('🔍 正在加载知识库列表...', params)
         
-        const response = await api.get('knowledge/dify/datasets/', { params })
+        const response = await api.get('knowledgebase/dify/datasets/', { params })
         
         if (response.data.success) {
           const data = response.data.data

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 django.setup()
 
 from apps.documents.models import Document
-from apps.knowledge.kg_views import ProcessCSVDocumentsAPIView
+from ai_rag_website.backend.apps.knowledgegraph.views import ProcessCSVDocumentsAPIView
 from django.contrib.auth.models import User
 from rest_framework.test import APIRequestFactory
 from rest_framework.request import Request

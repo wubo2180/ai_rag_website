@@ -66,9 +66,42 @@ const routes = [
     component: () => import('@/views/KnowledgeGraph.vue'),
     meta: {
       requiresAuth: false,
+<<<<<<< HEAD
       title: '材料知识图谱',
     },
   },
+=======
+      title: '材料知识图谱'
+    }
+  },
+  {
+    path: '/smart-agents',
+    name: 'SmartAgents',
+    component: () => import('@/views/SmartAgents.vue'),
+    meta: { 
+      requiresAuth: true,
+      title: 'AI智能体'
+    }
+  },
+  {
+    path: '/agents/:id',
+    name: 'AgentDetail',
+    component: () => import('@/views/AgentDetail.vue'),
+    meta: { 
+      requiresAuth: true,
+      title: '智能体详情'
+    }
+  },
+  {
+    path: '/agent-tasks',
+    name: 'AgentTasks',
+    component: () => import('@/views/AgentTasks.vue'),
+    meta: { 
+      requiresAuth: true,
+      title: '我的任务'
+    }
+  }
+>>>>>>> 5c54b44cdb670a4caa569061f1e0120d11425e30
 ]
 
 const router = createRouter({
