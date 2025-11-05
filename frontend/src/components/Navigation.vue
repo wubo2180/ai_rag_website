@@ -18,7 +18,7 @@
         AI智能体
         <span class="badge new">NEW</span>
       </router-link>
-      <router-link to="/agent-tasks" class="nav-link" v-if="isAuthenticated">
+      <router-link to="/agent-tasks" class="nav-link">
         <i class="icon">📋</i>
         我的任务
       </router-link>

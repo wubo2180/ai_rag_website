@@ -94,15 +94,15 @@
           </div>
 
           <!-- 进度条 -->
-          <div v-if="task.status === 'running'" class="progress-section">
+          <div v-if="task.status === 'running' && task.progress" class="progress-section">
             <div class="progress-label">
               <span>执行进度</span>
-              <span>{{ task.progress.toFixed(0) }}%</span>
+              <span>{{ (task.progress || 0).toFixed(0) }}%</span>
             </div>
             <div class="progress-bar">
               <div 
                 class="progress-fill"
-                :style="{ width: `${task.progress}%` }"
+                :style="{ width: `${task.progress || 0}%` }"
               ></div>
             </div>
           </div>
@@ -207,9 +207,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '@/utils/api'
+
 import TaskDetailModal from '@/components/TaskDetailModal.vue'
 import TaskResultModal from '@/components/TaskResultModal.vue'
 
@@ -235,11 +236,23 @@ const fetchTasks = async () => {
     if (agentFilter.value) params.append('agent_id', agentFilter.value)
     
     const response = await apiClient.get(`/smart-agent/tasks/?${params.toString()}`)
-    tasks.value = response.data.results || response.data
+    tasks.value = response.data.results || response.data || []
+    loading.value = false
     
   } catch (error) {
     console.error('获取任务列表失败:', error)
-  } finally {
+    // API失败时使用mock数据作为fallback
+    tasks.value = [
+      {
+        id: 'mock-1',
+        title: '示例任务 (API连接失败)',
+        description: '当前显示的是示例数据，因为无法连接到后端API',
+        status: 'pending',
+        agent_name: '示例智能体',
+        created_at: new Date().toISOString(),
+        progress: 0
+      }
+    ]
     loading.value = false
   }
 }
@@ -247,9 +260,14 @@ const fetchTasks = async () => {
 const fetchAgents = async () => {
   try {
     const response = await apiClient.get('/smart-agent/agents/')
-    agents.value = response.data.results || response.data
+    agents.value = response.data.results || response.data || []
   } catch (error) {
     console.error('获取智能体列表失败:', error)
+    // API失败时使用mock数据作为fallback
+    agents.value = [
+      { id: 'mock-1', display_name: '示例智能体1 (API连接失败)' },
+      { id: 'mock-2', display_name: '示例智能体2 (API连接失败)' }
+    ]
   }
 }
 
@@ -291,7 +309,6 @@ const retryTask = async (task) => {
     }
     
     const response = await apiClient.post(`/smart-agent/agents/${task.agent}/execute/`, payload)
-    console.log('任务已重新创建:', response.data.task)
     await fetchTasks() // 刷新列表
     
   } catch (error) {
@@ -369,21 +386,31 @@ const formatDuration = (seconds) => {
 }
 
 // 生命周期
-onMounted(() => {
-  Promise.all([fetchTasks(), fetchAgents()])
-  
-  // 设置定时刷新（对于运行中的任务）
-  const refreshInterval = setInterval(() => {
-    const runningTasks = tasks.value.filter(task => task.status === 'running')
-    if (runningTasks.length > 0) {
-      fetchTasks()
-    }
-  }, 5000) // 每5秒刷新一次
-  
-  // 组件销毁时清理定时器
-  onUnmounted(() => {
+let refreshInterval = null
+
+onMounted(async () => {
+  try {
+    await Promise.all([fetchTasks(), fetchAgents()])
+    
+    // 设置定时刷新（对于运行中的任务）
+    refreshInterval = setInterval(() => {
+      const runningTasks = tasks.value.filter(task => task.status === 'running')
+      if (runningTasks.length > 0) {
+        fetchTasks()
+      }
+    }, 10000) // 每10秒刷新一次，避免过于频繁
+    
+  } catch (error) {
+    console.error('AgentTasks 初始化失败:', error)
+  }
+})
+
+// 组件销毁时清理定时器
+onUnmounted(() => {
+  if (refreshInterval) {
     clearInterval(refreshInterval)
-  })
+    refreshInterval = null
+  }
 })
 </script>
 
