@@ -4,11 +4,11 @@
       <h1>AI 材料</h1>
     </div>
     <div class="nav-links">
-      <router-link to="/chat" class="nav-link">
+      <!-- <router-link to="/chat" class="nav-link">
         <i class="icon">💬</i>
         智能检索
-      </router-link>
-      <router-link to="/enhanced-chat" class="nav-link featured">
+      </router-link> -->
+      <router-link to="/ChatNewUI" class="nav-link featured">
         <i class="icon">🧠</i>
         智能对话
         <span class="badge">PRO</span>
