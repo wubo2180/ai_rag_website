@@ -709,3 +709,61 @@ Dify API响应状态: 200
 开始运行工作流，文件ID: ea99cc05-a8ba-4b89-80bc-07974e459836
 工作流响应状态码: 200
 工作流执行成功
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "大撒大撒", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200
+开始处理知识抽取请求，文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf, 大小: 289617 bytes
+开始处理文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf
+开始上传文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: d4554570-8bec-453a-ba0d-3db338e93f68
+开始运行工作流，文件ID: d4554570-8bec-453a-ba0d-3db338e93f68
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: Thermally Conductive-Silicone Composites with Thermally Reversible Cross-links.pdf, 大小: 66261 bytes
+开始处理文件: Thermally Conductive-Silicone Composites with Thermally Reversible Cross-links.pdf
+开始上传文件: Thermally Conductive-Silicone Composites with Thermally Reversible Cross-links.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: 3e241925-4aa1-4574-bcfe-31dda83d9a33
+开始运行工作流，文件ID: 3e241925-4aa1-4574-bcfe-31dda83d9a33
+工作流响应状态码: 200
+工作流执行成功
+创建新会话
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "你好,星期六", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}}
+Dify API响应状态: 200
+使用已有会话ID: 8ad59212-1208-41b1-943e-0b0eda052f92
+调用Dify API: http://172.20.46.18:8088/v1/chat-messages
+使用模型: deepseek深度思考
+超时时间: 500秒
+请求 payload: {"query": "固体胶是什么", "response_mode": "blocking", "user": "2", "inputs": {"largeModel": "deepseek深度思考"}, "conversation_id": "8ad59212-1208-41b1-943e-0b0eda052f92"}
+Dify API响应状态: 200
+开始处理知识抽取请求，文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf, 大小: 289617 bytes
+开始处理文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf
+开始上传文件: 双组分缩合型有机硅电子灌封胶的制备及其导热阻燃性能研究_董晓娜.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: f5c437dc-a1ec-47af-badc-5838551769ad
+开始运行工作流，文件ID: f5c437dc-a1ec-47af-badc-5838551769ad
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: 高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf, 大小: 2494476 bytes
+开始处理文件: 高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf
+开始上传文件: 高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: 2d4530d5-6cca-4313-8228-e0589d87a018
+开始运行工作流，文件ID: 2d4530d5-6cca-4313-8228-e0589d87a018
+工作流响应状态码: 200
+工作流执行成功
+开始处理知识抽取请求，文件: 高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf, 大小: 2494476 bytes
+开始处理文件: 高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf
+开始上传文件: 高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf
+上传响应状态码: 201
+文件上传成功，文件ID: aed8eebb-8ae3-4bab-b079-7b61428b67e2
+开始运行工作流，文件ID: aed8eebb-8ae3-4bab-b079-7b61428b67e2
+工作流响应状态码: 200
+工作流执行成功

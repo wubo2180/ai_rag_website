@@ -75,7 +75,7 @@ def run_workflow(file_id, user, response_mode="blocking"):
         return {"status": "error", "message": str(e)}
 
 # 使用示例
-file_path = "E:\\document\\Desktop\\安伯斯\\安伯斯\\A study on the viscosity reduction mechanism of high-filled silicone potting adhesive by the formation of Al2O3 clusters.pdf"
+file_path = "E:\\document\\Desktop\\安伯斯\\安伯斯\\高导热加成型有机硅灌封胶的制备研究_李艳飞.pdf"
 user = "difyuser"
 
 # 上传文件

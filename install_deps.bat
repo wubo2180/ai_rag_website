@@ -9,7 +9,7 @@ cd /d "%~dp0"
 echo [1/5] 检查Python环境...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Python未安装或未添加到PATH，请先安装Python 3.8+
+    echo ❌ Python未安装或未添加到PATH，请先安装Python 3.13+
     pause
     exit /b 1
 )
