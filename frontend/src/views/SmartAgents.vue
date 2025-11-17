@@ -65,7 +65,7 @@
     <div v-if="loading" class="loading-container">
       <div class="loading-spinner">
         <i class="fas fa-spinner fa-spin"></i>
-        <p>加载智能体中...</p>
+        <!-- <p>加载智能体中...</p> -->
       </div>
     </div>
 
