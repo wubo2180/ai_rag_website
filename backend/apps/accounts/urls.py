@@ -3,6 +3,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
+
 from .api_views import (
     RegisterAPIView,
     LoginAPIView,
@@ -10,22 +11,32 @@ from .api_views import (
     UserProfileAPIView,
     ChangePasswordAPIView,
     UserInfoAPIView,
+    DepartmentListCreateAPIView,
+    DepartmentDetailAPIView,
+    UserRoleDepartmentUpdateAPIView,
+    UserListAPIView,
 )
 
-app_name = 'accounts_api'
+# app_name = 'accounts_api'  # 注释掉，避免命名空间问题
 
 urlpatterns = [
     # JWT Token 相关
     path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('token/verify/', TokenVerifyView.as_view(), name='token-verify'),
-    
+
     # 用户认证
     path('register/', RegisterAPIView.as_view(), name='register'),
     path('login/', LoginAPIView.as_view(), name='login'),
     path('logout/', LogoutAPIView.as_view(), name='logout'),
-    
+
     # 用户信息
     path('profile/', UserProfileAPIView.as_view(), name='profile'),
     path('user-info/', UserInfoAPIView.as_view(), name='user-info'),
     path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
+
+    # 部门与角色
+    path('departments/', DepartmentListCreateAPIView.as_view(), name='department-list'),
+    path('departments/<int:pk>/', DepartmentDetailAPIView.as_view(), name='department-detail'),
+    path('users/', UserListAPIView.as_view(), name='user-list'),
+    path('users/assign-role/', UserRoleDepartmentUpdateAPIView.as_view(), name='assign-role'),
 ]

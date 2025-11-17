@@ -15,7 +15,7 @@ services:
     networks:
       - django_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,6 +30,7 @@ services:
     volumes:
       - ./:/app
       - static_volume:/app/staticfiles
+      - ./docker-entrypoint.sh:/app/docker-entrypoint.sh
       - media_volume:/app/media
     environment:
       - DEBUG=${DEBUG:-False}
@@ -49,7 +50,7 @@ services:
     networks:
       - django_network
     ports:
-      - "8000:8000"
+      - '8000:8000'
 
   # Nginx 反向代理
   nginx:
@@ -62,8 +63,8 @@ services:
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
     ports:
-      - "8080:80"
-      - "8443:443"
+      - '8080:80'
+      - '8443:443'
     depends_on:
       - web
     networks:

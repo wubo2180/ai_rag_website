@@ -26,15 +26,19 @@
         @click="navigateToKnowledgeBase"
         class="nav-link knowledge-base-link"
         style="cursor: pointer"
+        v-if="isAdmin"
       >
+        >
         <i class="icon">🗃️</i>
         知识库
       </a>
-      <router-link to="/documents" class="nav-link">
+      <router-link to="/documents" class="nav-link" v-if="isAdmin"
+        >>
         <i class="icon">📁</i>
         文档管理
       </router-link>
-      <router-link to="/knowledge-graph" class="nav-link">
+      <router-link to="/knowledge-graph" class="nav-link" v-if="isAdmin"
+        >>
         <i class="icon">🔗</i>
         知识图谱
       </router-link>
@@ -48,6 +52,14 @@
         <router-link to="/profile" class="nav-link">
           <i class="icon">👤</i>
           个人资料
+        </router-link>
+        <router-link
+          to="/user-management"
+          class="nav-link admin-link"
+          v-if="isAdmin"
+        >
+          <i class="icon">👥</i>
+          用户管理
         </router-link>
         <button @click="handleLogout" class="nav-link logout-btn">
           <i class="icon">🚪</i>
@@ -81,6 +93,9 @@
       const userStore = useUserStore()
 
       const isAuthenticated = computed(() => userStore.isAuthenticated)
+      const isAdmin = computed(() => userStore.user?.profile?.role === 'ADMIN')
+      console.log('用户认证状态:', isAuthenticated.value)
+      console.log('用户角色:', userStore.user?.profile?.role)
 
       const handleLogout = async () => {
         try {
@@ -127,6 +142,7 @@
 
       return {
         isAuthenticated,
+        isAdmin,
         handleLogout,
         handleKnowledgeBaseClick,
         testKnowledgeBaseClick,
@@ -235,22 +251,33 @@
     background: rgba(255, 107, 107, 0.8);
   }
 
+  .admin-link {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    font-weight: 600;
+  }
+
+  .admin-link:hover {
+    background: linear-gradient(135deg, #e884eb 0%, #e6485d 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+  }
+
   /* 智能体相关链接特殊样式 */
-  .nav-link[href="/smart-agents"],
-  .nav-link[href="/agent-tasks"] {
+  .nav-link[href='/smart-agents'],
+  .nav-link[href='/agent-tasks'] {
     background: rgba(0, 255, 255, 0.1);
     border: 1px solid rgba(0, 255, 255, 0.2);
     font-weight: 500;
   }
 
-  .nav-link[href="/smart-agents"]:hover,
-  .nav-link[href="/agent-tasks"]:hover {
+  .nav-link[href='/smart-agents']:hover,
+  .nav-link[href='/agent-tasks']:hover {
     background: rgba(0, 255, 255, 0.2);
     border-color: rgba(0, 255, 255, 0.4);
     box-shadow: 0 4px 15px rgba(0, 255, 255, 0.2);
   }
 
-  .nav-link[href="/smart-agents"] .icon {
+  .nav-link[href='/smart-agents'] .icon {
     filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.5));
   }
 
@@ -276,7 +303,12 @@
     left: -50%;
     width: 200%;
     height: 200%;
-    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(
+      45deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
     transform: rotate(45deg);
     transition: all 0.5s;
     opacity: 0;
