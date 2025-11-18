@@ -1,29 +1,26 @@
-from django.contrib.auth.models import User
-
 from rest_framework import generics, status, permissions
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.auth.models import User
 
 from .serializers import (
-    UserSerializer,
-    UserProfileSerializer,
-    UserRegistrationSerializer,
+    UserSerializer, 
+    UserProfileSerializer, 
+    UserRegistrationSerializer, 
     LoginSerializer,
-    ChangePasswordSerializer,
-    DepartmentSerializer,
-    UserRoleDepartmentUpdateSerializer,
-    UserWithProfileSerializer,
+    ChangePasswordSerializer
 )
-from .models import UserProfile, Department
-from .permissions import IsAuthenticatedReadOnlyOrAdmin, IsProfileAdmin
+from .models import UserProfile
 
 
 class RegisterAPIView(APIView):
     """用户注册 API"""
     permission_classes = [AllowAny]
-
+    
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -41,7 +38,7 @@ class RegisterAPIView(APIView):
 class LoginAPIView(APIView):
     """用户登录 API"""
     permission_classes = [AllowAny]
-
+    
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
@@ -59,7 +56,7 @@ class LoginAPIView(APIView):
 class LogoutAPIView(APIView):
     """用户登出 API"""
     permission_classes = [IsAuthenticated]
-
+    
     def post(self, request):
         try:
             refresh_token = request.data["refresh"]
@@ -74,16 +71,16 @@ class UserProfileAPIView(generics.RetrieveUpdateAPIView):
     """用户资料 API"""
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
-
+    
     def get_object(self):
-        profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
+        profile, created = UserProfile.objects.get_or_create(user=self.request.user)
         return profile
 
 
 class ChangePasswordAPIView(APIView):
     """修改密码 API"""
     permission_classes = [IsAuthenticated]
-
+    
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -97,50 +94,22 @@ class ChangePasswordAPIView(APIView):
 class UserInfoAPIView(APIView):
     """获取当前用户信息"""
     permission_classes = [IsAuthenticated]
-
+    
     def get(self, request):
         user_data = UserSerializer(request.user).data
-        profile, _ = UserProfile.objects.get_or_create(user=request.user)
-        profile_data = UserProfileSerializer(profile).data
-        return Response({
-            'user': user_data,
-            'profile': profile_data
-        })
-
-
-class DepartmentListCreateAPIView(generics.ListCreateAPIView):
-    """部门列表 / 创建"""
-    queryset = Department.objects.all()
-    serializer_class = DepartmentSerializer
-    permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
-
-
-class DepartmentDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    """部门详情 / 更新 / 删除"""
-    queryset = Department.objects.all()
-    serializer_class = DepartmentSerializer
-    permission_classes = [IsProfileAdmin]
-
-
-class UserRoleDepartmentUpdateAPIView(APIView):
-    """
-    管理员为用户分配角色与部门
-    """
-    permission_classes = [IsProfileAdmin]
-
-    def post(self, request):
-        serializer = UserRoleDepartmentUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            profile = serializer.update_user()
+        try:
+            # 使用正确的 related_name 'profile'
+            profile = request.user.profile
+            profile_data = UserProfileSerializer(profile).data
             return Response({
-                'message': '用户角色/部门更新成功',
-                'profile': UserProfileSerializer(profile).data
-            }, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class UserListAPIView(generics.ListAPIView):
-    """管理员获取所有用户及其资料"""
-    queryset = User.objects.all()
-    serializer_class = UserWithProfileSerializer
-    permission_classes = [IsProfileAdmin]
+                'user': user_data,
+                'profile': profile_data
+            })
+        except UserProfile.DoesNotExist:
+            # 如果用户没有profile，则创建一个
+            profile = UserProfile.objects.create(user=request.user)
+            profile_data = UserProfileSerializer(profile).data
+            return Response({
+                'user': user_data,
+                'profile': profile_data
+            })
