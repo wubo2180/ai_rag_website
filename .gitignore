@@ -2,3 +2,30 @@ node_modules/
 frontend/node_modules/
 
 frontend/dist/
+
+# Python 编译的字节码
+*.pyc
+*.pyo
+*.pyd
+
+# Python 缓存目录
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/
+
+# 所有 .pyc 文件（递归）
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+
+*.log
+backend/logs/
+
+staticfiles/
+static_collected/
+*.css.map
+*.js.map
+# 保留目录结构
+!staticfiles/.gitkeep
