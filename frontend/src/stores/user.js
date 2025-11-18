@@ -18,12 +18,14 @@ export const useUserStore = defineStore('user', () => {
     user.value = authData.user
     accessToken.value = authData.access
     refreshToken.value = authData.refresh
-    
+
     localStorage.setItem('access_token', authData.access)
     localStorage.setItem('refresh_token', authData.refresh)
-    
+
     // 设置API客户端的认证头
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${authData.access}`
+    apiClient.defaults.headers.common[
+      'Authorization'
+    ] = `Bearer ${authData.access}`
   }
 
   // 清除认证信息
@@ -31,10 +33,10 @@ export const useUserStore = defineStore('user', () => {
     user.value = null
     accessToken.value = null
     refreshToken.value = null
-    
+
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
-    
+
     // 清除API客户端的认证头
     delete apiClient.defaults.headers.common['Authorization']
   }
@@ -44,12 +46,14 @@ export const useUserStore = defineStore('user', () => {
     try {
       const response = await apiClient.post('/auth/login/', credentials)
       setAuth(response.data)
+      // 登录成功后立即获取完整用户信息（包括 profile）
+      await fetchUserInfo()
       return { success: true, data: response.data }
     } catch (error) {
       console.error('登录失败:', error)
-      return { 
-        success: false, 
-        error: error.response?.data?.message || '登录失败' 
+      return {
+        success: false,
+        error: error.response?.data?.message || '登录失败',
       }
     }
   }
@@ -59,12 +63,14 @@ export const useUserStore = defineStore('user', () => {
     try {
       const response = await apiClient.post('/auth/register/', userData)
       setAuth(response.data)
+      // 注册成功后立即获取完整用户信息（包括 profile）
+      await fetchUserInfo()
       return { success: true, data: response.data }
     } catch (error) {
       console.error('注册失败:', error)
-      return { 
-        success: false, 
-        error: error.response?.data || '注册失败' 
+      return {
+        success: false,
+        error: error.response?.data || '注册失败',
       }
     }
   }
@@ -73,8 +79,8 @@ export const useUserStore = defineStore('user', () => {
   async function logout() {
     try {
       if (refreshToken.value) {
-        await apiClient.post('/auth/logout/', { 
-          refresh: refreshToken.value 
+        await apiClient.post('/auth/logout/', {
+          refresh: refreshToken.value,
         })
       }
     } catch (error) {
@@ -88,7 +94,16 @@ export const useUserStore = defineStore('user', () => {
   async function fetchUserInfo() {
     try {
       const response = await apiClient.get('/auth/user-info/')
-      user.value = response.data.user
+      // user-info 接口返回 { user: {...}, profile: {...} }
+      // 我们需要将 profile 合并到 user 对象中
+      if (response.data.user && response.data.profile) {
+        user.value = {
+          ...response.data.user,
+          profile: response.data.profile,
+        }
+      } else {
+        user.value = response.data.user
+      }
       return { success: true, data: response.data }
     } catch (error) {
       console.error('获取用户信息失败:', error)
@@ -104,12 +119,14 @@ export const useUserStore = defineStore('user', () => {
       }
 
       const response = await apiClient.post('/auth/token/refresh/', {
-        refresh: refreshToken.value
+        refresh: refreshToken.value,
       })
 
       accessToken.value = response.data.access
       localStorage.setItem('access_token', response.data.access)
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`
+      apiClient.defaults.headers.common[
+        'Authorization'
+      ] = `Bearer ${response.data.access}`
 
       return { success: true, data: response.data }
     } catch (error) {
@@ -122,8 +139,13 @@ export const useUserStore = defineStore('user', () => {
   // 初始化认证状态
   function initAuth() {
     if (accessToken.value) {
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken.value}`
-      console.log('已设置认证头:', `Bearer ${accessToken.value.substring(0, 20)}...`)
+      apiClient.defaults.headers.common[
+        'Authorization'
+      ] = `Bearer ${accessToken.value}`
+      console.log(
+        '已设置认证头:',
+        `Bearer ${accessToken.value.substring(0, 20)}...`
+      )
     } else {
       console.log('未找到访问令牌')
     }
@@ -137,7 +159,15 @@ export const useUserStore = defineStore('user', () => {
 
     try {
       const response = await apiClient.get('/auth/user-info/')
-      user.value = response.data.user
+      // user-info 接口返回 { user: {...}, profile: {...} }
+      if (response.data.user && response.data.profile) {
+        user.value = {
+          ...response.data.user,
+          profile: response.data.profile,
+        }
+      } else {
+        user.value = response.data.user
+      }
       console.log('Token验证成功，用户:', response.data.user.username)
       return true
     } catch (error) {
@@ -154,12 +184,12 @@ export const useUserStore = defineStore('user', () => {
     user,
     accessToken,
     refreshToken,
-    
+
     // 计算属性
     isLoggedIn,
     isAuthenticated,
     username,
-    
+
     // 方法
     setAuth,
     clearAuth,
@@ -169,6 +199,6 @@ export const useUserStore = defineStore('user', () => {
     fetchUserInfo,
     refreshAccessToken,
     initAuth,
-    validateToken
+    validateToken,
   }
 })
