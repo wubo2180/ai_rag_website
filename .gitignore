@@ -59,8 +59,8 @@ coverage.xml
 # Django stuff:
 *.log
 local_settings.py
-db.sqlite3
-db.sqlite3-journal
+# db.sqlite3
+# db.sqlite3-journal
 /media
 /staticfiles
 /static
@@ -397,8 +397,8 @@ docs/.vuepress/dist/
 
 # Database backups
 *.sql
-*.sqlite
-*.sqlite3
+# *.sqlite
+# *.sqlite3
 
 # Certificates and keys
 *.pem
