@@ -13,8 +13,6 @@ WORKDIR /app
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
     postgresql-client \
-    default-libmysqlclient-dev \
-    pkg-config \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
@@ -22,7 +20,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # 设置清华 pip 镜像并安装依赖
-RUN pip install --no-cache-dir -r requirements.txt 
+RUN pip install --no-cache-dir -r requirements.txt \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --trusted-host pypi.tuna.tsinghua.edu.cn
 
 # 复制项目文件
 COPY . .
@@ -39,7 +39,7 @@ USER django
 EXPOSE 8000
 
 # 复制并设置启动脚本
-COPY --chown=django:django scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=django:django docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
