@@ -9,6 +9,9 @@ done
 
 >&2 echo "PostgreSQL 已就绪 - 执行迁移"
 
+mkdir -p /app/logs
+chown django:django /app/logs
+
 # 运行数据库迁移
 python manage.py migrate --noinput
 
