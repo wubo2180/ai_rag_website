@@ -1,132 +1,58 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import Home from '../components/Home.vue'
+import Login from '../components/Login.vue'
+import Chat from '../components/Chat.vue'
+import Terms from '../components/Terms.vue'
+import Privacy from '../components/Privacy.vue'
 
 const routes = [
   {
     path: '/',
-    redirect: '/chat',
+    name: 'Home',
+    component: Home
   },
   {
     path: '/login',
     name: 'Login',
-    component: () => import('@/views/Login.vue'),
-    meta: { requiresAuth: false },
+    component: Login
   },
   {
-    path: '/register',
-    name: 'Register',
-    component: () => import('@/views/Register.vue'),
-    meta: { requiresAuth: false },
+    path: '/login2',
+    redirect: '/login'
   },
   {
     path: '/chat',
     name: 'Chat',
-    component: () => import('@/views/ChatNewUI.vue'),
-    meta: { requiresAuth: false }, // 允许匿名访问聊天
+    component: Chat
   },
   {
-    path: '/ChatNewUI',
-    name: 'ChatNewUI',
-    component: () => import('@/views/ChatNewUI.vue'),
-    meta: {
-      requiresAuth: false,
-      title: '智能对话',
-    },
+    path: '/terms',
+    name: 'Terms',
+    component: Terms
   },
   {
-    path: '/profile',
-    name: 'Profile',
-    component: () => import('@/views/Profile.vue'),
-    meta: { requiresAuth: true },
+    path: '/privacy',
+    name: 'Privacy',
+    component: Privacy
   },
   {
-    path: '/sessions',
-    name: 'ChatSessions',
-    component: () => import('@/views/ChatSessions.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/documents',
-    name: 'Documents',
-    component: () => import('@/views/Documents.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/knowledge-base',
-    name: 'KnowledgeBase',
-    component: () => import('@/views/KnowledgeBase.vue'),
-    meta: {
-      requiresAuth: false,
-      title: '知识库管理',
-    },
-  },
-  {
-    path: '/knowledge-graph',
-    name: 'KnowledgeGraph',
-    component: () => import('@/views/KnowledgeGraph.vue'),
-    meta: {
-      requiresAuth: false,
-      title: '材料知识图谱',
-    },
-  },
-  {
-    path: '/smart-agents',
-    name: 'SmartAgents',
-    component: () => import('@/views/SmartAgents.vue'),
-    meta: {
-      requiresAuth: true,
-      title: 'AI智能体',
-    },
-  },
-  {
-    path: '/agents/:id',
-    name: 'AgentDetail',
-    component: () => import('@/views/AgentDetail.vue'),
-    meta: {
-      requiresAuth: true,
-      title: '智能体详情',
-    },
-  },
-  {
-    path: '/agent-tasks',
-    name: 'AgentTasks',
-    component: () => import('@/views/AgentTasks.vue'),
-    meta: {
-      requiresAuth: true,
-      title: '我的任务',
-    },
-  },
-  {
-    path: '/knowledge-extraction',
-    name: 'KnowledgeExtraction',
-    component: () => import('@/views/KnowledgeExtraction.vue'),
-    meta: {
-      requiresAuth: false,
-      title: '知识抽取智能体',
-    },
-  },
-  {
-    path: '/user-management',
-    name: 'UserManagement',
-    component: () => import('@/views/UserManagement.vue'),
-    meta: {
-      requiresAuth: true,
-      title: '用户管理',
-    },
-  },
+    path: '/chat2',
+    redirect: '/chat'
+  }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes,
+  routes
 })
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  const userStore = useUserStore()
-
-  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
-    next('/login')
+  const isAuthenticated = localStorage.getItem('ai-chat-user')
+  
+  if ((to.path === '/login' || to.path === '/login2') && isAuthenticated) {
+    // 已登录但访问登录页，跳转到聊天页
+    next('/chat')
   } else {
     next()
   }
