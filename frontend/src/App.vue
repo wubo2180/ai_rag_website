@@ -37,8 +37,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #2c3e50;
-    height: 100vh; /* 使用视口高度 */
-    width: 100vw; /* 使用视口宽度 */
+    height: 100%; /* 使用视口高度 */
+    width: 100%; /* 使用视口宽度 */
     display: flex;
     flex-direction: column;
     overflow: hidden; /* 防止应用级别的滚动 */

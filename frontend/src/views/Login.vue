@@ -341,8 +341,8 @@
 
 <style scoped>
   .login2-container {
-    min-width: 1920px;
-    min-height: 1080px;
+    width: 100%;
+    height: 100%;
     background-size: 1920px 1080px; /* 固定背景尺寸 */
     background-position: top left;
     background-repeat: no-repeat;
@@ -350,6 +350,7 @@
     flex-direction: column;
     position: relative;
     justify-content: flex-start; /* 从顶部开始排列 */
+    overflow: hidden;
   }
 
   .login2-card {

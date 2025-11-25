@@ -1063,7 +1063,7 @@
 <style scoped>
   .chat2-container {
     display: flex;
-    height: 100vh;
+    height: 100%;
   }
 
   .navigation-container {
