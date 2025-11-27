@@ -343,7 +343,7 @@
   .login2-container {
     width: 100%;
     height: 100%;
-    background-size: 1920px 1080px; /* 固定背景尺寸 */
+    background-size: cover;
     background-position: top left;
     background-repeat: no-repeat;
     display: flex;
@@ -362,8 +362,8 @@
     border: 1px solid rgba(255, 255, 255, 0.6);
     padding: 40px 35px 30px; /* 调整内边距 */
     position: absolute;
-    left: 1217px;
-    top: 130px;
+    left: 65%;
+    top: 12%;
   }
 
   .login-view-style {

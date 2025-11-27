@@ -322,6 +322,7 @@
   import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useUserStore } from '@/stores/user'
+  import { useChatStore } from '@/stores/chat'
   import axios from 'axios'
   import { marked } from 'marked'
   import DOMPurify from 'dompurify'
@@ -362,7 +363,7 @@
       const questionTextarea = ref(null)
       const messagesArea = ref(null)
       const isAtBottom = ref(true)
-
+      const chatStore = useChatStore()
       const scrollToBottom = () => {
         nextTick(() => {
           if (messagesArea.value) {
@@ -427,74 +428,39 @@
 
           try {
             isLoading.value = true
-            const response = await fetch('http://localhost:5000/api/chat', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                message: text,
-                model: 'deepseek', // Or use selectedOption.value
-                deep_thinking: isDeepThinkingActive.value,
-                conversation_id: currentChatId.value,
-              }),
-            })
+            // 使用 Pinia store 的发送方法（非流式），不要当作 fetch Response 使用
+            const response = await chatStore.sendMessage(
+              text,
+              currentChatId.value || null,
+              null // 让 store 使用其内部的 selectedModel
+            )
+            console.log('AI 响应接收完成:', response)
 
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`)
-            }
+            // 检查响应是否成功
+            if (response && response.data && response.data.success) {
+              const data = response.data
 
-            const reader = response.body.getReader()
-            const decoder = new TextDecoder()
-            let streamDone = false
-            // 首次收到内容后再插入 AI 消息，避免空消息导致的“空行”
-            let aiMessageIndex = null
-
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-
-              const chunk = decoder.decode(value, { stream: true })
-              const lines = chunk.split('\n')
-
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const dataStr = line.substring(6)
-                  if (dataStr.trim() === '[DONE]') {
-                    streamDone = true
-                    isLoading.value = false
-                    break
-                  }
-                  try {
-                    const data = JSON.parse(dataStr)
-                    if (data.content) {
-                      // 首次收到内容时创建 AI 消息，之后增量追加
-                      if (aiMessageIndex === null) {
-                        messages.value.push({
-                          content: data.content,
-                          sender: 'ai',
-                        })
-                        aiMessageIndex = messages.value.length - 1
-                        // 若当前已在底部，则跟随到底部
-                        if (isAtBottom.value) scrollToBottom()
-                      } else {
-                        messages.value[aiMessageIndex].content += data.content
-                        if (isAtBottom.value) scrollToBottom()
-                      }
-                    }
-                    if (data.conversation_id) {
-                      currentChatId.value = data.conversation_id
-                    }
-                  } catch (e) {
-                    console.error('Error parsing JSON from stream:', e)
-                  }
-                }
+              // 更新 conversation_id
+              if (data.conversation_id) {
+                currentChatId.value = data.conversation_id
               }
-              if (streamDone) break
+
+              // 添加 AI 响应消息
+              if (data.response) {
+                messages.value.push({
+                  content: data.response,
+                  sender: 'ai',
+                })
+                // 若当前已在底部，则跟随到底部
+                if (isAtBottom.value) scrollToBottom()
+              }
+
+              isLoading.value = false
+              // AI 回复完成后，更新历史记录
+              saveCurrentChat()
+            } else {
+              throw new Error('AI 响应格式错误或请求失败')
             }
-            isLoading.value = false
-            // AI 回复完成后，更新历史记录
-            saveCurrentChat()
           } catch (error) {
             console.error('Error fetching AI response:', error)
             messages.value.push({
