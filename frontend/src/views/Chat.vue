@@ -426,6 +426,13 @@
           // 首次用户消息后立即创建/更新历史项，确保侧栏立刻显示
           saveCurrentChat()
 
+          console.log(
+            '准备发送消息, currentChatId:',
+            currentChatId.value,
+            'type:',
+            typeof currentChatId.value
+          )
+
           try {
             isLoading.value = true
             // 使用 Pinia store 的发送方法（非流式），不要当作 fetch Response 使用
@@ -440,10 +447,13 @@
             if (response && response.data && response.data.success) {
               const data = response.data
 
-              // 更新 conversation_id
-              if (data.conversation_id) {
-                currentChatId.value = data.conversation_id
+              // 更新会话 ID：优先使用 session_id（数据库整数ID），用于后续请求
+              // conversation_id 是 Dify 的 UUID，仅供后端内部使用
+              if (data.session_id) {
+                currentChatId.value = String(data.session_id)
               }
+
+              console.log('更新 currentChatId:', currentChatId.value)
 
               // 添加 AI 响应消息
               if (data.response) {
@@ -680,7 +690,8 @@
         if (messages.value.length === 0) return
 
         // 先计算匹配用的标题与会话ID
-        const idCandidate = currentChatId.value || Date.now()
+        // 注意：只有在有真实 conversation_id 时才保存，避免使用临时ID
+        const idCandidate = currentChatId.value || `temp_${Date.now()}`
         const titleCandidate =
           headerText.value ||
           messages.value[0]?.content?.substring(0, 20) + '...' ||
@@ -783,7 +794,23 @@
       // Markdown 渲染与安全过滤
       marked.setOptions({ gfm: true, breaks: true })
       const renderMarkdown = (text) => {
-        const safe = DOMPurify.sanitize(marked.parse(text || ''))
+        if (!text) return ''
+
+        // 处理 <think> 标签，将其转换为可折叠的思考过程区块
+        let processedText = text.replace(
+          /<think>([\s\S]*?)<\/think>/g,
+          (match, thinkContent) => {
+            const thinkId = 'think-' + Math.random().toString(36).substr(2, 9)
+            return `
+<details class="think-block">
+  <summary class="think-summary">🧠 AI 思考过程...点击展开</summary>
+  <div class="think-content">${thinkContent.trim()}</div>
+</details>
+`
+          }
+        )
+
+        const safe = DOMPurify.sanitize(marked.parse(processedText))
         return safe
       }
 
@@ -863,7 +890,12 @@
         headerText.value = chatData.title || '新的对话'
         headerLocked.value = messages.value.length > 0
         currentChatIndex.value = index
-        currentChatId.value = chatData.conversation_id || null
+        // 只使用真实的 conversation_id，忽略临时ID
+        currentChatId.value =
+          chatData.conversation_id &&
+          !String(chatData.conversation_id).startsWith('temp_')
+            ? String(chatData.conversation_id)
+            : null
         isNewChat.value = false
         saveToStorage()
         // 切换到历史对话后，默认滚动到聊天底部
@@ -1773,5 +1805,50 @@
     color: #fff;
     border: 1px solid #93c5fd;
     box-shadow: 0 6px 14px rgba(59, 130, 246, 0.25);
+  }
+
+  /* AI 思考过程区块样式 */
+  :deep(.think-block) {
+    margin: 12px 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    overflow: hidden;
+  }
+
+  :deep(.think-summary) {
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 500;
+    color: #6b7280;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+    transition: background-color 0.2s ease;
+    list-style: none;
+  }
+
+  :deep(.think-summary::-webkit-details-marker) {
+    display: none;
+  }
+
+  :deep(.think-summary):hover {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  :deep(.think-block[open] .think-summary) {
+    background: #e0e7ff;
+    color: #4f46e5;
+    border-bottom-color: #c7d2fe;
+  }
+
+  :deep(.think-content) {
+    padding: 14px;
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    background: #ffffff;
   }
 </style>

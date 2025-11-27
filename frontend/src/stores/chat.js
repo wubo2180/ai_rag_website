@@ -43,13 +43,15 @@ export const useChatStore = defineStore('chat', () => {
   // 获取会话历史
   async function fetchSessionHistory(sessionId) {
     try {
-      const response = await apiClient.get(`/chat/sessions/${sessionId}/history/`)
+      const response = await apiClient.get(
+        `/chat/sessions/${sessionId}/history/`
+      )
       messages.value = response.data.messages || []
       currentSession.value = {
         id: response.data.id,
         title: response.data.title,
         created_at: response.data.created_at,
-        updated_at: response.data.updated_at
+        updated_at: response.data.updated_at,
       }
       return { success: true, data: response.data }
     } catch (error) {
@@ -61,13 +63,35 @@ export const useChatStore = defineStore('chat', () => {
   // 发送消息
   async function sendMessage(message, sessionId = null, model = null) {
     isLoading.value = true
-    
+
     try {
-      const response = await apiClient.post('/chat/chat/', {
+      // 构建请求体，确保 session_id 类型正确
+      const payload = {
         message,
-        session_id: sessionId,
-        model: model || selectedModel.value
-      })
+        model: model || selectedModel.value,
+      }
+
+      // 只有当 sessionId 是有效值时才添加
+      if (
+        sessionId &&
+        sessionId !== 'null' &&
+        sessionId !== 'undefined' &&
+        !String(sessionId).startsWith('temp_')
+      ) {
+        console.log('处理 sessionId:', sessionId, 'type:', typeof sessionId)
+        // 尝试转换为整数（数据库主键是整数）
+        const numId = parseInt(sessionId, 10)
+        console.log('parseInt 结果:', numId, 'isNaN:', isNaN(numId))
+        // 如果能成功转换为整数且大于0，则使用整数；否则原样传递（可能是 Dify conversation_id）
+        payload.session_id = !isNaN(numId) && numId > 0 ? numId : sessionId
+        console.log('最终 session_id:', payload.session_id)
+      } else {
+        console.log('sessionId 被过滤:', sessionId)
+      }
+
+      console.log('发送消息 payload:', payload)
+
+      const response = await apiClient.post('/chat/chat/', payload)
 
       if (response.data.success) {
         // 添加用户消息和AI回复到消息列表
@@ -83,22 +107,22 @@ export const useChatStore = defineStore('chat', () => {
           currentSession.value = { id: response.data.session_id }
         }
 
-        return { 
-          success: true, 
+        return {
+          success: true,
           data: response.data,
-          sessionId: response.data.session_id
+          sessionId: response.data.session_id,
         }
       } else {
-        return { 
-          success: false, 
-          error: response.data.error || '发送消息失败' 
+        return {
+          success: false,
+          error: response.data.error || '发送消息失败',
         }
       }
     } catch (error) {
       console.error('发送消息失败:', error)
-      return { 
-        success: false, 
-        error: error.response?.data?.error || '发送消息失败' 
+      return {
+        success: false,
+        error: error.response?.data?.error || '发送消息失败',
       }
     } finally {
       isLoading.value = false
@@ -121,16 +145,19 @@ export const useChatStore = defineStore('chat', () => {
   // 重命名会话
   async function renameSession(sessionId, newTitle) {
     try {
-      const response = await apiClient.post(`/chat/sessions/${sessionId}/rename/`, {
-        title: newTitle
-      })
-      
+      const response = await apiClient.post(
+        `/chat/sessions/${sessionId}/rename/`,
+        {
+          title: newTitle,
+        }
+      )
+
       // 更新本地会话列表
-      const sessionIndex = sessions.value.findIndex(s => s.id === sessionId)
+      const sessionIndex = sessions.value.findIndex((s) => s.id === sessionId)
       if (sessionIndex !== -1) {
         sessions.value[sessionIndex].title = newTitle
       }
-      
+
       // 更新当前会话标题
       if (currentSession.value && currentSession.value.id === sessionId) {
         currentSession.value.title = newTitle
@@ -147,10 +174,10 @@ export const useChatStore = defineStore('chat', () => {
   async function deleteSession(sessionId) {
     try {
       await apiClient.delete(`/chat/sessions/${sessionId}/`)
-      
+
       // 从本地列表中移除
-      sessions.value = sessions.value.filter(s => s.id !== sessionId)
-      
+      sessions.value = sessions.value.filter((s) => s.id !== sessionId)
+
       // 如果删除的是当前会话，清空当前会话和消息
       if (currentSession.value && currentSession.value.id === sessionId) {
         currentSession.value = null
@@ -198,6 +225,6 @@ export const useChatStore = defineStore('chat', () => {
     renameSession,
     deleteSession,
     clearCurrentSession,
-    setCurrentSession
+    setCurrentSession,
   }
 })
