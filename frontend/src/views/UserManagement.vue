@@ -1,162 +1,166 @@
 <template>
-  <section class="role-dept-manager">
-    <header class="header">
-      <div>
-        <h2>用户角色与部门管理</h2>
-        <p>仅管理员可见：批量查看 & 分配角色/部门</p>
-      </div>
-      <div class="header-actions">
-        <button class="ghost" :disabled="isAnyLoading" @click="refreshAll">
-          刷新数据
-        </button>
-      </div>
-    </header>
-
-    <!-- 全局提示 -->
-    <transition name="fade">
-      <div
-        v-if="toast.message"
-        class="toast"
-        :class="toast.type === 'success' ? 'toast-success' : 'toast-error'"
-      >
-        {{ toast.message }}
-      </div>
-    </transition>
-
-    <div class="content-grid">
-      <!-- 用户列表 -->
-      <div class="card users-card">
-        <div class="card-header">
-          <h3>用户列表</h3>
-          <span class="badge">{{ users.length }} 人</span>
+  <div class="user-management-page-wrapper">
+    <NavigationSidebar />
+    <section class="role-dept-manager">
+      <header class="header">
+        <div>
+          <h2>用户角色与部门管理</h2>
+          <p>仅管理员可见：批量查看 & 分配角色/部门</p>
         </div>
-        <div class="table-container">
-          <div v-if="loading.users" class="loading">用户数据加载中...</div>
-          <div v-else-if="!users.length" class="empty">暂无用户数据</div>
-          <table v-else class="user-table">
-            <thead>
-              <tr>
-                <th>用户名</th>
-                <th>邮箱</th>
-                <th>当前角色</th>
-                <th>所属部门</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="user in users" :key="user.id">
-                <td>
-                  <strong>{{ user.username }}</strong>
-                  <small>#{{ user.id }}</small>
-                </td>
-                <td>{{ user.email || '—' }}</td>
-                <td>
-                  <select
-                    v-model="formState[user.id].role"
-                    :disabled="loading.savingId === user.id"
-                  >
-                    <option
-                      v-for="role in roleOptions"
-                      :key="role.value"
-                      :value="role.value"
-                    >
-                      {{ role.label }}
-                    </option>
-                  </select>
-                </td>
-                <td>
-                  <select
-                    v-model="formState[user.id].department_id"
-                    :disabled="loading.savingId === user.id"
-                  >
-                    <option :value="null">未分配</option>
-                    <option
-                      v-for="dept in departments"
-                      :key="dept.id"
-                      :value="dept.id"
-                    >
-                      {{ dept.name }}
-                    </option>
-                  </select>
-                </td>
-                <td>
-                  <button
-                    class="primary"
-                    :disabled="loading.savingId === user.id"
-                    @click="assignRole(user.id)"
-                  >
-                    {{ loading.savingId === user.id ? '保存中…' : '保存' }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="header-actions">
+          <button class="ghost" :disabled="isAnyLoading" @click="refreshAll">
+            刷新数据
+          </button>
         </div>
-      </div>
+      </header>
 
-      <!-- 部门维护 -->
-      <div class="card dept-card">
-        <h3>部门列表</h3>
-        <div class="dept-content">
-          <div v-if="loading.departments" class="loading">
-            部门数据加载中...
+      <!-- 全局提示 -->
+      <transition name="fade">
+        <div
+          v-if="toast.message"
+          class="toast"
+          :class="toast.type === 'success' ? 'toast-success' : 'toast-error'"
+        >
+          {{ toast.message }}
+        </div>
+      </transition>
+
+      <div class="content-grid">
+        <!-- 用户列表 -->
+        <div class="card users-card">
+          <div class="card-header">
+            <h3>用户列表</h3>
+            <span class="badge">{{ users.length }} 人</span>
           </div>
-          <ul v-else class="dept-list">
-            <li v-for="dept in departments" :key="dept.id" class="list-item">
-              <strong>{{ dept.name }}</strong>
-              <span>序号：#{{ dept.id }}</span>
-              <small>权限：{{ dept.description || '暂无描述' }}</small>
-              <small v-if="dept.parent"
-                >上级：{{ resolveParentName(dept.parent) }}</small
-              >
-            </li>
-          </ul>
+          <div class="table-container">
+            <div v-if="loading.users" class="loading">用户数据加载中...</div>
+            <div v-else-if="!users.length" class="empty">暂无用户数据</div>
+            <table v-else class="user-table">
+              <thead>
+                <tr>
+                  <th>用户名</th>
+                  <th>邮箱</th>
+                  <th>当前角色</th>
+                  <th>所属部门</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="user in users" :key="user.id">
+                  <td>
+                    <strong>{{ user.username }}</strong>
+                    <small>#{{ user.id }}</small>
+                  </td>
+                  <td>{{ user.email || '—' }}</td>
+                  <td>
+                    <select
+                      v-model="formState[user.id].role"
+                      :disabled="loading.savingId === user.id"
+                    >
+                      <option
+                        v-for="role in roleOptions"
+                        :key="role.value"
+                        :value="role.value"
+                      >
+                        {{ role.label }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      v-model="formState[user.id].department_id"
+                      :disabled="loading.savingId === user.id"
+                    >
+                      <option :value="null">未分配</option>
+                      <option
+                        v-for="dept in departments"
+                        :key="dept.id"
+                        :value="dept.id"
+                      >
+                        {{ dept.name }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <button
+                      class="primary"
+                      :disabled="loading.savingId === user.id"
+                      @click="assignRole(user.id)"
+                    >
+                      {{ loading.savingId === user.id ? '保存中…' : '保存' }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-          <div class="divider"></div>
-
-          <h4>新建部门</h4>
-          <form class="dept-form" @submit.prevent="createDepartment">
-            <label>
-              名称
-              <input
-                v-model="newDept.name"
-                type="text"
-                placeholder="必填项，例如：研发部"
-                required
-              />
-            </label>
-            <label>
-              描述
-              <textarea
-                v-model="newDept.description"
-                rows="2"
-                placeholder="职责说明，可选"
-              ></textarea>
-            </label>
-            <label>
-              上级部门（可选）
-              <select v-model="newDept.parent">
-                <option :value="null">无</option>
-                <option
-                  v-for="dept in departments"
-                  :key="`parent-${dept.id}`"
-                  :value="dept.id"
+        <!-- 部门维护 -->
+        <div class="card dept-card">
+          <h3>部门列表</h3>
+          <div class="dept-content">
+            <div v-if="loading.departments" class="loading">
+              部门数据加载中...
+            </div>
+            <ul v-else class="dept-list">
+              <li v-for="dept in departments" :key="dept.id" class="list-item">
+                <strong>{{ dept.name }}</strong>
+                <span>序号：#{{ dept.id }}</span>
+                <small>权限：{{ dept.description || '暂无描述' }}</small>
+                <small v-if="dept.parent"
+                  >上级：{{ resolveParentName(dept.parent) }}</small
                 >
-                  {{ dept.name }}
-                </option>
-              </select>
-            </label>
-            <button class="primary" :disabled="loading.creatingDept">
-              {{ loading.creatingDept ? '创建中…' : '创建部门' }}
-            </button>
-          </form>
+              </li>
+            </ul>
+
+            <div class="divider"></div>
+
+            <h4>新建部门</h4>
+            <form class="dept-form" @submit.prevent="createDepartment">
+              <label>
+                名称
+                <input
+                  v-model="newDept.name"
+                  type="text"
+                  placeholder="必填项，例如：研发部"
+                  required
+                />
+              </label>
+              <label>
+                描述
+                <textarea
+                  v-model="newDept.description"
+                  rows="2"
+                  placeholder="职责说明，可选"
+                ></textarea>
+              </label>
+              <label>
+                上级部门（可选）
+                <select v-model="newDept.parent">
+                  <option :value="null">无</option>
+                  <option
+                    v-for="dept in departments"
+                    :key="`parent-${dept.id}`"
+                    :value="dept.id"
+                  >
+                    {{ dept.name }}
+                  </option>
+                </select>
+              </label>
+              <button class="primary" :disabled="loading.creatingDept">
+                {{ loading.creatingDept ? '创建中…' : '创建部门' }}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </div>
 </template>
 
 <script setup>
+  import NavigationSidebar from '@/components/NavigationSidebar.vue'
   import { ref, reactive, onMounted, computed } from 'vue'
   import apiClient from '@/utils/api'
 
@@ -290,13 +294,19 @@
 </script>
 
 <style scoped>
+  .user-management-page-wrapper {
+    display: flex;
+    height: 100vh;
+  }
+
   .role-dept-manager {
+    flex: 1;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 2rem;
     padding: 2rem;
     height: 100%;
-    overflow: hidden;
     background: linear-gradient(135deg, #f5f7fa 0%, #f0f2f5 100%);
   }
 
