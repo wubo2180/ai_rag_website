@@ -30,13 +30,13 @@ const routes = [
   {
     path: '/chat',
     name: 'Chat',
-    component: () => import('@/views/chat.vue'),
+    component: () => import('@/views/Chat.vue'),
     meta: { requiresAuth: false }, // 允许匿名访问聊天
   },
   {
     path: '/chatnewui',
     name: 'ChatNewUI',
-    component: () => import('@/views/chat.vue'),
+    component: () => import('@/views/ChatNewUI.vue'),
     meta: {
       requiresAuth: false,
       title: '智能对话',
