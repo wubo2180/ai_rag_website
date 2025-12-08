@@ -124,17 +124,17 @@
             <!-- 能力标签 -->
             <div class="capabilities">
               <span
-                v-for="capability in agent.capabilities.slice(0, 3)"
+                v-for="capability in agent.capabilities?.slice(0, 3)"
                 :key="capability"
                 class="capability-tag"
               >
                 {{ capability }}
               </span>
               <span
-                v-if="agent.capabilities.length > 3"
+                v-if="agent.capabilities?.length > 3"
                 class="more-capabilities"
               >
-                +{{ agent.capabilities.length - 3 }}
+                +{{ agent.capabilities?.length - 3 }}
               </span>
             </div>
 
@@ -257,7 +257,7 @@
         (agent) =>
           agent.display_name.toLowerCase().includes(query) ||
           agent.description.toLowerCase().includes(query) ||
-          agent.capabilities.some((cap) => cap.toLowerCase().includes(query))
+          agent.capabilities?.some((cap) => cap.toLowerCase().includes(query))
       )
     }
 
