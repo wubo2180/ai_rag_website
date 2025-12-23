@@ -129,6 +129,15 @@ const routes = [
     },
   },
   {
+    path: '/formula-generation',
+    name: 'FormulaGeneration',
+    component: () => import('@/views/FormulaGeneration.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '配方生成',
+    },
+  },
+  {
     path: '/user-management',
     name: 'UserManagement',
     component: () => import('@/views/UserManagement.vue'),

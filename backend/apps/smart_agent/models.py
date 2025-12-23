@@ -14,6 +14,7 @@ class AgentCategory(models.TextChoices):
     DATA_ANALYSIS = 'data_analysis', '数据分析'
     PROPERTY_PREDICTION = 'property_prediction', '性质预测'  
     PROCESS_OPTIMIZATION = 'process_optimization', '工艺优化'
+    FORMULA_GENERATION = 'formula_generation', '配方生成'
     KNOWLEDGE_EXTRACTION = 'knowledge_extraction', '知识抽取'
     DECISION_SUPPORT = 'decision_support', '决策支持'
     OTHER = 'other', '其他'
