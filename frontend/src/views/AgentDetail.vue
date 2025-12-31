@@ -487,7 +487,8 @@ const getCategoryText = (category) => {
     property_prediction: '性质预测',
     process_optimization: '工艺优化',
     knowledge_extraction: '知识抽取',
-    decision_support: '决策支持'
+    decision_support: '决策支持',
+    formula_generation: '配方生成'
   }
   return categoryMap[category] || category
 }
