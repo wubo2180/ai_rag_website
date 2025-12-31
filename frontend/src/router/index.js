@@ -138,6 +138,15 @@ const routes = [
     },
   },
   {
+    path: '/process-optimization',
+    name: 'ProcessOptimization',
+    component: () => import('@/views/ProcessOptimization.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '工艺优化',
+    },
+  },
+  {
     path: '/user-management',
     name: 'UserManagement',
     component: () => import('@/views/UserManagement.vue'),
