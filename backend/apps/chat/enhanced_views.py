@@ -28,45 +28,54 @@ class StreamChatAPIView(APIView):
         model = validated_data.get('model', 'deepseek')
         deep_thinking = request.data.get('deep_thinking', False)
 
-        # 获取或创建会话
+        # 获取或创建会话 - 支持匿名用户
         session = None
-        if session_id and request.user.is_authenticated:
+        if session_id:
             try:
-                session = ChatSession.objects.get(id=session_id, user=request.user)
+                if request.user.is_authenticated:
+                    session = ChatSession.objects.get(id=session_id, user=request.user)
+                else:
+                    # 匿名用户也可以使用已有会话
+                    session = ChatSession.objects.get(id=session_id, user__isnull=True)
             except ChatSession.DoesNotExist:
                 pass
         
-        if not session and request.user.is_authenticated:
-            # 创建新会话
+        if not session:
+            # 创建新会话 - 匿名用户也可以创建
             session_title = message[:50] + '...' if len(message) > 50 else message
             session = ChatSession.objects.create(
-                user=request.user,
+                user=request.user if request.user.is_authenticated else None,
                 title=session_title
             )
 
         # 保存用户消息
-        if session:
-            ChatMessage.objects.create(
-                session=session,
-                content=message,
-                is_user=True
-            )
+        ChatMessage.objects.create(
+            session=session,
+            content=message,
+            is_user=True
+        )
 
         # 返回流式响应
         response = StreamingHttpResponse(
             self.generate_stream_response(message, model, deep_thinking, session, request),
-            content_type='text/plain'
+            content_type='text/event-stream'
         )
         response['Cache-Control'] = 'no-cache'
-        response['Connection'] = 'keep-alive'
+        response['X-Accel-Buffering'] = 'no'
         response['Access-Control-Allow-Origin'] = '*'
         return response
 
     def generate_stream_response(self, message, model, deep_thinking, session=None, request=None):
         """生成流式响应"""
         try:
+            # 先发送 session_id 给前端
+            if session:
+                yield f"data: {json.dumps({'session_id': session.id})}\n\n"
+            
             # API配置 - 从环境变量读取
-            api_url = getattr(settings, 'DIFY_API_URL')
+            base_url = getattr(settings, 'DIFY_API_URL')
+            # 确保使用正确的聊天端点
+            api_url = f"{base_url.rstrip('/')}/chat-messages"
             api_key = settings.DIFY_API_KEY
             if not api_key:
                 raise ValueError("DIFY_API_KEY not configured")
@@ -96,9 +105,9 @@ class StreamChatAPIView(APIView):
                 "response_mode": "streaming"
             }
             
-            # 只在有会话ID时才添加conversation_id
-            if session and session.id:
-                request_body["conversation_id"] = str(session.id)
+            # 使用 Dify 的 conversation_id 而不是数据库ID
+            if session and session.dify_conversation_id:
+                request_body["conversation_id"] = session.dify_conversation_id
 
             headers = {
                 'Authorization': f'Bearer {api_key}',
@@ -122,6 +131,8 @@ class StreamChatAPIView(APIView):
 
             ai_content = ""
             thinking_content = ""
+            dify_conversation_id = None
+            dify_message_id = None
 
             if response.status_code == 200:
                 # 处理流式响应
@@ -134,10 +145,27 @@ class StreamChatAPIView(APIView):
                                 break
                             try:
                                 data = json.loads(data_str)
-                                if 'answer' in data:
-                                    content = data['answer']
-                                    ai_content += content
-                                    yield f"data: {json.dumps({'content': content})}\n\n"
+                                event = data.get('event', '')
+                                
+                                # 处理消息事件
+                                if event == 'message' or 'answer' in data:
+                                    content = data.get('answer', '')
+                                    if content:
+                                        ai_content += content
+                                        yield f"data: {json.dumps({'content': content})}\n\n"
+                                    
+                                    # 保存 conversation_id
+                                    if data.get('conversation_id'):
+                                        dify_conversation_id = data.get('conversation_id')
+                                    if data.get('message_id'):
+                                        dify_message_id = data.get('message_id')
+                                
+                                # 处理消息结束事件
+                                elif event == 'message_end':
+                                    if data.get('conversation_id'):
+                                        dify_conversation_id = data.get('conversation_id')
+                                    if data.get('message_id'):
+                                        dify_message_id = data.get('message_id')
                                 
                                 # 如果有深度思考内容
                                 if deep_thinking and 'thinking' in data:
@@ -148,19 +176,27 @@ class StreamChatAPIView(APIView):
                             except json.JSONDecodeError:
                                 continue
 
+                # 保存 Dify 的 conversation_id 到会话
+                if session and dify_conversation_id:
+                    if not session.dify_conversation_id:
+                        session.dify_conversation_id = dify_conversation_id
+                        session.save()
+
                 # 保存AI响应
                 if session and ai_content:
                     ai_message = ChatMessage.objects.create(
                         session=session,
                         content=ai_content,
-                        is_user=False
+                        is_user=False,
+                        dify_message_id=dify_message_id
                     )
                     # 如果有深度思考内容，也保存
                     if thinking_content:
                         ai_message.metadata = {'thinking': thinking_content}
                         ai_message.save()
 
-                yield "data: [DONE]\n\n"
+                # 发送完成信号
+                yield f"data: {json.dumps({'done': True})}\n\n"
             
             else:
                 # 详细错误处理 - 添加更多调试信息
@@ -184,16 +220,16 @@ class StreamChatAPIView(APIView):
                     print(f"解析错误响应失败: {parse_error}")
                     error_msg = f"AI服务暂时不可用（错误代码: {response.status_code}）"
                 
-                yield f"data: {json.dumps({'content': error_msg})}\n\n"
-                yield "data: [DONE]\n\n"
+                yield f"data: {json.dumps({'content': error_msg, 'error': True})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
 
         except requests.exceptions.Timeout:
-            yield f"data: {json.dumps({'content': '请求超时，请稍后重试。'})}\n\n"
-            yield "data: [DONE]\n\n"
+            yield f"data: {json.dumps({'content': '请求超时，请稍后重试。', 'error': True})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             print(f"流式响应生成错误: {e}")
-            yield f"data: {json.dumps({'content': '服务暂时不可用，请稍后重试。'})}\n\n"
-            yield "data: [DONE]\n\n"
+            yield f"data: {json.dumps({'content': f'服务暂时不可用: {str(e)}', 'error': True})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
 
 
 class RelatedQuestionsAPIView(APIView):
