@@ -66,80 +66,82 @@
         </el-card>
       </div>
 
-      <!-- 图谱可视化区域 -->
-      <el-card class="graph-card" v-loading="loading">
-        <div
-          id="knowledge-graph"
-          ref="graphContainer"
-          style="width: 100%; height: 800px"
-        ></div>
-      </el-card>
+      <!-- 主内容区域 - 左右布局 -->
+      <div class="main-content-layout">
+        <!-- 左侧：搜索和表格区域 -->
+        <el-card class="table-card">
+          <div class="search-section">
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索名称、编号或供应商等信息"
+              clearable
+              prefix-icon="el-icon-search"
+              style="width: 100%; margin-bottom: 10px"
+              @input="handleSearch"
+              size="small"
+            />
+            <div style="display: flex; gap: 8px;">
+              <el-select
+                v-model="currentTab"
+                placeholder="选择数据类型"
+                style="flex: 1"
+                size="small"
+              >
+                <el-option label="全部" value="all"></el-option>
+                <el-option label="原材料" value="raw_material"></el-option>
+                <el-option label="中间体" value="intermediate"></el-option>
+                <el-option label="配方" value="formula"></el-option>
+                <el-option label="性能数据" value="performance"></el-option>
+              </el-select>
+              <el-button
+                type="primary"
+                @click="handleSearch"
+                size="small"
+              >
+                搜索
+              </el-button>
+            </div>
+          </div>
 
-      <!-- 搜索和表格区域 -->
-      <el-card class="table-card">
-        <div class="search-section">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索名称、编号或供应商等信息"
-            clearable
-            prefix-icon="el-icon-search"
-            style="width: 400px"
-            @input="handleSearch"
-          />
-          <el-select
+          <el-tabs
             v-model="currentTab"
-            placeholder="选择数据类型"
-            style="width: 150px; margin-left: 10px"
+            @tab-click="handleTabChange"
+            style="margin-top: 8px"
           >
-            <el-option label="全部" value="all"></el-option>
-            <el-option label="原材料" value="raw_material"></el-option>
-            <el-option label="中间体" value="intermediate"></el-option>
-            <el-option label="配方" value="formula"></el-option>
-            <el-option label="性能数据" value="performance"></el-option>
-          </el-select>
-          <el-button
-            type="primary"
-            @click="handleSearch"
-            style="margin-left: 10px"
-          >
-            搜索
-          </el-button>
-        </div>
-
-        <el-tabs
-          v-model="currentTab"
-          @tab-click="handleTabChange"
-          style="margin-top: 20px"
-        >
-          <el-tab-pane label="全部" name="all">
-            <el-table
-              :data="filteredNodes"
-              style="width: 100%"
-              @row-click="handleRowClick"
-            >
-              <el-table-column
-                prop="id"
-                label="ID"
-                width="180"
-              ></el-table-column>
-              <el-table-column
-                prop="name"
-                label="名称"
-                width="200"
-              ></el-table-column>
-              <el-table-column
-                prop="code"
-                label="编号"
-                width="150"
-              ></el-table-column>
-              <el-table-column prop="type" label="类型" width="120">
-                <template #default="scope">
-                  <el-tag :type="getNodeTypeColor(scope.row.type)">
-                    {{ getNodeTypeLabel(scope.row.type) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="data" label="详细信息" width="auto">
+            <el-tab-pane label="全部" name="all">
+              <el-table
+                :data="filteredNodes"
+                style="width: 100%"
+                @row-click="handleRowClick"
+                height="730"
+                size="small"
+              >
+                <el-table-column
+                  prop="id"
+                  label="ID"
+                  width="120"
+                  show-overflow-tooltip
+                ></el-table-column>
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  width="180"
+                  show-overflow-tooltip
+                ></el-table-column>
+                <el-table-column
+                  prop="code"
+                  label="编号"
+                  width="120"
+                  show-overflow-tooltip
+                ></el-table-column>
+                <el-table-column prop="type" label="类型" width="100">
+                  <template #default="scope">
+                    <el-tag :type="getNodeTypeColor(scope.row.type)" size="small">
+                      {{ getNodeTypeLabel(scope.row.type) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="data" label="详细信息" min-width="150" show-overflow-tooltip>
                 <template #default="scope">
                   <div v-if="scope.row.type === 'raw_material'">
                     {{ scope.row.data.supplier || '-' }}
@@ -479,6 +481,16 @@
           </div>
         </div>
       </el-drawer>
+
+        <!-- 右侧：图谱可视化区域 -->
+        <el-card class="graph-card" v-loading="loading">
+          <div
+            id="knowledge-graph"
+            ref="graphContainer"
+            style="width: 100%; height: 850px"
+          ></div>
+        </el-card>
+      </div>
     </div>
   </div>
 </template>
@@ -842,15 +854,15 @@
             text: '材料知识图谱',
             subtext: '原材料 → 中间体 → 配方 → 性能',
             left: 'center',
-            top: 10,
+            top: 20,
             textStyle: {
-              fontSize: 24,
+              fontSize: 26,
               fontWeight: 'bold',
-              color: '#333',
+              color: '#2c3e50',
             },
             subtextStyle: {
-              fontSize: 14,
-              color: '#666',
+              fontSize: 15,
+              color: '#7f8c8d',
             },
           },
           tooltip: {
@@ -1208,8 +1220,9 @@
   .knowledge-graph-container {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
-    max-width: 1600px;
+    padding: 20px 60px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
     background: linear-gradient(135deg, #f5f7fa 0%, #e8edf3 100%);
     min-height: 100vh;
@@ -1244,6 +1257,20 @@
     grid-template-columns: 2fr 1fr;
     gap: 20px;
     margin-bottom: 20px;
+  }
+
+  /* 主内容左右布局 */
+  .main-content-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  /* 统一左右两侧高度 */
+  .table-card,
+  .graph-card {
+    height: 850px;
   }
 
   .stats-card {
@@ -1338,7 +1365,6 @@
   }
 
   .graph-card {
-    margin-bottom: 20px;
     border: none;
     border-radius: 12px;
     box-shadow: 0 6px 30px rgba(0, 0, 0, 0.1);
@@ -1348,35 +1374,56 @@
 
   .graph-card :deep(.el-card__body) {
     padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   #knowledge-graph {
     background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    flex: 1;
   }
 
   .table-card {
-    margin-top: 30px;
     border: none;
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     background: white;
+    display: flex;
+    flex-direction: column;
   }
 
   .table-card :deep(.el-card__body) {
-    padding: 25px;
+    padding: 16px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .table-card :deep(.el-tabs) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .table-card :deep(.el-tabs__content) {
+    flex: 1;
+    overflow: hidden;
   }
 
   .search-section {
     display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-    padding: 15px;
+    flex-direction: column;
+    margin-bottom: 15px;
+    padding: 12px;
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 10px;
+    border-radius: 8px;
   }
 
   .search-section .el-input {
-    border-radius: 8px;
+    border-radius: 6px;
   }
 
   .search-section .el-button {
@@ -1494,9 +1541,39 @@
     }
   }
 
+  @media (max-width: 1400px) {
+    .main-content-layout {
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+  }
+
+  @media (max-width: 1200px) {
+    .knowledge-graph-container {
+      padding: 20px 30px;
+    }
+
+    .main-content-layout {
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+  }
+
   @media (max-width: 768px) {
     .control-panel {
       grid-template-columns: 1fr;
+    }
+
+    .knowledge-graph-container {
+      padding: 15px;
+    }
+
+    .main-content-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .graph-card {
+      position: static;
     }
 
     .stats-grid {
