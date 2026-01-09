@@ -20,8 +20,8 @@ __pycache__/
 **/*.pyd
 
 
-*.log
-backend/logs/
+backend/logs/*
+!backend/logs/.gitkeep
 
 staticfiles/
 static_collected/
