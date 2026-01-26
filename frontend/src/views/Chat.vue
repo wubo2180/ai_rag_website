@@ -192,8 +192,8 @@
                     isLoading
                       ? 'AI正在回复，无法发送'
                       : newMessage.trim() === ''
-                      ? '请输入内容后再发送'
-                      : '发送'
+                        ? '请输入内容后再发送'
+                        : '发送'
                   "
                 >
                   <img
@@ -326,7 +326,7 @@
             '准备发送消息, currentChatId:',
             currentChatId.value,
             'type:',
-            typeof currentChatId.value
+            typeof currentChatId.value,
           )
 
           // 立即添加一个"思考中"的占位消息
@@ -343,14 +343,15 @@
           try {
             isLoading.value = true
 
-            // 使用流式 API 接收消息（使用相对路径，让 Vite 代理处理）
-            const streamUrl = '/api/chat/stream/'
+            // 使用微信小程序SSE接口（使用相对路径，让 Vite 代理处理）
+            const streamUrl = '/api/chat/wechat/stream/'
 
-            // 构建请求体
+            // 构建请求体 - 符合微信小程序SSE接口格式
             const payload = {
               message: text,
               model: chatStore.selectedModel || 'deepseek',
-              deep_thinking: isDeepThinkingActive.value,
+              // 微信小程序接口使用 user_id 字段
+              user_id: localStorage.getItem('user_id') || 'web_anonymous',
             }
 
             // 添加会话 ID
@@ -362,7 +363,7 @@
                 parseInt(currentChatId.value, 10) || currentChatId.value
             }
 
-            console.log('流式请求 payload:', payload)
+            console.log('微信小程序SSE请求 payload:', payload)
 
             // 发起流式请求
             const response = await fetch(streamUrl, {
@@ -373,7 +374,7 @@
                 ...(localStorage.getItem('access_token')
                   ? {
                       Authorization: `Bearer ${localStorage.getItem(
-                        'access_token'
+                        'access_token',
                       )}`,
                     }
                   : {}),
@@ -394,7 +395,7 @@
               const { done, value } = await reader.read()
 
               if (done) {
-                console.log('流式响应接收完成')
+                console.log('微信小程序SSE流式响应接收完成')
                 break
               }
 
@@ -407,16 +408,39 @@
 
               for (const line of lines) {
                 if (line.startsWith('data: ')) {
-                  try {
-                    const jsonStr = line.slice(6).trim()
-                    if (!jsonStr) continue
+                  const dataStr = line.slice(6).trim()
 
-                    const data = JSON.parse(jsonStr)
+                  // 处理SSE结束标记
+                  if (dataStr === '[DONE]') {
+                    console.log('收到SSE结束标记 [DONE]')
+                    continue
+                  }
+
+                  if (!dataStr) continue
+
+                  try {
+                    const data = JSON.parse(dataStr)
+
+                    // 处理错误信息
+                    if (data.error) {
+                      console.error('SSE流式响应错误:', data.error)
+                      messages.value[aiMessageIndex]._isLoading = false
+                      messages.value[aiMessageIndex].content =
+                        `错误: ${data.error}`
+                      continue
+                    }
 
                     // 处理会话 ID（在流开始时返回）
-                    if (data.session_id) {
+                    if (data.session_id && !data.content && !data.done) {
                       currentChatId.value = String(data.session_id)
                       console.log('更新 currentChatId:', currentChatId.value)
+                      // 同时保存 conversation_id
+                      if (data.conversation_id) {
+                        console.log(
+                          '收到 conversation_id:',
+                          data.conversation_id,
+                        )
+                      }
                     }
 
                     // 处理内容块
@@ -434,12 +458,11 @@
 
                     // 处理完成信号
                     if (data.done) {
-                      console.log('收到完成信号')
-                    }
-
-                    // 处理错误
-                    if (data.error) {
-                      console.error('流式响应错误:', data.content)
+                      console.log('收到完成信号, message_id:', data.message_id)
+                      // 更新最终的 session_id 和 conversation_id
+                      if (data.session_id) {
+                        currentChatId.value = String(data.session_id)
+                      }
                     }
                   } catch (e) {
                     // 忽略解析错误，可能是不完整的 JSON
@@ -451,6 +474,7 @@
 
             // 如果没有收到任何内容，显示默认消息
             if (!messages.value[aiMessageIndex].content) {
+              messages.value[aiMessageIndex]._isLoading = false
               messages.value[aiMessageIndex].content =
                 '抱歉，未能获取到 AI 回复。'
             }
@@ -553,7 +577,7 @@
         const script = document.createElement('script')
         script.id = scriptId
         script.src = `https://suggestion.baidu.com/su?wd=${encodeURIComponent(
-          query
+          query,
         )}&cb=window.handleBaiduSuggestionsChat`
 
         script.onerror = () => {
@@ -596,7 +620,7 @@
         const query = newMessage.value.trim()
         const regex = new RegExp(
           `(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
-          'gi'
+          'gi',
         )
         return text.replace(regex, '<strong>$1</strong>')
       }
@@ -665,7 +689,7 @@
           }
           localStorage.setItem(
             getHistoryStorageKey(),
-            JSON.stringify(chatHistory.value)
+            JSON.stringify(chatHistory.value),
           )
         } catch (err) {
           console.warn('保存历史存储失败:', err)
@@ -772,7 +796,7 @@
             label,
             days: getDayDiff(items[0]?.timestamp),
             items,
-          })
+          }),
         )
         entries.sort((a, b) => a.days - b.days)
         return entries
@@ -794,7 +818,7 @@
   <div class="think-content">${thinkContent.trim()}</div>
 </details>
 `
-          }
+          },
         )
 
         const safe = DOMPurify.sanitize(marked.parse(processedText))
@@ -1241,7 +1265,9 @@
   .tool-btn img {
     width: 24px;
     height: 24px;
-    transition: transform 0.3s ease, filter 0.3s ease;
+    transition:
+      transform 0.3s ease,
+      filter 0.3s ease;
   }
   .tool-btn .all-icon {
     width: 21.6px; /* 24px * 0.9 */
@@ -1434,8 +1460,11 @@
     padding: 6px 12px; /* 为文字本身的高亮留出内边距 */
     border-radius: 999px; /* 圆角形状包裹文字 */
     border: 1px solid transparent; /* 常驻边框，避免 hover 时尺寸变化导致抖动 */
-    transition: background-color 0.2s ease, color 0.2s ease,
-      box-shadow 0.2s ease, border-color 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
     width: 200px; /* 固定长度为200px */
     box-sizing: border-box; /* 保证包含内边距后总宽度仍为200px */
     text-align: center; /* 文本居中显示 */

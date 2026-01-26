@@ -1,11 +1,13 @@
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.models import User
 from django.conf import settings
 import json
+import requests
+import logging
 
 # REST Framework imports (from api_views.py)
 from rest_framework import generics, status, permissions
@@ -14,6 +16,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
+
+logger = logging.getLogger(__name__)
 
 from .models import ChatSession, ChatMessage
 from apps.ai_service.services import ai_service
@@ -486,3 +490,354 @@ class ChatSessionRenameAPIView(APIView):
                 {'error': '会话不存在或无权限访问'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+# ==================== 微信小程序 SSE API ====================
+
+class WeChatMiniProgramSSEAPIView(APIView):
+    """
+    微信小程序专用SSE流式聊天API
+    
+    SSE格式要求：
+    - Content-Type: text/event-stream
+    - Cache-Control: no-cache
+    - 每个数据块以 data: 开头
+    - 每个数据块以 \\n\\n 结束
+    - 结束标记为 data: [DONE]\\n\\n
+    
+    请求格式：
+    POST /api/chat/wechat/stream/
+    {
+        "message": "用户消息",
+        "session_id": "会话ID（可选）",
+        "model": "模型名称（可选）",
+        "user_id": "微信用户标识（可选）"
+    }
+    
+    响应格式（SSE流）：
+    data: {"session_id": "123", "conversation_id": "abc"}
+    data: {"content": "你好"}
+    data: {"content": "世界"}
+    data: {"done": true, "message_id": "xxx"}
+    data: [DONE]
+    """
+    permission_classes = [AllowAny]  # 允许匿名访问，但会尝试解析Token获取用户
+    
+    def post(self, request):
+        """处理微信小程序的SSE流式聊天请求"""
+        logger.info(f"📱 微信小程序SSE请求: {request.data}")
+        logger.info(f"📱 用户认证状态: {request.user}, is_authenticated={request.user.is_authenticated}")
+        
+        # 获取请求参数
+        message = request.data.get('message', '').strip()
+        session_id = request.data.get('session_id')
+        model = request.data.get('model')
+        wechat_user_id = request.data.get('user_id', 'wechat_anonymous')
+        
+        # 验证消息
+        if not message:
+            return self._create_error_sse_response({'error': '消息不能为空'})
+        
+        try:
+            # 获取或创建会话 - 传入request以获取用户信息
+            session = self._get_or_create_session(session_id, message, request)
+            
+            # 保存用户消息
+            user_message = ChatMessage.objects.create(
+                session=session,
+                content=message,
+                is_user=True
+            )
+            
+            # 返回SSE流式响应
+            response = StreamingHttpResponse(
+                self._generate_sse_stream(
+                    message=message,
+                    model=model,
+                    session=session,
+                    wechat_user_id=wechat_user_id
+                ),
+                content_type='text/event-stream'
+            )
+            
+            # 设置SSE必需的响应头
+            response['Cache-Control'] = 'no-cache'
+            response['X-Accel-Buffering'] = 'no'  # 禁用nginx缓冲
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"❌ 微信小程序SSE请求失败: {str(e)}")
+            return self._create_error_sse_response({'error': f'服务器错误: {str(e)}'})
+    
+    def _get_or_create_session(self, session_id, message, request):
+        """
+        获取或创建会话
+        
+        逻辑：
+        1. 如果提供了session_id，尝试获取该会话
+           - 如果用户已登录，验证会话属于该用户
+           - 如果用户未登录，只能访问无主会话
+        2. 如果没有提供session_id或会话不存在，创建新会话
+           - 新会话会关联到当前登录用户（如果有）
+        
+        这样确保：
+        - 微信小程序用户登录后，对话会关联到他们的账户
+        - 网页端和微信小程序共享同一份对话历史
+        """
+        user = request.user if request.user.is_authenticated else None
+        
+        if session_id:
+            try:
+                session = ChatSession.objects.get(id=session_id)
+                
+                # 权限验证
+                if user:
+                    # 已登录用户只能访问自己的会话
+                    if session.user and session.user != user:
+                        logger.warning(f"⚠️ 用户 {user.id} 尝试访问其他用户的会话 {session_id}")
+                        # 不抛错，而是创建新会话
+                        pass
+                    else:
+                        # 如果会话没有用户，绑定到当前用户
+                        if not session.user:
+                            session.user = user
+                            session.save()
+                            logger.info(f"📱 会话 {session_id} 已绑定到用户 {user.id}")
+                        return session
+                else:
+                    # 未登录用户只能访问无主会话
+                    if session.user is None:
+                        return session
+                    else:
+                        logger.warning(f"⚠️ 匿名用户尝试访问用户会话 {session_id}")
+                        
+            except ChatSession.DoesNotExist:
+                logger.info(f"📱 会话 {session_id} 不存在，将创建新会话")
+        
+        # 创建新会话
+        session_title = message[:50] + '...' if len(message) > 50 else message
+        session = ChatSession.objects.create(
+            user=user,  # 关联到当前登录用户
+            title=session_title
+        )
+        logger.info(f"📱 创建新会话 {session.id}, 用户: {user.id if user else 'anonymous'}")
+        return session
+    
+    def _generate_sse_stream(self, message, model, session, wechat_user_id):
+        """
+        生成符合微信小程序要求的SSE流
+        
+        格式要求：
+        - 每行以 data: 开头
+        - 每个数据块以 \\n\\n 结束
+        - 最后发送 data: [DONE]\\n\\n
+        """
+        try:
+            # 1. 首先发送session_id信息
+            session_info = {
+                'session_id': str(session.id),
+                'conversation_id': session.dify_conversation_id or str(session.id)
+            }
+            yield f"data: {json.dumps(session_info, ensure_ascii=False)}\n\n"
+            
+            # 2. 调用Dify API获取流式响应
+            api_url = f"{settings.DIFY_API_URL.rstrip('/')}/chat-messages"
+            api_key = settings.DIFY_API_KEY
+            
+            if not api_key:
+                yield f"data: {json.dumps({'error': 'API密钥未配置'}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+            
+            # Dify支持的模型列表
+            valid_models = [
+                'deepseek深度思考', '通义千问', '腾讯混元', '豆包', 
+                'Kimi', 'GPT-5', 'Claude4', 'Gemini2.5', 'Grok-4', 'Llama4'
+            ]
+            
+            # 模型映射 - 将前端传的模型名映射到Dify支持的模型名
+            model_mapping = {
+                'deepseek': '通义千问',
+                'qianwen': '通义千问',
+                'tongyi': '通义千问',
+                'hunyuan': '腾讯混元',
+                'doubao': '豆包',
+                'kimi': 'Kimi',
+                'gpt': 'GPT-5',
+                'gpt-5': 'GPT-5',
+                'claude': 'Claude4',
+                'claude4': 'Claude4',
+                'gemini': 'Gemini2.5',
+                'grok': 'Grok-4',
+                'llama': 'Llama4',
+            }
+            
+            # 获取有效的模型名
+            default_model = getattr(settings, 'DIFY_DEFAULT_MODEL', '通义千问')
+            if not model:
+                large_model = default_model
+            elif model in valid_models:
+                large_model = model
+            elif model.lower() in model_mapping:
+                large_model = model_mapping[model.lower()]
+            else:
+                # 如果模型名无效，使用默认模型
+                logger.warning(f"⚠️ 无效的模型名: {model}，使用默认模型: {default_model}")
+                large_model = default_model
+            
+            # 构建请求体
+            request_body = {
+                "inputs": {"largeModel": large_model},
+                "query": message,
+                "user": wechat_user_id,
+                "response_mode": "streaming"
+            }
+            
+            # 如果有Dify会话ID，则使用
+            if session.dify_conversation_id:
+                request_body["conversation_id"] = session.dify_conversation_id
+            
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            # 获取超时配置
+            model_timeouts = getattr(settings, 'AI_MODEL_TIMEOUTS', {})
+            timeout_duration = model_timeouts.get(large_model, model_timeouts.get('default', 90))
+            
+            logger.info(f"📱 微信小程序调用Dify API, 模型: {large_model}, 超时: {timeout_duration}秒")
+            
+            # 调用Dify API
+            response = requests.post(
+                api_url,
+                headers=headers,
+                json=request_body,
+                timeout=timeout_duration,
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                error_msg = f"AI服务错误: {response.status_code}"
+                logger.error(f"❌ Dify API错误: {response.text}")
+                yield f"data: {json.dumps({'error': error_msg}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+            
+            # 3. 处理Dify的SSE响应并转发给微信小程序
+            ai_content = ""
+            dify_conversation_id = None
+            dify_message_id = None
+            
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        data_str = line_str[6:]
+                        if data_str.strip() == '[DONE]':
+                            break
+                        
+                        try:
+                            data = json.loads(data_str)
+                            event = data.get('event', '')
+                            
+                            # 处理消息事件
+                            if event == 'message' or 'answer' in data:
+                                content = data.get('answer', '')
+                                if content:
+                                    ai_content += content
+                                    # 发送内容块 - 符合微信小程序SSE格式
+                                    yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+                                
+                                # 保存conversation_id
+                                if data.get('conversation_id'):
+                                    dify_conversation_id = data.get('conversation_id')
+                                if data.get('message_id'):
+                                    dify_message_id = data.get('message_id')
+                            
+                            # 处理消息结束事件
+                            elif event == 'message_end':
+                                if data.get('conversation_id'):
+                                    dify_conversation_id = data.get('conversation_id')
+                                if data.get('message_id'):
+                                    dify_message_id = data.get('message_id')
+                            
+                            # 处理错误事件
+                            elif event == 'error':
+                                error_msg = data.get('message', '未知错误')
+                                yield f"data: {json.dumps({'error': error_msg}, ensure_ascii=False)}\n\n"
+                                
+                        except json.JSONDecodeError:
+                            continue
+            
+            # 4. 保存Dify的conversation_id到会话
+            if dify_conversation_id and not session.dify_conversation_id:
+                session.dify_conversation_id = dify_conversation_id
+                session.save()
+            
+            # 5. 保存AI响应到数据库
+            ai_message = None
+            if ai_content:
+                ai_message = ChatMessage.objects.create(
+                    session=session,
+                    content=ai_content,
+                    is_user=False,
+                    dify_message_id=dify_message_id
+                )
+            
+            # 6. 发送完成信号
+            done_data = {
+                'done': True,
+                'session_id': str(session.id),
+                'conversation_id': dify_conversation_id or str(session.id)
+            }
+            if ai_message:
+                done_data['message_id'] = str(ai_message.id)
+            
+            yield f"data: {json.dumps(done_data, ensure_ascii=False)}\n\n"
+            
+            # 7. 发送SSE结束标记
+            yield "data: [DONE]\n\n"
+            
+            logger.info(f"✅ 微信小程序SSE响应完成, 内容长度: {len(ai_content)}")
+            
+        except requests.exceptions.Timeout:
+            logger.error("❌ Dify API请求超时")
+            yield f"data: {json.dumps({'error': 'AI服务响应超时，请稍后再试'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        except requests.exceptions.ConnectionError:
+            logger.error("❌ 无法连接到Dify API")
+            yield f"data: {json.dumps({'error': '无法连接到AI服务，请检查网络'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            logger.error(f"❌ SSE流生成异常: {str(e)}")
+            yield f"data: {json.dumps({'error': f'服务异常: {str(e)}'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+    
+    def _create_error_sse_response(self, error_data):
+        """创建错误SSE响应"""
+        def error_generator():
+            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        
+        response = StreamingHttpResponse(
+            error_generator(),
+            content_type='text/event-stream'
+        )
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'
+        response['Access-Control-Allow-Origin'] = '*'
+        return response
+    
+    def options(self, request):
+        """处理CORS预检请求"""
+        response = Response(status=status.HTTP_200_OK)
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
