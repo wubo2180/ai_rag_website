@@ -25,4 +25,7 @@ urlpatterns = [
     path('suggestions/', RelatedQuestionsAPIView.as_view(), name='related_questions'),
     path('enhanced-models/', EnhancedModelsAPIView.as_view(), name='enhanced_models'),
     path('model-switch/', ChatModelSwitchAPIView.as_view(), name='model_switch'),
+    
+    # 微信小程序专用SSE接口
+    path('wechat/stream/', views.WeChatMiniProgramSSEAPIView.as_view(), name='wechat_stream'),
 ]

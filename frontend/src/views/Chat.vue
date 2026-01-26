@@ -60,9 +60,33 @@
           >
             <div v-if="message.sender === 'user'">{{ message.content }}</div>
             <div v-else class="ai-message-content">
-              <div v-html="renderMarkdown(message.content)"></div>
+              <!-- 思考中加载状态 -->
+              <div v-if="message._isLoading" class="thinking-indicator">
+                <div class="thinking-dots">
+                  <span class="thinking-text">🤔 思考中</span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
+              </div>
+              <!-- 正常消息内容 -->
+              <div v-else class="ai-text-content">
+                <span v-html="renderMarkdown(message.content)"></span>
+                <span
+                  v-if="
+                    isLoading &&
+                    index === messages.length - 1 &&
+                    message.content
+                  "
+                  class="typing-cursor"
+                  >|</span
+                >
+              </div>
               <button
-                v-if="!isLoading || index !== messages.length - 1"
+                v-if="
+                  !message._isLoading &&
+                  (!isLoading || index !== messages.length - 1)
+                "
                 class="copy-btn"
                 :class="{ animate: message._copyAnimating }"
                 @click="copyAiMessage(message)"
@@ -168,8 +192,8 @@
                     isLoading
                       ? 'AI正在回复，无法发送'
                       : newMessage.trim() === ''
-                      ? '请输入内容后再发送'
-                      : '发送'
+                        ? '请输入内容后再发送'
+                        : '发送'
                   "
                 >
                   <img
@@ -302,53 +326,168 @@
             '准备发送消息, currentChatId:',
             currentChatId.value,
             'type:',
-            typeof currentChatId.value
+            typeof currentChatId.value,
           )
+
+          // 立即添加一个"思考中"的占位消息
+          messages.value.push({
+            content: '',
+            sender: 'ai',
+            _isLoading: true,
+          })
+          // 记录消息索引，用于后续更新（确保响应式）
+          const aiMessageIndex = messages.value.length - 1
+          // 滚动到底部显示思考中状态
+          scrollToBottom()
 
           try {
             isLoading.value = true
-            // 使用 Pinia store 的发送方法（非流式），不要当作 fetch Response 使用
-            const response = await chatStore.sendMessage(
-              text,
-              currentChatId.value || null,
-              null // 让 store 使用其内部的 selectedModel
-            )
-            console.log('AI 响应接收完成:', response)
 
-            // 检查响应是否成功
-            if (response && response.data && response.data.success) {
-              const data = response.data
+            // 使用微信小程序SSE接口（使用相对路径，让 Vite 代理处理）
+            const streamUrl = '/api/chat/wechat/stream/'
 
-              // 更新会话 ID：优先使用 session_id（数据库整数ID），用于后续请求
-              // conversation_id 是 Dify 的 UUID，仅供后端内部使用
-              if (data.session_id) {
-                currentChatId.value = String(data.session_id)
-              }
-
-              console.log('更新 currentChatId:', currentChatId.value)
-
-              // 添加 AI 响应消息
-              if (data.response) {
-                messages.value.push({
-                  content: data.response,
-                  sender: 'ai',
-                })
-                // 若当前已在底部，则跟随到底部
-                if (isAtBottom.value) scrollToBottom()
-              }
-
-              isLoading.value = false
-              // AI 回复完成后，更新历史记录
-              saveCurrentChat()
-            } else {
-              throw new Error('AI 响应格式错误或请求失败')
+            // 构建请求体 - 符合微信小程序SSE接口格式
+            const payload = {
+              message: text,
+              model: chatStore.selectedModel || 'deepseek',
+              // 微信小程序接口使用 user_id 字段
+              user_id: localStorage.getItem('user_id') || 'web_anonymous',
             }
+
+            // 添加会话 ID
+            if (
+              currentChatId.value &&
+              !String(currentChatId.value).startsWith('temp_')
+            ) {
+              payload.session_id =
+                parseInt(currentChatId.value, 10) || currentChatId.value
+            }
+
+            console.log('微信小程序SSE请求 payload:', payload)
+
+            // 发起流式请求
+            const response = await fetch(streamUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // 添加认证头（如果有）
+                ...(localStorage.getItem('access_token')
+                  ? {
+                      Authorization: `Bearer ${localStorage.getItem(
+                        'access_token',
+                      )}`,
+                    }
+                  : {}),
+              },
+              body: JSON.stringify(payload),
+            })
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+            let receivedFirstContent = false // 标记是否收到第一个内容块
+
+            while (true) {
+              const { done, value } = await reader.read()
+
+              if (done) {
+                console.log('微信小程序SSE流式响应接收完成')
+                break
+              }
+
+              // 解码数据块
+              buffer += decoder.decode(value, { stream: true })
+
+              // 按行处理 SSE 数据
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || '' // 保留未完成的行
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const dataStr = line.slice(6).trim()
+
+                  // 处理SSE结束标记
+                  if (dataStr === '[DONE]') {
+                    console.log('收到SSE结束标记 [DONE]')
+                    continue
+                  }
+
+                  if (!dataStr) continue
+
+                  try {
+                    const data = JSON.parse(dataStr)
+
+                    // 处理错误信息
+                    if (data.error) {
+                      console.error('SSE流式响应错误:', data.error)
+                      messages.value[aiMessageIndex]._isLoading = false
+                      messages.value[aiMessageIndex].content =
+                        `错误: ${data.error}`
+                      continue
+                    }
+
+                    // 处理会话 ID（在流开始时返回）
+                    if (data.session_id && !data.content && !data.done) {
+                      currentChatId.value = String(data.session_id)
+                      console.log('更新 currentChatId:', currentChatId.value)
+                      // 同时保存 conversation_id
+                      if (data.conversation_id) {
+                        console.log(
+                          '收到 conversation_id:',
+                          data.conversation_id,
+                        )
+                      }
+                    }
+
+                    // 处理内容块
+                    if (data.content) {
+                      // 收到第一个内容块时，切换为打字机模式
+                      if (!receivedFirstContent) {
+                        receivedFirstContent = true
+                        messages.value[aiMessageIndex]._isLoading = false
+                        messages.value[aiMessageIndex].content = ''
+                      }
+                      messages.value[aiMessageIndex].content += data.content
+                      // 若当前在底部，则跟随滚动
+                      if (isAtBottom.value) scrollToBottom()
+                    }
+
+                    // 处理完成信号
+                    if (data.done) {
+                      console.log('收到完成信号, message_id:', data.message_id)
+                      // 更新最终的 session_id 和 conversation_id
+                      if (data.session_id) {
+                        currentChatId.value = String(data.session_id)
+                      }
+                    }
+                  } catch (e) {
+                    // 忽略解析错误，可能是不完整的 JSON
+                    console.debug('解析 SSE 数据失败:', line, e)
+                  }
+                }
+              }
+            }
+
+            // 如果没有收到任何内容，显示默认消息
+            if (!messages.value[aiMessageIndex].content) {
+              messages.value[aiMessageIndex]._isLoading = false
+              messages.value[aiMessageIndex].content =
+                '抱歉，未能获取到 AI 回复。'
+            }
+
+            isLoading.value = false
+            // AI 回复完成后，更新历史记录
+            saveCurrentChat()
           } catch (error) {
             console.error('Error fetching AI response:', error)
-            messages.value.push({
-              content: '抱歉，AI 服务暂时不可用，请稍后重试。',
-              sender: 'ai',
-            })
+            // 更新占位消息为错误提示
+            messages.value[aiMessageIndex]._isLoading = false
+            messages.value[aiMessageIndex].content =
+              '抱歉，AI 服务暂时不可用，请稍后重试。'
             isLoading.value = false
           }
           // 每次交互后保存当前会话状态
@@ -438,7 +577,7 @@
         const script = document.createElement('script')
         script.id = scriptId
         script.src = `https://suggestion.baidu.com/su?wd=${encodeURIComponent(
-          query
+          query,
         )}&cb=window.handleBaiduSuggestionsChat`
 
         script.onerror = () => {
@@ -481,7 +620,7 @@
         const query = newMessage.value.trim()
         const regex = new RegExp(
           `(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
-          'gi'
+          'gi',
         )
         return text.replace(regex, '<strong>$1</strong>')
       }
@@ -550,7 +689,7 @@
           }
           localStorage.setItem(
             getHistoryStorageKey(),
-            JSON.stringify(chatHistory.value)
+            JSON.stringify(chatHistory.value),
           )
         } catch (err) {
           console.warn('保存历史存储失败:', err)
@@ -657,7 +796,7 @@
             label,
             days: getDayDiff(items[0]?.timestamp),
             items,
-          })
+          }),
         )
         entries.sort((a, b) => a.days - b.days)
         return entries
@@ -679,7 +818,7 @@
   <div class="think-content">${thinkContent.trim()}</div>
 </details>
 `
-          }
+          },
         )
 
         const safe = DOMPurify.sanitize(marked.parse(processedText))
@@ -1126,7 +1265,9 @@
   .tool-btn img {
     width: 24px;
     height: 24px;
-    transition: transform 0.3s ease, filter 0.3s ease;
+    transition:
+      transform 0.3s ease,
+      filter 0.3s ease;
   }
   .tool-btn .all-icon {
     width: 21.6px; /* 24px * 0.9 */
@@ -1319,8 +1460,11 @@
     padding: 6px 12px; /* 为文字本身的高亮留出内边距 */
     border-radius: 999px; /* 圆角形状包裹文字 */
     border: 1px solid transparent; /* 常驻边框，避免 hover 时尺寸变化导致抖动 */
-    transition: background-color 0.2s ease, color 0.2s ease,
-      box-shadow 0.2s ease, border-color 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
     width: 200px; /* 固定长度为200px */
     box-sizing: border-box; /* 保证包含内边距后总宽度仍为200px */
     text-align: center; /* 文本居中显示 */
@@ -1381,5 +1525,85 @@
     line-height: 1.6;
     white-space: pre-wrap;
     background: #ffffff;
+  }
+
+  /* 思考中加载动画样式 */
+  .thinking-indicator {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+    border-radius: 12px;
+    border: 1px solid #d0e3f7;
+  }
+
+  .thinking-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .thinking-text {
+    font-size: 14px;
+    color: #4a90d9;
+    font-weight: 500;
+    margin-right: 8px;
+  }
+
+  .thinking-dots .dot {
+    width: 8px;
+    height: 8px;
+    background-color: #4a90d9;
+    border-radius: 50%;
+    animation: thinking-bounce 1.4s ease-in-out infinite;
+  }
+
+  .thinking-dots .dot:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+
+  .thinking-dots .dot:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+
+  .thinking-dots .dot:nth-child(4) {
+    animation-delay: 0.48s;
+  }
+
+  @keyframes thinking-bounce {
+    0%,
+    80%,
+    100% {
+      transform: scale(0.6);
+      opacity: 0.5;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* 打字机光标效果 */
+  .ai-text-content {
+    display: inline;
+  }
+
+  .typing-cursor {
+    display: inline-block;
+    color: #4a90d9;
+    font-weight: bold;
+    animation: blink 0.8s ease-in-out infinite;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    51%,
+    100% {
+      opacity: 0;
+    }
   }
 </style>

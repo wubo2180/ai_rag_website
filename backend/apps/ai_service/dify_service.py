@@ -117,7 +117,7 @@ class DifyAPIService:
             return None
     
     def run_workflow(self, file_id: str, user: str = "default_user", 
-                    response_mode: str = "blocking") -> Dict[str, Any]:
+                    response_mode: str = "streaming") -> Dict[str, Any]:
         """
         运行Dify工作流
         

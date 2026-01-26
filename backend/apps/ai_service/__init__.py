@@ -77,7 +77,7 @@ class DifyAPIClient:
                        user: str = "default_user",
                        conversation_id: str = None,
                        inputs: dict = None,
-                       response_mode: str = "blocking") -> dict:
+                       response_mode: str = "streaming") -> dict:
         """聊天完成API"""
         data = {
             "inputs": inputs or {},

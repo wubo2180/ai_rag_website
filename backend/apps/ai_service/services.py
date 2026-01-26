@@ -24,32 +24,18 @@ class AIService:
     
     def generate_response(self, message, user_id="default_user", session_id=None, model=None):
         """
-        生成AI响应
-        
-        Args:
-            message: 用户消息
-            user_id: 用户ID
-            session_id: Dify的会话ID（UUID格式，可选）
-            model: 使用的模型名称（可选，默认使用配置中的模型）
-        
-        Returns:
-            dict: API响应结果，包含：
-                - success: 是否成功
-                - response: AI回复内容
-                - conversation_id: Dify的会话ID（UUID）
-                - message_id: Dify的消息ID
-                - model: 使用的模型名称
+        生成AI响应（非流式，返回完整结果）
         """
         if not model:
             model = self.default_model
         
         try:
-            response = self._call_dify_api(message, user_id, session_id, model)
+            response = self._call_dify_api_streaming(message, user_id, session_id, model)
             return {
                 'success': True,
                 'response': response.get('answer', ''),
-                'conversation_id': response.get('conversation_id'),  # Dify的UUID
-                'message_id': response.get('message_id'),  # Dify的消息ID
+                'conversation_id': response.get('conversation_id'),
+                'message_id': response.get('message_id'),
                 'model': model
             }
         except Exception as e:
@@ -60,22 +46,17 @@ class AIService:
                 'response': f'抱歉，AI服务暂时不可用。错误信息：{str(e)}'
             }
     
-    def _call_dify_api(self, message, user_id, session_id, model):
+    def generate_response_stream(self, message, user_id="default_user", session_id=None, model=None):
         """
-        调用Dify API
+        生成AI响应（流式，逐块返回）
         
-        Args:
-            message: 用户消息
-            user_id: 用户ID
-            session_id: Dify的会话ID（UUID格式，可选）
-            model: 模型名称
-        
-        Returns:
-            dict: API响应
+        Yields:
+            dict: 每个数据块，包含 content, done, conversation_id 等
         """
-        # 获取模型对应的超时时间
+        if not model:
+            model = self.default_model
+        
         timeout = self._get_model_timeout(model)
-        
         url = f"{self.base_url}/chat-messages"
         
         headers = {
@@ -83,22 +64,128 @@ class AIService:
             'Content-Type': 'application/json'
         }
         
-        # 基础 payload - 不包含 inputs
-        # Dify API 的基本参数
         payload = {
             'query': message,
-            'response_mode': 'blocking',
+            'response_mode': 'streaming',
             'user': user_id
         }
         
-        # 尝试添加 inputs 参数（如果 Dify 工作流需要）
-        # 注意：这取决于你的 Dify 工作流配置
-        # 如果工作流不需要 inputs 参数，请注释掉下面这段
         if model:
             payload['inputs'] = {'largeModel': model}
         
-        # 只有在session_id存在且不为空时才添加到请求中
-        # session_id必须是Dify返回的UUID格式
+        if session_id and session_id.strip():
+            payload['conversation_id'] = session_id
+        
+        try:
+            response = requests.post(
+                url, 
+                json=payload, 
+                headers=headers, 
+                timeout=timeout,
+                stream=True  # 启用流式响应
+            )
+            
+            if response.status_code != 200:
+                error_detail = response.text
+                logger.error(f"Dify API错误响应: {error_detail}")
+                yield {
+                    'content': f'AI服务错误: {error_detail}',
+                    'done': True,
+                    'error': True
+                }
+                return
+            
+            conversation_id = None
+            message_id = None
+            
+            # 解析 SSE 流
+            for line in response.iter_lines():
+                if line:
+                    line_text = line.decode('utf-8')
+                    if line_text.startswith('data: '):
+                        try:
+                            data = json.loads(line_text[6:])
+                            event = data.get('event', '')
+                            
+                            if event == 'message':
+                                # 消息片段
+                                yield {
+                                    'content': data.get('answer', ''),
+                                    'done': False,
+                                    'conversation_id': data.get('conversation_id'),
+                                    'message_id': data.get('message_id')
+                                }
+                                conversation_id = data.get('conversation_id')
+                                message_id = data.get('message_id')
+                                
+                            elif event == 'message_end':
+                                # 消息结束
+                                yield {
+                                    'content': '',
+                                    'done': True,
+                                    'conversation_id': data.get('conversation_id'),
+                                    'message_id': data.get('message_id'),
+                                    'metadata': data.get('metadata', {})
+                                }
+                                return
+                                
+                            elif event == 'error':
+                                # 错误事件
+                                yield {
+                                    'content': data.get('message', '未知错误'),
+                                    'done': True,
+                                    'error': True
+                                }
+                                return
+                                
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"解析SSE数据失败: {line_text}, 错误: {e}")
+                            continue
+            
+            # 如果没有收到 message_end 事件，发送完成信号
+            yield {
+                'content': '',
+                'done': True,
+                'conversation_id': conversation_id,
+                'message_id': message_id
+            }
+            
+        except requests.exceptions.Timeout:
+            logger.error("Dify API 请求超时")
+            yield {
+                'content': 'AI 服务响应超时，请稍后再试',
+                'done': True,
+                'error': True
+            }
+        except Exception as e:
+            logger.error(f"Dify API 请求异常: {str(e)}")
+            yield {
+                'content': f'请求异常: {str(e)}',
+                'done': True,
+                'error': True
+            }
+    
+    def _call_dify_api_streaming(self, message, user_id, session_id, model):
+        """
+        调用Dify API（流式模式），收集完整响应后返回
+        """
+        timeout = self._get_model_timeout(model)
+        url = f"{self.base_url}/chat-messages"
+        
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        payload = {
+            'query': message,
+            'response_mode': 'streaming',
+            'user': user_id
+        }
+        
+        if model:
+            payload['inputs'] = {'largeModel': model}
+        
         if session_id and session_id.strip():
             payload['conversation_id'] = session_id
             logger.info(f"使用已有会话ID: {session_id}")
@@ -108,32 +195,60 @@ class AIService:
         logger.info(f"调用Dify API: {url}")
         logger.info(f"使用模型: {model}")
         logger.info(f"超时时间: {timeout}秒")
-        logger.info(f"请求 payload: {json.dumps(payload, ensure_ascii=False)}")
         
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+            response = requests.post(
+                url, 
+                json=payload, 
+                headers=headers, 
+                timeout=timeout,
+                stream=True
+            )
             
-            # 记录响应状态
             logger.info(f"Dify API响应状态: {response.status_code}")
             
             if response.status_code != 200:
                 error_detail = response.text
                 logger.error(f"Dify API错误响应: {error_detail}")
-                
-                # 尝试解析JSON错误信息
-                try:
-                    error_json = response.json()
-                    error_message = error_json.get('message', error_detail)
-                    logger.error(f"Dify API错误详情: {error_message}")
-                except:
-                    error_message = error_detail
-                
-                raise Exception(f"Dify API 错误 ({response.status_code}): {error_message}")
+                raise Exception(f"Dify API 错误 ({response.status_code}): {error_detail}")
             
-            result = response.json()
-            logger.debug(f"API响应: {result}")
+            # 收集流式响应
+            full_answer = ""
+            conversation_id = None
+            message_id = None
             
-            return result
+            for line in response.iter_lines():
+                if line:
+                    line_text = line.decode('utf-8')
+                    if line_text.startswith('data: '):
+                        try:
+                            data = json.loads(line_text[6:])
+                            event = data.get('event', '')
+                            
+                            if event == 'message':
+                                full_answer += data.get('answer', '')
+                                conversation_id = data.get('conversation_id')
+                                message_id = data.get('message_id')
+                                
+                            elif event == 'message_end':
+                                conversation_id = data.get('conversation_id')
+                                message_id = data.get('message_id')
+                                break
+                                
+                            elif event == 'error':
+                                raise Exception(data.get('message', '未知错误'))
+                                
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"解析SSE数据失败: {line_text}")
+                            continue
+            
+            logger.info(f"收集到完整响应，长度: {len(full_answer)}")
+            
+            return {
+                'answer': full_answer,
+                'conversation_id': conversation_id,
+                'message_id': message_id
+            }
             
         except requests.exceptions.Timeout:
             logger.error("Dify API 请求超时")
@@ -141,17 +256,9 @@ class AIService:
         except requests.exceptions.ConnectionError:
             logger.error("无法连接到 Dify API")
             raise Exception("无法连接到 AI 服务，请检查网络连接")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Dify API 请求异常: {str(e)}")
-            raise
     
     def get_available_models(self):
-        """
-        获取可用的模型列表
-        
-        Returns:
-            list: 可用模型列表
-        """
+        """获取可用的模型列表"""
         return getattr(settings, 'AVAILABLE_AI_MODELS', [
             'deepseek深度思考',
             '通义千问',

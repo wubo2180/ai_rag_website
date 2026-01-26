@@ -124,17 +124,17 @@
             <!-- 能力标签 -->
             <div class="capabilities">
               <span
-                v-for="capability in agent.capabilities.slice(0, 3)"
+                v-for="capability in agent.capabilities?.slice(0, 3)"
                 :key="capability"
                 class="capability-tag"
               >
                 {{ capability }}
               </span>
               <span
-                v-if="agent.capabilities.length > 3"
+                v-if="agent.capabilities?.length > 3"
                 class="more-capabilities"
               >
-                +{{ agent.capabilities.length - 3 }}
+                +{{ agent.capabilities?.length - 3 }}
               </span>
             </div>
 
@@ -220,6 +220,12 @@
       count: 0,
     },
     {
+      value: 'formula_generation',
+      label: '配方生成',
+      icon: 'fas fa-vial',
+      count: 0,
+    },
+    {
       value: 'process_optimization',
       label: '工艺优化',
       icon: 'fas fa-cog',
@@ -257,7 +263,7 @@
         (agent) =>
           agent.display_name.toLowerCase().includes(query) ||
           agent.description.toLowerCase().includes(query) ||
-          agent.capabilities.some((cap) => cap.toLowerCase().includes(query))
+          agent.capabilities?.some((cap) => cap.toLowerCase().includes(query))
       )
     }
 
@@ -310,6 +316,20 @@
 
   const openAgent = (agent) => {
     console.log('点击智能体:', agent.display_name, 'ID:', agent.id)
+    
+    // 特殊处理：工艺优化智能体跳转到专用页面
+    if (agent.display_name === '工艺优化' || agent.category === 'process_optimization') {
+      router.push({ name: 'ProcessOptimization' })
+      return
+    }
+    
+    // 特殊处理：配方生成智能体跳转到专用页面
+    if (agent.display_name === '产品配方生成智能体' || agent.category === 'formula_generation') {
+      router.push({ name: 'FormulaGeneration' })
+      return
+    }
+    
+    // 其他智能体跳转到详情页
     router.push({ name: 'AgentDetail', params: { id: agent.id } })
   }
 
@@ -333,6 +353,7 @@
       data_analysis: '分析材料数据，发现隐藏模式和趋势',
       property_prediction: '预测材料性能，优化设计方案',
       process_optimization: '优化工艺参数，提升生产效率',
+      formula_generation: '智能生成材料配方，满足性能需求',
       knowledge_extraction: '从文献中提取关键知识和信息',
       decision_support: '提供智能决策建议和风险评估',
     }
