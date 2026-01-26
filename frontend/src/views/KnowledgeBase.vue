@@ -451,7 +451,7 @@
           console.log('📄 正在加载文档列表...', params)
 
           const response = await api.get(
-            `knowledge/dify/datasets/${this.currentDatasetId}/documents/`,
+            `knowledgebase/dify/datasets/${this.currentDatasetId}/documents/`,
             { params }
           )
 
