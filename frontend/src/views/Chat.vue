@@ -966,7 +966,7 @@
     data() {
       return {
         // from chat2.vue
-        showHistory: true,
+        showHistory: false,
       }
     },
     computed: {
@@ -1012,12 +1012,14 @@
   .chat2-container {
     display: flex;
     height: 100%;
+    min-height: 0; /* 防止 flex 子元素撑破容器 */
   }
 
   .navigation-container {
     display: flex;
-    flex-shrink: 0; /* Prevent shrinking */
+    /* flex-shrink: 0;  */
     box-shadow: none;
+    position: relative;
   }
 
   .main-content {
@@ -1025,10 +1027,13 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
+    min-width: 0; /* 防止 flex 子元素溢出 */
+    overflow: hidden;
   }
 
   .chat-container {
     max-width: 1024px; /* 设置最大宽度 */
+    width: 100%; /* 确保在小屏下不超出 */
     margin: 0 auto; /* 左右外边距自动，实现居中 */
     display: flex;
     flex-direction: column;
@@ -1110,8 +1115,9 @@
 
   .scroll-bottom-btn {
     position: absolute;
-    right: 450px;
-    bottom: 250px; /* 避开输入框 */
+    left: 50%;
+    transform: translateX(-50%); /* 用居中替换硬编码 right: 450px */
+    bottom: 180px; /* 避开输入框 */
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -1147,7 +1153,7 @@
   }
 
   .input-wrapper {
-    width: 860px;
+    width: min(860px, 100%); /* 最大860px，小屏自动收缩 */
     height: 160px;
     background-color: transparent;
     border: 1px solid #dcdfe6; /* Outer circle line color */
@@ -1158,6 +1164,7 @@
     flex-direction: column;
     justify-content: space-between;
     position: relative; /* Enable absolute positioning for toolbar children */
+    box-sizing: border-box; /* 确保 padding 不撑破宽度 */
   }
 
   .input-wrapper:focus-within {
@@ -1349,7 +1356,7 @@
   /* 左侧（AI/系统）消息样式 */
   .message-ai {
     align-self: flex-start;
-    max-width: 880px;
+    max-width: min(880px, 95%); /* 大屏880px，小屏95%宽 */
     background: transparent;
     border: none;
     padding: 10px 0;
@@ -1362,22 +1369,22 @@
     background: #bae1f3; /* 浅蓝色背景 */
     color: #333; /* 浅色背景下使用深色文字增强可读性 */
     border: none;
-    max-width: 700px; /* 限制最大宽度为700px，超出自动换行 */
+    max-width: min(700px, 85%); /* 大屏700px，小屏85%宽 */
   }
 
   :deep(.dialog-history-container) {
-    width: 336px !important;
+    width: clamp(240px, 25vw, 336px) !important; /* 随视口宽度自适应 */
     position: relative;
     z-index: 10001; /* 提升到最高层，避免被任何浮层覆盖 */
   }
 
   .hidden-history {
-    visibility: hidden;
+    display: none;
   }
 
   /* 未登录时：历史对话空态 */
   .history-empty {
-    width: 336px;
+    width: clamp(200px, 25vw, 336px); /* 与历史面板同步 */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1604,6 +1611,103 @@
     51%,
     100% {
       opacity: 0;
+    }
+  }
+
+  /* ===== 断点：平板（≤ 1024px） ===== */
+  @media (max-width: 1024px) {
+    .main-content {
+      padding: 12px;
+    }
+
+    .input-wrapper {
+      height: 140px;
+      border-radius: 20px;
+    }
+
+    :deep(.dialog-history-container) {
+      width: 260px !important;
+    }
+
+    .history-empty {
+      width: 260px;
+    }
+
+    .slogan {
+      font-size: 38px;
+    }
+
+    .empty-chat-area {
+      margin-top: 120px;
+    }
+  }
+
+  /* ===== 断点：手机（≤ 768px） ===== */
+  @media (max-width: 768px) {
+    .main-content {
+      padding: 8px;
+    }
+
+    .input-wrapper {
+      height: 120px;
+      border-radius: 16px;
+      padding: 10px;
+    }
+
+    textarea {
+      font-size: 14px;
+    }
+
+    .slogan {
+      font-size: 28px;
+    }
+
+    .empty-chat-area {
+      margin-top: 80px;
+    }
+
+    .messages-area {
+      padding: 10px;
+    }
+
+    .scroll-bottom-btn {
+      bottom: 140px;
+    }
+
+    .chat-header-tag {
+      font-size: 14px;
+      max-width: 90%;
+    }
+
+    /* 手机端历史面板改为固定覆盖层 */
+    :deep(.dialog-history-container) {
+      width: 80vw !important;
+      position: fixed !important;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      z-index: 10001;
+      box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .history-empty {
+      display: none;
+    }
+  }
+
+  /* ===== 断点：超小屏（≤ 480px） ===== */
+  @media (max-width: 480px) {
+    .input-wrapper {
+      height: 110px;
+      border-radius: 14px;
+    }
+
+    .tool-btn span {
+      display: none; /* 超小屏隐藏按钮文字，只保留图标 */
+    }
+
+    .slogan {
+      font-size: 22px;
     }
   }
 </style>
