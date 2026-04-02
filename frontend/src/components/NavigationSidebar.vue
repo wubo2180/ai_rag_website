@@ -40,7 +40,7 @@
           ><span class="tooltip">新建对话</span></a
         >
       </li>
-      <li>
+      <!-- <li>
         <a href="#" @click.prevent="navigateToChat"
           ><img
             src="../assets/talk page/talk@3X_21.png"
@@ -48,7 +48,7 @@
           /><span class="menu-text"> 当前对话</span
           ><span class="tooltip">当前对话</span></a
         >
-      </li>
+      </li> -->
       <li>
         <a href="#" @click.prevent="toggleHistory"
           ><img
@@ -267,6 +267,7 @@
     flex-direction: column;
     padding: 20px 10px;
     align-items: center; /* Center items horizontally */
+    position: relative;
   }
 
   .left-nav.collapsed {
@@ -317,7 +318,9 @@
   }
 
   .user-details {
-    transition: visibility 0.3s, opacity 0.3s;
+    transition:
+      visibility 0.3s,
+      opacity 0.3s;
     text-align: center;
     height: 60px;
     display: flex;
@@ -412,7 +415,9 @@
     text-decoration: none;
     color: #333;
     border-radius: 8px;
-    transition: background-color 0.3s, color 0.3s;
+    transition:
+      background-color 0.3s,
+      color 0.3s;
     position: relative; /* For tooltip positioning */
     box-sizing: border-box;
   }
@@ -471,7 +476,9 @@
   .menu-text {
     white-space: nowrap;
     opacity: 1;
-    transition: opacity 0.2s 0.1s, width 0.3s;
+    transition:
+      opacity 0.2s 0.1s,
+      width 0.3s;
     width: auto;
     overflow: hidden;
   }
@@ -479,7 +486,9 @@
   .left-nav.collapsed .menu-text {
     opacity: 0;
     width: 0;
-    transition: opacity 0.1s, width 0.3s;
+    transition:
+      opacity 0.1s,
+      width 0.3s;
   }
 
   .logout-section {

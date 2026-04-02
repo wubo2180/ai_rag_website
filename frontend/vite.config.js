@@ -15,7 +15,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: ' http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
         logLevel: 'debug',
@@ -30,7 +30,7 @@ export default defineConfig({
             console.log(
               'Received Response from the Target:',
               proxyRes.statusCode,
-              req.url
+              req.url,
             )
           })
         },

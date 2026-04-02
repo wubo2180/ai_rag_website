@@ -233,13 +233,13 @@
     touched[field] = true
   }
   const showNicknameError = computed(
-    () => touched.nickname && !!nicknameError.value
+    () => touched.nickname && !!nicknameError.value,
   )
   const showPasswordError = computed(
-    () => touched.password && !!passwordError.value
+    () => touched.password && !!passwordError.value,
   )
   const showConfirmPasswordError = computed(
-    () => touched.confirmPassword && !!confirmPasswordError.value
+    () => touched.confirmPassword && !!confirmPasswordError.value,
   )
 
   const canSubmit = computed(() => {
@@ -350,7 +350,7 @@
     flex-direction: column;
     position: relative;
     justify-content: flex-start; /* 从顶部开始排列 */
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   .login2-card {
@@ -364,6 +364,8 @@
     position: absolute;
     left: 65%;
     top: 12%;
+    top: clamp(20px, 12%, 120px); /* 注册卡片：最少距顶20px，最多120px */
+    margin-bottom: 40px; /* 底部留白，防止滚动时贴边 */
   }
 
   .login-view-style {
