@@ -32,7 +32,7 @@
         <!-- 顶部固定的“新的对话”标签 -->
         <div class="chat-header-tag">{{ headerText }}</div>
         <!-- Empty State -->
-        <div v-if="panelMessages[0].length === 0" class="empty-chat-area">
+        <div v-if="messages.length === 0" class="empty-chat-area">
           <div class="logo-placeholder">
             <img
               class="logo-image"
@@ -43,88 +43,70 @@
           <h1 class="slogan">材料问题迎刃而解!</h1>
         </div>
 
-        <!-- 多模型对比消息区 -->
-        <div v-else class="multi-model-area">
+        <!-- Messages Area -->
+        <div
+          v-else
+          class="messages-area"
+          ref="messagesArea"
+          @scroll="onMessagesScroll"
+        >
           <div
-            v-for="(panel, panelIdx) in panelMessages"
-            :key="panelIdx"
-            class="model-panel"
+            v-for="(message, index) in messages"
+            :key="index"
+            :class="[
+              'message',
+              message.sender === 'user' ? 'message-user' : 'message-ai',
+            ]"
           >
-            <!-- 模型标题栏 -->
-            <div class="model-panel-header">
-              {{ activeModels[panelIdx] || `模型 ${panelIdx + 1}` }}
-            </div>
-            <!-- 消息列表 -->
-            <div
-              class="messages-area"
-              :ref="
-                (el) => {
-                  messagesAreaRefs[panelIdx] = el
-                }
-              "
-              @scroll="onPanelScroll(panelIdx)"
-            >
-              <div
-                v-for="(message, msgIdx) in panel"
-                :key="msgIdx"
-                :class="[
-                  'message',
-                  message.sender === 'user' ? 'message-user' : 'message-ai',
-                ]"
-              >
-                <div v-if="message.sender === 'user'">
-                  {{ message.content }}
-                </div>
-                <div v-else class="ai-message-content">
-                  <!-- 思考中加载状态 -->
-                  <div v-if="message._isLoading" class="thinking-indicator">
-                    <div class="thinking-dots">
-                      <span class="thinking-text">🤔 思考中</span>
-                      <span class="dot"></span>
-                      <span class="dot"></span>
-                      <span class="dot"></span>
-                    </div>
-                  </div>
-                  <!-- 正常消息内容 -->
-                  <div v-else class="ai-text-content">
-                    <span v-html="renderMarkdown(message.content)"></span>
-                    <span
-                      v-if="
-                        isLoading &&
-                        msgIdx === panel.length - 1 &&
-                        message.content
-                      "
-                      class="typing-cursor"
-                      >|</span
-                    >
-                  </div>
-                  <button
-                    v-if="
-                      !message._isLoading &&
-                      (!isLoading || msgIdx !== panel.length - 1)
-                    "
-                    class="copy-btn"
-                    :class="{ animate: message._copyAnimating }"
-                    @click="copyAiMessage(message)"
-                    :title="message._copied ? '已复制' : '复制'"
-                  >
-                    <img
-                      v-if="!message._copied"
-                      src="@/assets/talk%20page/talk@3_03.png"
-                      alt="复制"
-                      class="copy-icon"
-                    />
-                    <span v-else class="copy-check">☑</span>
-                  </button>
+            <div v-if="message.sender === 'user'">{{ message.content }}</div>
+            <div v-else class="ai-message-content">
+              <!-- 思考中加载状态 -->
+              <div v-if="message._isLoading" class="thinking-indicator">
+                <div class="thinking-dots">
+                  <span class="thinking-text">🤔 思考中</span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
                 </div>
               </div>
+              <!-- 正常消息内容 -->
+              <div v-else class="ai-text-content">
+                <span v-html="renderMarkdown(message.content)"></span>
+                <span
+                  v-if="
+                    isLoading &&
+                    index === messages.length - 1 &&
+                    message.content
+                  "
+                  class="typing-cursor"
+                  >|</span
+                >
+              </div>
+              <button
+                v-if="
+                  !message._isLoading &&
+                  (!isLoading || index !== messages.length - 1)
+                "
+                class="copy-btn"
+                :class="{ animate: message._copyAnimating }"
+                @click="copyAiMessage(message)"
+                :title="message._copied ? '已复制' : '复制'"
+              >
+                <img
+                  v-if="!message._copied"
+                  src="@/assets/talk%20page/talk@3_03.png"
+                  alt="复制"
+                  class="copy-icon"
+                />
+                <span v-else class="copy-check">☑</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- 滚动到底部按钮：任意面板未处于底部且有消息时显示 -->
+        <!-- 滚动到底部按钮：当未处于底部且有消息时显示 -->
         <button
-          v-if="anyPanelNotAtBottom && panelMessages[0].length > 0"
+          v-if="!isAtBottom && messages.length > 0"
           class="scroll-bottom-btn"
           @click="scrollToBottom"
           title="滚动到底部"
@@ -232,15 +214,7 @@
 <script>
   import DialogHistory from './DialogHistory.vue'
   import NavigationSidebar from '@/components/NavigationSidebar.vue'
-  import {
-    ref,
-    reactive,
-    watch,
-    onMounted,
-    onUnmounted,
-    nextTick,
-    computed,
-  } from 'vue'
+  import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useUserStore } from '@/stores/user'
   import { useChatStore } from '@/stores/chat'
@@ -261,7 +235,7 @@
     setup() {
       const route = useRoute()
       const router = useRouter()
-      const panelMessages = reactive([[], [], []]) // 三个模型面板的消息列表
+      const messages = ref([]) // [{ content: string, sender: 'user' | 'ai' }]
       const newMessage = ref('')
       const headerText = ref('新的对话')
       const headerLocked = ref(false) // 仅首次消息后锁定顶部标签
@@ -283,54 +257,29 @@
       const debounceTimer = ref(null)
       const selectedIndex = ref(-1)
       const questionTextarea = ref(null)
-      const messagesAreaRefs = [null, null, null] // 三个面板的 DOM 引用
-      const panelIsAtBottom = reactive([true, true, true])
+      const messagesArea = ref(null)
+      const isAtBottom = ref(true)
       const chatStore = useChatStore()
+      const scrollToBottom = () => {
+        nextTick(() => {
+          if (messagesArea.value) {
+            messagesArea.value.scrollTop = messagesArea.value.scrollHeight
+            updateIsAtBottom()
+          }
+        })
+      }
 
       const SCROLL_THRESHOLD = 20 // 距底部 20px 内认为在底部
-
-      const updatePanelIsAtBottom = (panelIdx) => {
-        const el = messagesAreaRefs[panelIdx]
-        if (!el) return
-        panelIsAtBottom[panelIdx] =
+      const updateIsAtBottom = () => {
+        if (!messagesArea.value) return
+        const el = messagesArea.value
+        isAtBottom.value =
           el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD
       }
 
-      const scrollToPanelBottom = (panelIdx) => {
-        nextTick(() => {
-          const el = messagesAreaRefs[panelIdx]
-          if (el) {
-            el.scrollTop = el.scrollHeight
-            updatePanelIsAtBottom(panelIdx)
-          }
-        })
+      const onMessagesScroll = () => {
+        updateIsAtBottom()
       }
-
-      const scrollToBottom = () => {
-        for (let i = 0; i < 3; i++) scrollToPanelBottom(i)
-      }
-
-      const onPanelScroll = (panelIdx) => {
-        updatePanelIsAtBottom(panelIdx)
-      }
-
-      const anyPanelNotAtBottom = computed(() =>
-        panelIsAtBottom.some((v) => !v),
-      )
-
-      // 获取各面板展示的模型名称
-      const activeModels = computed(() => {
-        const models = chatStore.availableModels
-        return [0, 1, 3].map((i) => {
-          if (models && models[i] !== undefined) {
-            const m = models[i]
-            return typeof m === 'string'
-              ? m
-              : m.name || m.label || m.id || `模型${i + 1}`
-          }
-          return `模型${i + 1}`
-        })
-      })
 
       const copyAiMessage = (message) => {
         if (!message || !message.content) return
@@ -354,11 +303,7 @@
       const sendMessage = async () => {
         const text = newMessage.value.trim()
         if (text !== '') {
-          // 将用户消息同步推入所有面板
-          const userMsg = { content: text, sender: 'user' }
-          panelMessages[0].push({ ...userMsg })
-          panelMessages[1].push({ ...userMsg })
-          panelMessages[2].push({ ...userMsg })
+          messages.value.push({ content: text, sender: 'user' })
           // 发送后自动滚动到底部
           scrollToBottom()
           if (!headerLocked.value) {
@@ -367,7 +312,7 @@
           }
           newMessage.value = ''
           clearSuggestions()
-          // 发送后保持输入框聚焦
+          // 发送后保持输入框聚焦，便于继续输入，且让占位提示在空内容时可见
           nextTick(() => {
             if (questionTextarea.value) {
               questionTextarea.value.focus()
@@ -384,155 +329,168 @@
             typeof currentChatId.value,
           )
 
-          // 在所有面板添加"思考中"占位消息
-          panelMessages[0].push({ content: '', sender: 'ai', _isLoading: true })
-          panelMessages[1].push({ content: '', sender: 'ai', _isLoading: true })
-          panelMessages[2].push({ content: '', sender: 'ai', _isLoading: true })
-          const aiIndices = [
-            panelMessages[0].length - 1,
-            panelMessages[1].length - 1,
-            panelMessages[2].length - 1,
-          ]
+          // 立即添加一个"思考中"的占位消息
+          messages.value.push({
+            content: '',
+            sender: 'ai',
+            _isLoading: true,
+          })
+          // 记录消息索引，用于后续更新（确保响应式）
+          const aiMessageIndex = messages.value.length - 1
+          // 滚动到底部显示思考中状态
           scrollToBottom()
-          isLoading.value = true
 
-          // 根据可用模型列表获取模型标识值
-          const getModelValue = (model) => {
-            if (!model) return chatStore.selectedModel || 'deepseek'
-            return typeof model === 'string'
-              ? model
-              : model.id || model.value || model.name || 'deepseek'
-          }
-          const models = chatStore.availableModels || []
-          const modelValues = [
-            getModelValue(models[0]),
-            getModelValue(models[1]),
-            getModelValue(models[2]),
-          ]
+          try {
+            isLoading.value = true
 
-          // 单个面板的流式请求函数
-          const streamForPanel = async (panelIdx, modelValue) => {
-            const aiMsgIdx = aiIndices[panelIdx]
-            try {
-              const streamUrl = '/api/chat/wechat/stream/'
-              const payload = {
-                message: text,
-                model: modelValue,
-                user_id: localStorage.getItem('user_id') || 'web_anonymous',
-              }
-              if (
-                currentChatId.value &&
-                !String(currentChatId.value).startsWith('temp_')
-              ) {
-                payload.session_id =
-                  parseInt(currentChatId.value, 10) || currentChatId.value
-              }
+            // 使用微信小程序SSE接口（使用相对路径，让 Vite 代理处理）
+            const streamUrl = '/api/chat/wechat/stream/'
 
-              const response = await fetch(streamUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(localStorage.getItem('access_token')
-                    ? {
-                        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-                      }
-                    : {}),
-                },
-                body: JSON.stringify(payload),
-              })
+            // 构建请求体 - 符合微信小程序SSE接口格式
+            const payload = {
+              message: text,
+              model: chatStore.selectedModel || 'deepseek',
+              // 微信小程序接口使用 user_id 字段
+              user_id: localStorage.getItem('user_id') || 'web_anonymous',
+            }
 
-              if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`)
-              }
+            // 添加会话 ID
+            if (
+              currentChatId.value &&
+              !String(currentChatId.value).startsWith('temp_')
+            ) {
+              payload.session_id =
+                parseInt(currentChatId.value, 10) || currentChatId.value
+            }
 
-              const reader = response.body.getReader()
-              const decoder = new TextDecoder()
-              let buffer = ''
-              let receivedFirstContent = false
+            console.log('微信小程序SSE请求 payload:', payload)
 
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
-
-                for (const line of lines) {
-                  if (line.startsWith('data: ')) {
-                    const dataStr = line.slice(6).trim()
-                    if (dataStr === '[DONE]') continue
-                    if (!dataStr) continue
-
-                    try {
-                      const data = JSON.parse(dataStr)
-
-                      if (data.error) {
-                        panelMessages[panelIdx][aiMsgIdx]._isLoading = false
-                        panelMessages[panelIdx][aiMsgIdx].content =
-                          `错误: ${data.error}`
-                        continue
-                      }
-
-                      // 只有主面板（面板0）更新 session_id
-                      if (
-                        data.session_id &&
-                        !data.content &&
-                        !data.done &&
-                        panelIdx === 0
-                      ) {
-                        currentChatId.value = String(data.session_id)
-                        console.log('更新 currentChatId:', currentChatId.value)
-                      }
-
-                      if (data.content) {
-                        if (!receivedFirstContent) {
-                          receivedFirstContent = true
-                          panelMessages[panelIdx][aiMsgIdx]._isLoading = false
-                          panelMessages[panelIdx][aiMsgIdx].content = ''
-                        }
-                        panelMessages[panelIdx][aiMsgIdx].content +=
-                          data.content
-                        if (panelIsAtBottom[panelIdx])
-                          scrollToPanelBottom(panelIdx)
-                      }
-
-                      if (data.done && panelIdx === 0 && data.session_id) {
-                        currentChatId.value = String(data.session_id)
-                      }
-                    } catch (e) {
-                      console.debug('解析 SSE 数据失败:', line, e)
+            // 发起流式请求
+            const response = await fetch(streamUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // 添加认证头（如果有）
+                ...(localStorage.getItem('access_token')
+                  ? {
+                      Authorization: `Bearer ${localStorage.getItem(
+                        'access_token',
+                      )}`,
                     }
+                  : {}),
+              },
+              body: JSON.stringify(payload),
+            })
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+            let receivedFirstContent = false // 标记是否收到第一个内容块
+
+            while (true) {
+              const { done, value } = await reader.read()
+
+              if (done) {
+                console.log('微信小程序SSE流式响应接收完成')
+                break
+              }
+
+              // 解码数据块
+              buffer += decoder.decode(value, { stream: true })
+
+              // 按行处理 SSE 数据
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || '' // 保留未完成的行
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const dataStr = line.slice(6).trim()
+
+                  // 处理SSE结束标记
+                  if (dataStr === '[DONE]') {
+                    console.log('收到SSE结束标记 [DONE]')
+                    continue
+                  }
+
+                  if (!dataStr) continue
+
+                  try {
+                    const data = JSON.parse(dataStr)
+
+                    // 处理错误信息
+                    if (data.error) {
+                      console.error('SSE流式响应错误:', data.error)
+                      messages.value[aiMessageIndex]._isLoading = false
+                      messages.value[aiMessageIndex].content =
+                        `错误: ${data.error}`
+                      continue
+                    }
+
+                    // 处理会话 ID（在流开始时返回）
+                    if (data.session_id && !data.content && !data.done) {
+                      currentChatId.value = String(data.session_id)
+                      console.log('更新 currentChatId:', currentChatId.value)
+                      // 同时保存 conversation_id
+                      if (data.conversation_id) {
+                        console.log(
+                          '收到 conversation_id:',
+                          data.conversation_id,
+                        )
+                      }
+                    }
+
+                    // 处理内容块
+                    if (data.content) {
+                      // 收到第一个内容块时，切换为打字机模式
+                      if (!receivedFirstContent) {
+                        receivedFirstContent = true
+                        messages.value[aiMessageIndex]._isLoading = false
+                        messages.value[aiMessageIndex].content = ''
+                      }
+                      messages.value[aiMessageIndex].content += data.content
+                      // 若当前在底部，则跟随滚动
+                      if (isAtBottom.value) scrollToBottom()
+                    }
+
+                    // 处理完成信号
+                    if (data.done) {
+                      console.log('收到完成信号, message_id:', data.message_id)
+                      // 更新最终的 session_id 和 conversation_id
+                      if (data.session_id) {
+                        currentChatId.value = String(data.session_id)
+                      }
+                    }
+                  } catch (e) {
+                    // 忽略解析错误，可能是不完整的 JSON
+                    console.debug('解析 SSE 数据失败:', line, e)
                   }
                 }
               }
-
-              if (!panelMessages[panelIdx][aiMsgIdx].content) {
-                panelMessages[panelIdx][aiMsgIdx]._isLoading = false
-                panelMessages[panelIdx][aiMsgIdx].content =
-                  '抱歉，未能获取到 AI 回复。'
-              }
-            } catch (error) {
-              console.error(`面板 ${panelIdx} 请求失败:`, error)
-              panelMessages[panelIdx][aiIndices[panelIdx]]._isLoading = false
-              panelMessages[panelIdx][aiIndices[panelIdx]].content =
-                '抱歉，AI 服务暂时不可用，请稍后重试。'
             }
-          }
 
-          try {
-            // 并发发送给三个模型
-            await Promise.all([
-              streamForPanel(0, modelValues[0]),
-              streamForPanel(1, modelValues[1]),
-              streamForPanel(2, modelValues[2]),
-            ])
-          } finally {
+            // 如果没有收到任何内容，显示默认消息
+            if (!messages.value[aiMessageIndex].content) {
+              messages.value[aiMessageIndex]._isLoading = false
+              messages.value[aiMessageIndex].content =
+                '抱歉，未能获取到 AI 回复。'
+            }
+
+            isLoading.value = false
+            // AI 回复完成后，更新历史记录
+            saveCurrentChat()
+          } catch (error) {
+            console.error('Error fetching AI response:', error)
+            // 更新占位消息为错误提示
+            messages.value[aiMessageIndex]._isLoading = false
+            messages.value[aiMessageIndex].content =
+              '抱歉，AI 服务暂时不可用，请稍后重试。'
             isLoading.value = false
           }
-
-          // AI 回复完成后更新历史记录
-          saveCurrentChat()
+          // 每次交互后保存当前会话状态
           saveToStorage()
           saveHistoryToStorage()
         }
@@ -668,31 +626,19 @@
       }
 
       // --- 本地存储：加载 / 保存当前会话（消息、标题、conversation_id） ---
-      const getUserKey = () => {
-        const _us = useUserStore()
-        return _us.user?.username || _us.user?.id || 'guest'
+      const getStorageKey = () => {
+        return 'ai-chat2-session'
       }
-      const getStorageKey = () => `ai-chat2-session-${getUserKey()}`
 
       const loadFromStorage = () => {
         try {
           const raw = localStorage.getItem(getStorageKey())
           if (!raw) return
           const data = JSON.parse(raw)
-          if (data.panelMessages && Array.isArray(data.panelMessages)) {
-            // 新格式：三个面板全部恢复
-            panelMessages[0] = data.panelMessages[0] || []
-            panelMessages[1] = data.panelMessages[1] || []
-            panelMessages[2] = data.panelMessages[2] || []
-          } else {
-            // 向后兼容旧格式
-            panelMessages[0] = Array.isArray(data.messages) ? data.messages : []
-            panelMessages[1] = []
-            panelMessages[2] = []
-          }
+          messages.value = Array.isArray(data.messages) ? data.messages : []
           headerText.value =
             typeof data.headerText === 'string' ? data.headerText : '新的对话'
-          headerLocked.value = panelMessages[0].length > 0
+          headerLocked.value = !!(messages.value && messages.value.length > 0)
           currentChatId.value = data.currentChatId || null
         } catch (err) {
           console.warn('加载会话存储失败:', err)
@@ -702,12 +648,7 @@
       const saveToStorage = () => {
         try {
           const data = {
-            panelMessages: [
-              [...panelMessages[0]],
-              [...panelMessages[1]],
-              [...panelMessages[2]],
-            ],
-            messages: panelMessages[0], // 向后兼容旧版本
+            messages: messages.value,
             headerText: headerText.value,
             currentChatId: currentChatId.value,
           }
@@ -718,7 +659,7 @@
       }
 
       // --- 历史记录的本地存储 ---
-      const getHistoryStorageKey = () => `ai-chat2-history-${getUserKey()}`
+      const getHistoryStorageKey = () => 'ai-chat2-history'
       const HISTORY_MAX_LENGTH = 100 // 历史保存长度上限，可按需调整
 
       const loadHistoryFromStorage = () => {
@@ -757,14 +698,14 @@
 
       // 保存当前对话到历史：避免刷新后继续发送造成重复创建
       const saveCurrentChat = () => {
-        if (panelMessages[0].length === 0) return
+        if (messages.value.length === 0) return
 
         // 先计算匹配用的标题与会话ID
         // 注意：只有在有真实 conversation_id 时才保存，避免使用临时ID
         const idCandidate = currentChatId.value || `temp_${Date.now()}`
         const titleCandidate =
           headerText.value ||
-          panelMessages[0][0]?.content?.substring(0, 20) + '...' ||
+          messages.value[0]?.content?.substring(0, 20) + '...' ||
           '新对话'
         const conversationIdCandidate = currentChatId.value || null
 
@@ -796,12 +737,7 @@
         const chatData = {
           id: idCandidate,
           title: titleCandidate,
-          panelMessages: [
-            [...panelMessages[0]],
-            [...panelMessages[1]],
-            [...panelMessages[2]],
-          ],
-          messages: [...panelMessages[0]], // 向后兼容旧版本
+          messages: [...messages.value],
           timestamp: fixedTimestamp,
           conversation_id: conversationIdCandidate,
         }
@@ -890,23 +826,11 @@
       }
 
       onMounted(() => {
-        // 监听登录状态：登入后重新加载属于该用户的历史
-        const _userStoreWatch = useUserStore()
-        watch(
-          () => _userStoreWatch.isAuthenticated,
-          (isAuth) => {
-            if (isAuth) {
-              loadHistoryFromStorage()
-              loadFromStorage()
-            }
-          },
-        )
         // 先从本地存储恢复会话
         loadFromStorage()
         loadHistoryFromStorage()
-        chatStore.fetchAvailableModels()
         // 初始化底部状态
-        nextTick(() => [0, 1, 2].forEach((i) => updatePanelIsAtBottom(i)))
+        nextTick(() => updateIsAtBottom())
         window.handleBaiduSuggestionsChat = (data) => {
           suggestions.value = data.s || []
           selectedIndex.value = -1
@@ -948,13 +872,11 @@
 
       // 新建对话：重置消息、标题、conversation_id 并保存
       const startNewChat = (isDeletion = false) => {
-        if (panelMessages[0].length > 0 && !isDeletion) {
+        if (messages.value.length > 0 && !isDeletion) {
           // 先保存当前对话到历史
           saveCurrentChat()
         }
-        panelMessages[0] = []
-        panelMessages[1] = []
-        panelMessages[2] = []
+        messages.value = []
         headerText.value = '新的对话'
         headerLocked.value = false
         currentChatId.value = null
@@ -969,24 +891,15 @@
           // AI 正在回复，禁止切换历史记录
           return
         }
-        if (panelMessages[0].length > 0 && isNewChat.value) {
+        if (messages.value.length > 0 && isNewChat.value) {
           // 若当前是未保存的新对话，先保存
           saveCurrentChat()
         }
         const chatData = chatHistory.value[index]
         if (!chatData) return
-        if (chatData.panelMessages && Array.isArray(chatData.panelMessages)) {
-          panelMessages[0] = [...(chatData.panelMessages[0] || [])]
-          panelMessages[1] = [...(chatData.panelMessages[1] || [])]
-          panelMessages[2] = [...(chatData.panelMessages[2] || [])]
-        } else {
-          // 向后兼容：旧数据只有 messages 字段
-          panelMessages[0] = [...(chatData.messages || [])]
-          panelMessages[1] = []
-          panelMessages[2] = []
-        }
+        messages.value = [...chatData.messages]
         headerText.value = chatData.title || '新的对话'
-        headerLocked.value = panelMessages[0].length > 0
+        headerLocked.value = messages.value.length > 0
         currentChatIndex.value = index
         // 只使用真实的 conversation_id，忽略临时ID
         currentChatId.value =
@@ -1014,15 +927,13 @@
       }
 
       return {
-        panelMessages,
+        messages,
         newMessage,
         headerText,
         headerLocked,
         isLoading,
-        messagesAreaRefs,
-        panelIsAtBottom,
-        anyPanelNotAtBottom,
-        activeModels,
+        messagesArea,
+        isAtBottom,
         isAllDropdownVisible,
         isAllIconRotated,
         isDeepThinkingActive,
@@ -1036,8 +947,7 @@
         loadChat,
         deleteChat,
         scrollToBottom,
-        scrollToPanelBottom,
-        onPanelScroll,
+        onMessagesScroll,
         copyAiMessage,
         toggleAllDropdown,
         selectOption,
@@ -1122,9 +1032,9 @@
   }
 
   .chat-container {
-    max-width: 100%; /* 三面板布局，占满可用宽度 */
-    width: 100%;
-    margin: 0 auto;
+    max-width: 1024px; /* 设置最大宽度 */
+    width: 100%; /* 确保在小屏下不超出 */
+    margin: 0 auto; /* 左右外边距自动，实现居中 */
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -1195,49 +1105,12 @@
 
   .messages-area {
     flex-grow: 1;
-    padding: 12px;
+    padding: 20px;
+    margin-top: 44px; /* 预留顶部标签空间，避免被覆盖 */
     overflow-y: auto;
-    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-sizing: border-box;
-  }
-
-  /* ===== 多模型对比布局 ===== */
-  .multi-model-area {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    flex: 1;
-    margin-top: 44px; /* 预留顶部标签空间 */
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .model-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #ffffff;
-  }
-
-  .model-panel-header {
-    padding: 8px 14px;
-    font-weight: 600;
-    font-size: 13px;
-    color: #333;
-    background: #f5f7fa;
-    border-bottom: 1px solid #e0e0e0;
-    text-align: center;
-    flex-shrink: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .scroll-bottom-btn {
@@ -1483,45 +1356,20 @@
   /* 左侧（AI/系统）消息样式 */
   .message-ai {
     align-self: flex-start;
-    max-width: 100%;
-    width: 100%;
+    max-width: min(880px, 95%); /* 大屏880px，小屏95%宽 */
     background: transparent;
     border: none;
     padding: 10px 0;
     position: relative;
-    box-sizing: border-box;
   }
 
   /* 右侧（用户）消息样式 */
   .message-user {
     align-self: flex-end;
-    background: #bae1f3;
-    color: #333;
+    background: #bae1f3; /* 浅蓝色背景 */
+    color: #333; /* 浅色背景下使用深色文字增强可读性 */
     border: none;
-    max-width: 90%;
-    box-sizing: border-box;
-  }
-
-  /* AI \u6d88\u606f\u5185\u5bb9\u533a\uff1a\u9632\u6b62 markdown \u5185\u5bb9\uff08\u4ee3\u7801\u5757\u3001\u8868\u683c\u7b49\uff09\u64d0\u7834\u9762\u677f */
-  .ai-message-content {
-    overflow: hidden;
-    word-break: break-word;
-    min-width: 0;
-  }
-
-  /* \u4ee3\u7801\u5757\u6a2a\u5411\u53ef\u6eda\u52a8\u800c\u975e\u6ea2\u51fa */
-  :deep(pre) {
-    overflow-x: auto;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
-  /* \u8868\u683c\u6a2a\u5411\u53ef\u6eda\u52a8 */
-  :deep(table) {
-    display: block;
-    overflow-x: auto;
-    max-width: 100%;
-    box-sizing: border-box;
+    max-width: min(700px, 85%); /* 大屏700px，小屏85%宽 */
   }
 
   :deep(.dialog-history-container) {

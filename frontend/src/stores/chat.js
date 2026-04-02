@@ -44,7 +44,7 @@ export const useChatStore = defineStore('chat', () => {
   async function fetchSessionHistory(sessionId) {
     try {
       const response = await apiClient.get(
-        `/chat/sessions/${sessionId}/history/`,
+        `/chat/sessions/${sessionId}/history/`
       )
       messages.value = response.data.messages || []
       currentSession.value = {
@@ -134,7 +134,6 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const response = await apiClient.get('/chat/models/')
       availableModels.value = response.data.models || []
-      console.log('availableModels:', availableModels.value)
       selectedModel.value = response.data.default_model || ''
       return { success: true, data: response.data }
     } catch (error) {
@@ -150,7 +149,7 @@ export const useChatStore = defineStore('chat', () => {
         `/chat/sessions/${sessionId}/rename/`,
         {
           title: newTitle,
-        },
+        }
       )
 
       // 更新本地会话列表
