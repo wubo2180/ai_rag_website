@@ -57,6 +57,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     """用户注册序列化器"""
     password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True)
+    nickname = serializers.CharField(write_only=True, required=False, allow_blank=True, default='')
     department_id = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
         write_only=True,
@@ -72,6 +73,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'email',
             'password',
             'confirm_password',
+            'nickname',
             'first_name',
             'last_name',
             'department_id'
@@ -85,14 +87,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         department = validated_data.pop('department', None)
         validated_data.pop('confirm_password')
+        nickname = validated_data.pop('nickname', '')
         user = User.objects.create_user(
             username=validated_data['username'],
-            email=validated_data['email'],
+            email=validated_data.get('email', ''),
             password=validated_data['password'],
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', '')
         )
-        UserProfile.objects.create(user=user, department=department)
+        UserProfile.objects.create(user=user, department=department, nickname=nickname)
         return user
 
 

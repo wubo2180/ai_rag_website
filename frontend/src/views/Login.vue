@@ -101,27 +101,6 @@
               {{ confirmPasswordError }}
             </p>
           </div>
-
-          <div class="form-group">
-            <label class="label">验证码</label>
-            <div class="input-with-action">
-              <input
-                id="verification-code"
-                v-model="formData.verificationCode"
-                type="text"
-                placeholder="请输入验证码"
-                class="input"
-                required
-              />
-              <button
-                class="code-btn"
-                type="button"
-                @click="getVerificationCode"
-              >
-                获取验证码
-              </button>
-            </div>
-          </div>
         </template>
 
         <label class="terms">
@@ -180,7 +159,6 @@
     password: '',
     confirmPassword: '',
     nickname: '',
-    verificationCode: '',
     agreeTerms: false,
   })
 
@@ -250,13 +228,12 @@
         formData.agreeTerms
       )
     }
-    // 注册校验：用户名、密码、确认密码一致、验证码
+    // 注册校验：用户名、密码、确认密码一致
     return (
       !!formData.username.trim() &&
       !nicknameError.value &&
       !passwordError.value &&
       !confirmPasswordError.value &&
-      !!formData.verificationCode.trim() &&
       formData.agreeTerms
     )
   })
@@ -279,10 +256,6 @@
   const switchToLogin = () => {
     isLogin.value = true
     router.replace({ path: '/login', query: { mode: 'login' } })
-  }
-
-  const getVerificationCode = () => {
-    alert('验证码已发送（示例）')
   }
 
   const handleSubmit = async () => {
@@ -314,8 +287,8 @@
         const result = await userStore.register({
           username: formData.username,
           password: formData.password,
+          confirm_password: formData.confirmPassword,
           nickname: formData.nickname,
-          verification_code: formData.verificationCode,
         })
 
         if (result.success) {
