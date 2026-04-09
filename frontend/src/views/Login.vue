@@ -101,27 +101,6 @@
               {{ confirmPasswordError }}
             </p>
           </div>
-
-          <div class="form-group">
-            <label class="label">验证码</label>
-            <div class="input-with-action">
-              <input
-                id="verification-code"
-                v-model="formData.verificationCode"
-                type="text"
-                placeholder="请输入验证码"
-                class="input"
-                required
-              />
-              <button
-                class="code-btn"
-                type="button"
-                @click="getVerificationCode"
-              >
-                获取验证码
-              </button>
-            </div>
-          </div>
         </template>
 
         <label class="terms">
@@ -180,7 +159,6 @@
     password: '',
     confirmPassword: '',
     nickname: '',
-    verificationCode: '',
     agreeTerms: false,
   })
 
@@ -233,13 +211,13 @@
     touched[field] = true
   }
   const showNicknameError = computed(
-    () => touched.nickname && !!nicknameError.value
+    () => touched.nickname && !!nicknameError.value,
   )
   const showPasswordError = computed(
-    () => touched.password && !!passwordError.value
+    () => touched.password && !!passwordError.value,
   )
   const showConfirmPasswordError = computed(
-    () => touched.confirmPassword && !!confirmPasswordError.value
+    () => touched.confirmPassword && !!confirmPasswordError.value,
   )
 
   const canSubmit = computed(() => {
@@ -250,13 +228,12 @@
         formData.agreeTerms
       )
     }
-    // 注册校验：用户名、密码、确认密码一致、验证码
+    // 注册校验：用户名、密码、确认密码一致
     return (
       !!formData.username.trim() &&
       !nicknameError.value &&
       !passwordError.value &&
       !confirmPasswordError.value &&
-      !!formData.verificationCode.trim() &&
       formData.agreeTerms
     )
   })
@@ -279,10 +256,6 @@
   const switchToLogin = () => {
     isLogin.value = true
     router.replace({ path: '/login', query: { mode: 'login' } })
-  }
-
-  const getVerificationCode = () => {
-    alert('验证码已发送（示例）')
   }
 
   const handleSubmit = async () => {
@@ -314,8 +287,8 @@
         const result = await userStore.register({
           username: formData.username,
           password: formData.password,
+          confirm_password: formData.confirmPassword,
           nickname: formData.nickname,
-          verification_code: formData.verificationCode,
         })
 
         if (result.success) {
@@ -350,7 +323,7 @@
     flex-direction: column;
     position: relative;
     justify-content: flex-start; /* 从顶部开始排列 */
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   .login2-card {
@@ -364,6 +337,8 @@
     position: absolute;
     left: 65%;
     top: 12%;
+    top: clamp(20px, 12%, 120px); /* 注册卡片：最少距顶20px，最多120px */
+    margin-bottom: 40px; /* 底部留白，防止滚动时贴边 */
   }
 
   .login-view-style {
