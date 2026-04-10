@@ -215,8 +215,8 @@ python manage.py createsuperuser
 
 #### 2.7 启动后端服务
 ```bash
-# 开发环境
-python manage.py runserver
+# 开发环境 本地启动
+python manage.py runserver --settings=config.settings_local
 
 # 生产环境 (使用Uvicorn)
 uvicorn config.asgi:application --host 0.0.0.0 --port 8000
