@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 加载 .env 文件
 # load_dotenv(BASE_DIR / '.env.dev')
-load_dotenv(BASE_DIR / '.env.dev.mysql_local')
+load_dotenv(BASE_DIR / '.env')
 
 
 # 基础配置
