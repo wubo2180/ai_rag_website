@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 加载 .env 文件
-load_dotenv(BASE_DIR / '.env.dev')
+# load_dotenv(BASE_DIR / '.env.dev')
+load_dotenv(BASE_DIR / '.env.dev.mysql_remote')
+
 
 # 基础配置
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
@@ -51,6 +53,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'dj_rest_auth',
     
