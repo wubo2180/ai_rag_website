@@ -27,4 +27,4 @@ class Command(BaseCommand):
         else:
             self.stdout.write(
                 self.style.SUCCESS(f'成功为 {created_count} 个用户创建了 Profile')
-            )
+            
