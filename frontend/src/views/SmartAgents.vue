@@ -301,9 +301,17 @@
   }
 
   const selectCategory = (category) => {
-    // 如果点击的是知识抽取类别，直接跳转到知识抽取页面
-    if (category === 'knowledge_extraction') {
-      router.push({ name: 'KnowledgeExtraction' })
+    // 点击以下分类时，直接跳转到专用页面
+    const categoryRouteMap = {
+      knowledge_extraction: 'KnowledgeExtraction',
+      data_analysis: 'DataAnalysis',
+      formula_generation: 'FormulaGeneration',
+      process_optimization: 'ProcessOptimization',
+    }
+
+    const targetRoute = categoryRouteMap[category]
+    if (targetRoute) {
+      router.push({ name: targetRoute })
       return
     }
 
@@ -316,6 +324,12 @@
 
   const openAgent = (agent) => {
     console.log('点击智能体:', agent.display_name, 'ID:', agent.id)
+
+    // 特殊处理：数据分析智能体跳转到专用页面
+    if (agent.display_name === '数据分析智能体' || agent.category === 'data_analysis') {
+      router.push({ name: 'DataAnalysis' })
+      return
+    }
     
     // 特殊处理：工艺优化智能体跳转到专用页面
     if (agent.display_name === '工艺优化' || agent.category === 'process_optimization') {

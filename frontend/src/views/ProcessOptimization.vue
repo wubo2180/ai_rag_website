@@ -1,5 +1,7 @@
 <template>
-  <div class="process-optimization-container">
+  <div class="process-optimization-page-wrapper">
+    <NavigationSidebar />
+    <div class="process-optimization-container">
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="back-navigation">
@@ -198,6 +200,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -206,6 +209,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { marked } from 'marked'
+import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 const router = useRouter()
 
@@ -422,7 +426,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.process-optimization-page-wrapper {
+  display: flex;
+  height: 100vh;
+}
+
 .process-optimization-container {
+  flex: 1;
+  overflow-y: auto;
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;

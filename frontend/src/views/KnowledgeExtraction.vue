@@ -1,5 +1,7 @@
 <template>
-  <div class="knowledge-extraction-container">
+  <div class="knowledge-extraction-page-wrapper">
+    <NavigationSidebar />
+    <div class="knowledge-extraction-container">
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-content">
@@ -317,6 +319,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -324,6 +327,7 @@
 import { ref, computed } from 'vue'
 import apiClient from '@/utils/api'
 import { ElMessage } from 'element-plus'
+import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 // 响应式数据
 const uploadedFile = ref(null)
@@ -953,48 +957,59 @@ const toggleMaterialsTable = () => {
 </script>
 
 <style scoped>
+.knowledge-extraction-page-wrapper {
+  display: flex;
+  height: 100vh;
+  background: #f3f6fb;
+}
+
 .knowledge-extraction-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 100%;
+  background: radial-gradient(circle at 10% -10%, #eef2ff 0%, #f7f9fc 42%, #f4f7fb 100%);
+  padding: 28px 30px 36px;
 }
 
 .page-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  max-width: 1360px;
+  margin: 0 auto 22px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 255, 0.95));
+  border-radius: 22px;
+  padding: 28px 30px;
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.08);
+  border: 1px solid #e8ecf8;
   text-align: center;
 }
 
 .page-title {
-  font-size: 2.5rem;
+  font-size: 42px;
   font-weight: 700;
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
+  letter-spacing: -0.5px;
+  color: #1f2b4a;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 10px;
 }
 
 .page-title i {
-  color: #667eea;
+  color: #5d74ff;
 }
 
 .page-description {
-  font-size: 1.1rem;
-  color: #7f8c8d;
+  font-size: 17px;
+  color: #65708a;
   margin: 0;
 }
 
 .main-content {
+  max-width: 1360px;
+  margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
+  gap: 20px;
 }
 
 /* 上传区域 */
@@ -1003,50 +1018,58 @@ const toggleMaterialsTable = () => {
 }
 
 .upload-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf7;
 }
 
 .upload-area {
-  border: 3px dashed #ddd;
-  border-radius: 15px;
-  padding: 3rem;
+  border: 2px dashed #ccd6f6;
+  border-radius: 16px;
+  padding: 44px 26px;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: #f8f9fa;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9ff 100%);
 }
 
 .upload-area:hover {
-  border-color: #667eea;
-  background: #f0f8ff;
+  border-color: #5f79ff;
+  box-shadow: 0 8px 20px rgba(95, 121, 255, 0.15);
+  transform: translateY(-2px);
 }
 
 .upload-area.drag-over {
-  border-color: #667eea;
-  background: #e6f3ff;
+  border-color: #5f79ff;
+  background: linear-gradient(180deg, #eef3ff 0%, #eaf0ff 100%);
   transform: scale(1.02);
 }
 
 .upload-placeholder i {
-  font-size: 4rem;
-  color: #667eea;
-  margin-bottom: 1rem;
+  font-size: 48px;
+  color: #5f79ff;
+  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 999px;
+  background: rgba(95, 121, 255, 0.12);
 }
 
 .upload-placeholder h3 {
-  font-size: 1.5rem;
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
+  font-size: 32px;
+  color: #1f2b4a;
+  margin-bottom: 8px;
 }
 
 .upload-placeholder p {
-  color: #7f8c8d;
-  margin-bottom: 2rem;
+  color: #6a7693;
+  margin-bottom: 22px;
+  font-size: 15px;
 }
 
 .uploaded-file {
@@ -1059,10 +1082,11 @@ const toggleMaterialsTable = () => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: white;
-  padding: 1rem 1.5rem;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  background: #fff;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #e7ebf6;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.06);
 }
 
 .file-info i {
@@ -1081,7 +1105,7 @@ const toggleMaterialsTable = () => {
 }
 
 .action-buttons {
-  margin-top: 2rem;
+  margin-top: 20px;
   text-align: center;
 }
 
@@ -1091,46 +1115,50 @@ const toggleMaterialsTable = () => {
 }
 
 .results-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf7;
 }
 
 .results-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #ecf0f1;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #ecf0f6;
 }
 
 .results-header h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #2c3e50;
+  color: #1f2b4a;
   margin: 0;
 }
 
 .results-header i {
-  color: #f39c12;
+  color: #5f79ff;
 }
 
 .results-stats {
   display: flex;
-  gap: 1rem;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  color: #7f8c8d;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  color: #51607f;
+  font-size: 13px;
+  background: #f4f7ff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e4eafc;
 }
 
 .loading-container {
@@ -1140,13 +1168,13 @@ const toggleMaterialsTable = () => {
 
 .loading-spinner i {
   font-size: 3rem;
-  color: #667eea;
+  color: #5f79ff;
   margin-bottom: 1rem;
 }
 
 .loading-spinner p {
-  font-size: 1.2rem;
-  color: #2c3e50;
+  font-size: 1.05rem;
+  color: #30405f;
   margin-bottom: 2rem;
 }
 
@@ -1167,7 +1195,7 @@ const toggleMaterialsTable = () => {
 
 .step.active {
   opacity: 1;
-  color: #667eea;
+  color: #5f79ff;
 }
 
 .step i {
@@ -1183,25 +1211,29 @@ const toggleMaterialsTable = () => {
 }
 
 .toggle-btn {
-  padding: 0.5rem 1rem;
-  border: 2px solid #ecf0f1;
-  background: white;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border: 1px solid #dfe6fa;
+  background: #fff;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: #47587d;
+  font-weight: 600;
 }
 
 .toggle-btn:hover {
-  border-color: #667eea;
+  border-color: #5f79ff;
+  color: #3048ce;
 }
 
 .toggle-btn.active {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
-  border-color: #667eea;
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(95, 121, 255, 0.28);
 }
 
 /* 卡片视图 */
@@ -1212,11 +1244,17 @@ const toggleMaterialsTable = () => {
 }
 
 .knowledge-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  border: 1px solid #ecf0f1;
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.25rem;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf8;
+  transition: all 0.25s ease;
+}
+
+.knowledge-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
 }
 
 .card-header {
@@ -1230,11 +1268,11 @@ const toggleMaterialsTable = () => {
 
 .card-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: #1f2b4a;
 }
 
 .card-index {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
@@ -1248,16 +1286,16 @@ const toggleMaterialsTable = () => {
 .field-label {
   display: block;
   font-weight: 600;
-  color: #34495e;
+  color: #32476d;
   margin-bottom: 0.3rem;
   font-size: 0.9rem;
 }
 
 .field-value {
-  background: #f8f9fa;
+  background: #f8faff;
   padding: 0.75rem;
   border-radius: 8px;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid #5f79ff;
   font-size: 0.95rem;
   line-height: 1.5;
 }
@@ -1271,15 +1309,15 @@ const toggleMaterialsTable = () => {
   width: 100%;
   border-collapse: collapse;
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .results-table th {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
-  padding: 1rem;
+  padding: 12px;
   text-align: left;
   font-weight: 600;
 }
@@ -1290,9 +1328,9 @@ const toggleMaterialsTable = () => {
 }
 
 .index-cell {
-  background: #f8f9fa;
+  background: #f4f7ff;
   font-weight: 600;
-  color: #667eea;
+  color: #5f79ff;
   text-align: center;
   width: 60px;
 }
@@ -1304,8 +1342,8 @@ const toggleMaterialsTable = () => {
 
 /* JSON视图 */
 .json-view {
-  background: #2d3748;
-  border-radius: 8px;
+  background: #1f2937;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -1322,9 +1360,9 @@ const toggleMaterialsTable = () => {
 /* 文本结果 */
 .text-results {
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .text-content pre {
@@ -1368,9 +1406,9 @@ const toggleMaterialsTable = () => {
 
 /* 通用按钮样式 */
 .btn {
-  padding: 0.75rem 1.5rem;
+  padding: 10px 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1378,16 +1416,17 @@ const toggleMaterialsTable = () => {
   align-items: center;
   gap: 0.5rem;
   text-decoration: none;
+  box-shadow: 0 5px 12px rgba(17, 24, 39, 0.08);
 }
 
 .btn-primary {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #5a6fd8;
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 10px 20px rgba(95, 121, 255, 0.28);
 }
 
 .btn-primary:disabled {
@@ -1397,23 +1436,43 @@ const toggleMaterialsTable = () => {
 }
 
 .btn-secondary {
-  background: #ecf0f1;
-  color: #2c3e50;
+  background: #eef2f8;
+  color: #2f3f61;
 }
 
 .btn-secondary:hover {
-  background: #d5dbdb;
+  background: #e1e8f4;
   transform: translateY(-2px);
 }
 
 .btn-info {
-  background: #3498db;
+  background: linear-gradient(135deg, #3ea7ff 0%, #2f8be9 100%);
   color: white;
 }
 
 .btn-info:hover {
-  background: #2980b9;
+  box-shadow: 0 10px 20px rgba(62, 167, 255, 0.26);
   transform: translateY(-2px);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #ffbf47 0%, #ff9b2f 100%);
+  color: #fff;
+}
+
+.btn-warning:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(255, 162, 66, 0.25);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff6f6f 0%, #ff4d4f 100%);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(255, 77, 79, 0.28);
 }
 
 .btn-lg {
@@ -1432,7 +1491,8 @@ const toggleMaterialsTable = () => {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf7;
 }
 
 .materials-table-header {
@@ -1446,14 +1506,14 @@ const toggleMaterialsTable = () => {
 
 .materials-table-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: #1f2b4a;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .materials-table-header i {
-  color: #667eea;
+  color: #5f79ff;
 }
 
 .materials-table {
@@ -1466,17 +1526,17 @@ const toggleMaterialsTable = () => {
 }
 
 .materials-table th {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
   padding: 0.75rem 0.5rem;
   text-align: center;
   font-weight: 600;
   font-size: 0.9rem;
-  border: 1px solid #5a6fd8;
+  border: 1px solid #5f79ff;
 }
 
 .materials-table th.merged-header {
-  background: #5a6fd8;
+  background: #5269f6;
   font-size: 0.85rem;
   padding: 0.5rem;
 }
@@ -1490,7 +1550,7 @@ const toggleMaterialsTable = () => {
 .table-input {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid #d7deef;
   border-radius: 4px;
   font-size: 0.9rem;
   box-sizing: border-box;
@@ -1499,8 +1559,8 @@ const toggleMaterialsTable = () => {
 
 .table-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  border-color: #5f79ff;
+  box-shadow: 0 0 0 3px rgba(95, 121, 255, 0.2);
 }
 
 .table-actions {
@@ -1524,6 +1584,18 @@ const toggleMaterialsTable = () => {
 @media (max-width: 768px) {
   .knowledge-extraction-container {
     padding: 1rem;
+  }
+
+  .page-header {
+    padding: 20px 16px;
+  }
+
+  .page-title {
+    font-size: 30px;
+  }
+
+  .upload-placeholder h3 {
+    font-size: 24px;
   }
   
   .upload-area {

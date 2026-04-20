@@ -147,6 +147,15 @@ const routes = [
     },
   },
   {
+    path: '/data-analysis',
+    name: 'DataAnalysis',
+    component: () => import('@/views/DataAnalysis.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '数据分析',
+    },
+  },
+  {
     path: '/user-management',
     name: 'UserManagement',
     component: () => import('@/views/UserManagement.vue'),

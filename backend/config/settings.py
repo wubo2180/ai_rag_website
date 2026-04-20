@@ -5,9 +5,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 加载 .env 文件
-# load_dotenv(BASE_DIR / '.env.dev')
-load_dotenv(BASE_DIR / '.env')
-
+load_dotenv(BASE_DIR / '.env.dev')
 
 # 基础配置
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
