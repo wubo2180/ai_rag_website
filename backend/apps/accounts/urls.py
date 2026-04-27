@@ -11,6 +11,8 @@ from .api_views import (
     UserProfileAPIView,
     ChangePasswordAPIView,
     UserInfoAPIView,
+    UserAvatarUploadAPIView,
+    UserDashboardStatsAPIView,
     DepartmentListCreateAPIView,
     DepartmentDetailAPIView,
     UserRoleDepartmentUpdateAPIView,
@@ -33,6 +35,8 @@ urlpatterns = [
     path('profile/', UserProfileAPIView.as_view(), name='profile'),
     path('user-info/', UserInfoAPIView.as_view(), name='user-info'),
     path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
+    path('avatar-upload/', UserAvatarUploadAPIView.as_view(), name='avatar-upload'),
+    path('dashboard-stats/', UserDashboardStatsAPIView.as_view(), name='dashboard-stats'),
 
     # 部门与角色
     path('departments/', DepartmentListCreateAPIView.as_view(), name='department-list'),

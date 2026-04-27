@@ -1,5 +1,7 @@
 <template>
-  <div class="process-optimization-container">
+  <div class="process-optimization-page-wrapper">
+    <NavigationSidebar />
+    <div class="process-optimization-container">
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="back-navigation">
@@ -137,7 +139,48 @@
 
         <!-- 完整结果显示 -->
         <div v-else class="result-content">
+          <div class="summary-kpi-grid">
+            <div class="summary-kpi-card" v-for="item in optimizationSummary" :key="item.label">
+              <div class="summary-kpi-label">{{ item.label }}</div>
+              <div class="summary-kpi-value">{{ item.value }}</div>
+              <div class="summary-kpi-note">{{ item.note }}</div>
+            </div>
+          </div>
+
           <div class="result-text" v-html="formatMarkdown(result)"></div>
+
+          <div class="insight-board">
+            <div class="insight-col">
+              <h3><i class="fas fa-table"></i> 建议工艺参数表</h3>
+              <div class="table-wrap">
+                <table class="rich-table">
+                  <thead>
+                    <tr>
+                      <th>参数项</th>
+                      <th>当前值</th>
+                      <th>建议区间</th>
+                      <th>收益</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, idx) in processParameterRows" :key="idx">
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.current }}</td>
+                      <td>{{ row.recommend }}</td>
+                      <td>{{ row.benefit }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="insight-col">
+              <h3><i class="fas fa-clipboard-check"></i> 风险与验证清单</h3>
+              <ul class="checklist">
+                <li v-for="(item, idx) in riskChecklist" :key="idx">{{ item }}</li>
+              </ul>
+            </div>
+          </div>
 
           <div class="result-meta">
             <div class="meta-item">
@@ -198,6 +241,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -206,6 +250,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { marked } from 'marked'
+import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 const router = useRouter()
 
@@ -227,6 +272,27 @@ const conversationId = ref('')
 const messageId = ref('')
 const resultTime = ref(null)
 const historyList = ref([])
+
+const optimizationSummary = ref([
+  { label: '预计良率提升', value: '+6.8%', note: '建议窗口下的估算值' },
+  { label: '单位成本变化', value: '-4.2%', note: '原料与能耗综合测算' },
+  { label: '工艺稳定性评分', value: 'A-', note: '基于历史波动评估' },
+  { label: '中试建议优先级', value: 'P1', note: '建议优先执行验证' }
+])
+
+const processParameterRows = ref([
+  { name: '反应温度', current: '720℃', recommend: '700~715℃', benefit: '副反应降低、收率提升' },
+  { name: '保温时长', current: '4.0h', recommend: '3.2~3.6h', benefit: '缩短节拍并降低能耗' },
+  { name: '搅拌转速', current: '320 rpm', recommend: '350~380 rpm', benefit: '混合均匀性提升' },
+  { name: '进料速率', current: '1.8 kg/min', recommend: '1.5~1.6 kg/min', benefit: '减少局部过饱和' }
+])
+
+const riskChecklist = ref([
+  '先做 3 批次小试验证建议窗口，比较粒径分布稳定性。',
+  '对关键温控点加装校验，避免温度漂移导致质量波动。',
+  '按建议速率逐步降负荷，观察是否出现结块和堵塞。',
+  '同步记录能耗与良率，确认成本收益是否达到预期。'
+])
 
 // Dify API 配置 - 现在改用后端API
 const API_BASE = '/api/smart-agent'
@@ -422,10 +488,20 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.process-optimization-page-wrapper {
+  display: flex;
+  min-height: 100dvh;
+  width: 100%;
+}
+
 .process-optimization-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(12px, 2vw, 24px);
+  box-sizing: border-box;
 }
 
 .page-header {
@@ -696,6 +772,98 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+.summary-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summary-kpi-card {
+  background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+  border: 1px solid #e2e8f7;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.summary-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.summary-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 4px 0;
+}
+
+.summary-kpi-note {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.insight-board {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14px;
+}
+
+.insight-col {
+  border: 1px solid #e8edf7;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.insight-col h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.rich-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.rich-table th,
+.rich-table td {
+  border-bottom: 1px solid #e9edf5;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.rich-table th {
+  position: sticky;
+  top: 0;
+  background: #f4f7ff;
+  color: #334155;
+  font-weight: 600;
+}
+
+.rich-table tbody tr:nth-child(odd) {
+  background: #fcfdff;
+}
+
+.checklist {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  line-height: 1.75;
+  font-size: 13px;
+}
+
 .history-section h2 {
   margin-bottom: 16px;
   font-size: 18px;
@@ -743,5 +911,15 @@ onMounted(() => {
 
 .history-item i {
   color: #ccc;
+}
+
+@media (max-width: 900px) {
+  .summary-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .insight-board {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

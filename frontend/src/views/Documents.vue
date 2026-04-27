@@ -1159,8 +1159,11 @@
     flex: 1;
     overflow-y: auto;
     padding: 20px;
-    max-width: 1400px;
-    margin: 0 auto;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    min-height: 100vh;
+    box-sizing: border-box;
   }
 
   .page-header {

@@ -4,8 +4,29 @@
     <div class="knowledge-base-container">
       <!-- 页面标题 -->
       <div class="page-header">
-        <h1 class="page-title">🧠 知识库管理</h1>
-        <p class="page-subtitle">管理和浏览Dify知识库中的数据集和文档</p>
+        <div class="header-top">
+          <div class="breadcrumb">工艺 > 知识库管理 > 基础知识库</div>
+          <div class="header-status"><span class="status-dot"></span> 后端在线</div>
+        </div>
+        <h1 class="page-title">基础知识库</h1>
+        <p class="page-subtitle">汇总pdf文档中整理出的材料知识。</p>
+      </div>
+
+      <div class="overview-section">
+        <div class="overview-left">
+          <h3>模块概览</h3>
+          <p>
+            当前已接入 <strong>{{ totalDatasets }}</strong> 个基础工艺知识库，支持文档检索、详情查看与分页浏览。
+          </p>
+        </div>
+        <div class="overview-right">
+          <h3>待接入能力</h3>
+          <ul>
+            <li>工艺路线关键词：drilling、boring、reaming、milling</li>
+            <li>常见材料族：SiC、CFRP、TitaniumAlloy、Copper</li>
+            <li>后续支持规则编辑与规则库联动</li>
+          </ul>
+        </div>
       </div>
 
       <!-- 搜索和筛选区域 -->
@@ -21,11 +42,7 @@
             />
             <button @click="searchDatasets" class="search-btn">🔍 搜索</button>
           </div>
-          <button
-            @click="refreshDatasets"
-            class="refresh-btn"
-            :disabled="loading"
-          >
+          <button @click="refreshDatasets" class="refresh-btn" :disabled="loading">
             🔄 刷新
           </button>
         </div>
@@ -45,20 +62,18 @@
 
       <!-- 知识库列表 -->
       <div v-if="!loading && !error" class="datasets-section">
-        <!-- 统计信息 -->
         <div class="stats-bar">
           <span class="stats-text">
             共找到 <strong>{{ totalDatasets }}</strong> 个知识库
           </span>
         </div>
 
-        <!-- 数据集网格 -->
         <div class="datasets-grid">
           <div
             v-for="dataset in datasets"
             :key="dataset.id"
             class="dataset-card"
-            @click="viewDatasetDetail(dataset)"
+            @click="viewDocuments(dataset)"
           >
             <div class="dataset-header">
               <div class="dataset-icon">📚</div>
@@ -69,57 +84,38 @@
 
             <div class="dataset-content">
               <h3 class="dataset-name">{{ dataset.name }}</h3>
-              <p class="dataset-description">
-                {{ dataset.description || '暂无描述' }}
-              </p>
+              <p class="dataset-description">{{ dataset.description || '暂无描述' }}</p>
 
               <div class="dataset-meta">
                 <div class="meta-item">
                   <span class="meta-label">文档数:</span>
-                  <span class="meta-value">{{
-                    dataset.document_count || 0
-                  }}</span>
+                  <span class="meta-value">{{ dataset.document_count || 0 }}</span>
                 </div>
                 <div class="meta-item">
                   <span class="meta-label">创建时间:</span>
-                  <span class="meta-value">{{
-                    dataset.created_at_readable || '未知'
-                  }}</span>
+                  <span class="meta-value">{{ dataset.created_at_readable || '未知' }}</span>
                 </div>
                 <div class="meta-item">
                   <span class="meta-label">数据源:</span>
-                  <span class="meta-value">{{
-                    getDataSourceText(dataset.data_source_type)
-                  }}</span>
+                  <span class="meta-value">{{ getDataSourceText(dataset.data_source_type) }}</span>
                 </div>
               </div>
             </div>
 
             <div class="dataset-actions">
-              <button
-                @click.stop="viewDocuments(dataset)"
-                class="action-btn view-docs"
-              >
+              <button @click.stop="viewDocuments(dataset)" class="action-btn view-docs">
                 📄 查看文档
               </button>
-              <button
-                @click.stop="viewDatasetDetail(dataset)"
-                class="action-btn view-detail"
-              >
+              <button @click.stop="viewDatasetDetail(dataset)" class="action-btn view-detail">
                 ℹ️ 详情
               </button>
             </div>
           </div>
         </div>
 
-        <!-- 分页控件 -->
         <div v-if="totalPages > 1" class="pagination-section">
           <div class="pagination-controls">
-            <button
-              @click="changePage(currentPage - 1)"
-              :disabled="currentPage <= 1"
-              class="page-btn"
-            >
+            <button @click="changePage(currentPage - 1)" :disabled="currentPage <= 1" class="page-btn">
               ← 上一页
             </button>
 
@@ -134,30 +130,22 @@
               </span>
             </div>
 
-            <button
-              @click="changePage(currentPage + 1)"
-              :disabled="currentPage >= totalPages"
-              class="page-btn"
-            >
+            <button @click="changePage(currentPage + 1)" :disabled="currentPage >= totalPages" class="page-btn">
               下一页 →
             </button>
           </div>
 
-          <div class="pagination-info">
-            第 {{ currentPage }} 页，共 {{ totalPages }} 页
-          </div>
+          <div class="pagination-info">第 {{ currentPage }} 页，共 {{ totalPages }} 页</div>
         </div>
-      </div>
 
-      <!-- 数据集详情模态框 -->
-      <div v-if="selectedDataset" class="modal-overlay" @click="closeDetail">
-        <div class="modal-content" @click.stop>
-          <div class="modal-header">
+        <!-- 页面内嵌详情（替代弹窗） -->
+        <div v-if="selectedDataset" class="inline-detail-section">
+          <div class="inline-detail-header">
             <h2>📚 {{ selectedDataset.name }}</h2>
-            <button @click="closeDetail" class="close-btn">×</button>
+            <button @click="closeDetail" class="inline-close-btn">收起</button>
           </div>
 
-          <div class="modal-body">
+          <div class="inline-detail-body">
             <div class="detail-section">
               <h3>基本信息</h3>
               <div class="detail-grid">
@@ -175,30 +163,21 @@
                 </div>
                 <div class="detail-item">
                   <label>状态:</label>
-                  <span :class="getStatusClass(selectedDataset)">
-                    {{ selectedDataset.status || '可用' }}
-                  </span>
+                  <span :class="getStatusClass(selectedDataset)">{{ selectedDataset.status || '可用' }}</span>
                 </div>
                 <div class="detail-item">
                   <label>数据源类型:</label>
-                  <span>{{
-                    getDataSourceText(selectedDataset.data_source_type)
-                  }}</span>
+                  <span>{{ getDataSourceText(selectedDataset.data_source_type) }}</span>
                 </div>
                 <div class="detail-item">
                   <label>创建时间:</label>
-                  <span>{{
-                    selectedDataset.created_at_readable || '未知'
-                  }}</span>
+                  <span>{{ selectedDataset.created_at_readable || '未知' }}</span>
                 </div>
               </div>
             </div>
 
             <div class="detail-actions">
-              <button
-                @click="viewDocuments(selectedDataset)"
-                class="detail-action-btn"
-              >
+              <button @click="viewDocuments(selectedDataset)" class="detail-action-btn">
                 📄 查看文档列表
               </button>
             </div>
@@ -206,82 +185,70 @@
         </div>
       </div>
 
-      <!-- 文档列表模态框 -->
-      <div v-if="showDocuments" class="modal-overlay" @click="closeDocuments">
-        <div class="modal-content large" @click.stop>
-          <div class="modal-header">
-            <h2>📄 文档列表 - {{ currentDatasetName }}</h2>
-            <button @click="closeDocuments" class="close-btn">×</button>
+      <!-- 页面内嵌文档列表（替代弹窗） -->
+      <div v-if="showDocuments" class="inline-documents-section">
+        <div class="inline-documents-header">
+          <h2>📄 文档列表 - {{ currentDatasetName }}</h2>
+          <button @click="closeDocuments" class="inline-close-btn">收起</button>
+        </div>
+
+        <div class="inline-documents-body">
+          <div class="doc-search">
+            <input
+              v-model="docSearchKeyword"
+              @keyup.enter="searchDocuments"
+              type="text"
+              class="search-input"
+              placeholder="搜索文档名称..."
+            />
+            <button @click="searchDocuments" class="search-btn">🔍 搜索文档</button>
           </div>
 
-          <div class="modal-body">
-            <!-- 文档搜索 -->
-            <div class="doc-search">
-              <input
-                v-model="docSearchKeyword"
-                @keyup.enter="searchDocuments"
-                type="text"
-                class="search-input"
-                placeholder="搜索文档..."
-              />
-              <button @click="searchDocuments" class="search-btn">🔍</button>
-            </div>
+          <div v-if="documentsLoading" class="loading-section">
+            <div class="loading-spinner"></div>
+            <p>正在加载文档列表...</p>
+          </div>
 
-            <!-- 文档加载状态 -->
-            <div v-if="documentsLoading" class="loading-section">
-              <div class="loading-spinner"></div>
-              <p>正在加载文档列表...</p>
-            </div>
+          <div v-else-if="documents.length === 0" class="empty-state">
+            暂无文档数据
+          </div>
 
-            <!-- 文档列表 -->
-            <div v-if="!documentsLoading" class="documents-list">
-              <div
-                v-for="document in documents"
-                :key="document.id"
-                class="document-item"
+          <div v-else class="documents-list">
+            <div v-for="doc in documents" :key="doc.id || doc.name" class="document-item">
+              <div class="doc-icon">📄</div>
+              <div class="doc-info">
+                <h4 class="doc-name">{{ doc.name || '未命名文档' }}</h4>
+                <p class="doc-meta">
+                  状态：{{ getDocumentStatus(doc.indexing_status || doc.status) }}
+                  <span v-if="doc.word_count">｜词数：{{ doc.word_count }}</span>
+                  <span v-else-if="doc.size">｜大小：{{ formatFileSize(doc.size) }}</span>
+                </p>
+                <p class="doc-time">
+                  更新时间：{{ formatTime(doc.updated_at || doc.created_at) }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="totalDocPages > 1" class="pagination-section">
+            <div class="pagination-controls">
+              <button
+                @click="changeDocPage(currentDocPage - 1)"
+                :disabled="currentDocPage <= 1"
+                class="page-btn"
               >
-                <div class="doc-icon">📄</div>
-                <div class="doc-info">
-                  <h4 class="doc-name">{{ document.name }}</h4>
-                  <p class="doc-meta">
-                    大小: {{ formatFileSize(document.file_size) }} | 类型:
-                    {{ document.file_type || '未知' }} | 状态:
-                    {{ getDocumentStatus(document.status) }}
-                  </p>
-                  <p class="doc-time">
-                    创建时间: {{ formatTime(document.created_at) }}
-                  </p>
-                </div>
-              </div>
+                ← 上一页
+              </button>
 
-              <div v-if="documents.length === 0" class="empty-state">
-                <p>暂无文档</p>
-              </div>
-            </div>
+              <span class="pagination-info">第 {{ currentDocPage }} 页，共 {{ totalDocPages }} 页</span>
 
-            <!-- 文档分页 -->
-            <div v-if="totalDocPages > 1" class="pagination-section">
-              <div class="pagination-controls">
-                <button
-                  @click="changeDocPage(currentDocPage - 1)"
-                  :disabled="currentDocPage <= 1"
-                  class="page-btn"
-                >
-                  ← 上一页
-                </button>
-
-                <span class="page-info">
-                  第 {{ currentDocPage }} 页，共 {{ totalDocPages }} 页
-                </span>
-
-                <button
-                  @click="changeDocPage(currentDocPage + 1)"
-                  :disabled="currentDocPage >= totalDocPages"
-                  class="page-btn"
-                >
-                  下一页 →
-                </button>
-              </div>
+              <button
+                @click="changeDocPage(currentDocPage + 1)"
+                :disabled="currentDocPage >= totalDocPages"
+                class="page-btn"
+              >
+                下一页 →
+              </button>
             </div>
           </div>
         </div>
@@ -409,6 +376,13 @@
       viewDatasetDetail(dataset) {
         this.selectedDataset = dataset
         console.log('📚 查看知识库详情:', dataset.name)
+
+        this.$nextTick(() => {
+          const section = this.$el.querySelector('.inline-detail-section')
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        })
       },
 
       closeDetail() {
@@ -422,6 +396,13 @@
         this.closeDetail() // 关闭详情框
 
         await this.loadDocuments()
+
+        this.$nextTick(() => {
+          const section = this.$el.querySelector('.inline-documents-section')
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        })
       },
 
       closeDocuments() {
@@ -539,45 +520,120 @@
   .knowledge-base-page-wrapper {
     display: flex;
     height: 100vh;
+    background: #f4f7fb;
   }
 
   .knowledge-base-container {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
-    max-width: 1400px;
-    margin: 0 auto;
-    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+    padding: 24px;
+    width: 100%;
+    max-width: none;
+    margin: 0;
     min-height: 100vh;
+    box-sizing: border-box;
   }
 
   /* 页面标题 */
   .page-header {
-    text-align: center;
-    margin-bottom: 30px;
-    color: white;
+    margin-bottom: 18px;
+    background: #ffffff;
+    border: 1px solid #e8edf5;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 18px 20px;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .breadcrumb {
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .header-status {
+    color: #334155;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px solid #dfe7f3;
+    border-radius: 999px;
+    background: #f8fbff;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
   }
 
   .page-title {
-    font-size: 2.5rem;
-    margin: 0 0 10px 0;
-    font-weight: bold;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    font-size: 30px;
+    margin: 0 0 8px 0;
+    font-weight: 700;
+    color: #1f2937;
+    text-shadow: none;
+    letter-spacing: -0.2px;
   }
 
   .page-subtitle {
-    font-size: 1.1rem;
-    opacity: 0.9;
+    font-size: 14px;
+    color: #6b7280;
+    opacity: 1;
     margin: 0;
+  }
+
+  .overview-section {
+    background: #ffffff;
+    border: 1px solid #e8edf5;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+
+  .overview-section h3 {
+    margin: 0 0 8px;
+    color: #1e293b;
+    font-size: 16px;
+  }
+
+  .overview-section p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .overview-section ul {
+    margin: 0;
+    padding-left: 18px;
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.65;
   }
 
   /* 搜索区域 */
   .search-section {
-    background: rgba(255, 255, 255, 0.95);
-    padding: 20px;
-    border-radius: 15px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    background: #fff;
+    padding: 16px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    border: 1px solid #e8edf5;
   }
 
   .search-controls {
@@ -595,28 +651,31 @@
 
   .search-input {
     flex: 1;
-    padding: 12px 16px;
-    border: 2px solid #e1e5e9;
+    padding: 10px 14px;
+    border: 1px solid #dbe2ec;
     border-radius: 8px 0 0 8px;
     font-size: 14px;
     outline: none;
-    transition: border-color 0.3s;
+    transition: all 0.2s;
+    background: #fcfdff;
   }
 
   .search-input:focus {
-    border-color: #667eea;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
   }
 
   .search-btn,
   .refresh-btn {
-    padding: 12px 20px;
-    background: #667eea;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
     color: white;
     border: none;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     transition: all 0.3s;
+    box-shadow: 0 6px 14px rgba(59, 130, 246, 0.25);
   }
 
   .search-btn {
@@ -629,7 +688,7 @@
 
   .search-btn:hover,
   .refresh-btn:hover {
-    background: #5a67d8;
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
     transform: translateY(-1px);
   }
 
@@ -644,10 +703,11 @@
   .error-section {
     text-align: center;
     padding: 40px;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 15px;
+    background: #fff;
+    border-radius: 14px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    border: 1px solid #e8edf5;
   }
 
   .loading-spinner {
@@ -691,10 +751,11 @@
 
   /* 数据集区域 */
   .datasets-section {
-    background: rgba(255, 255, 255, 0.95);
+    background: #fff;
     padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    border: 1px solid #e8edf5;
   }
 
   .stats-bar {
@@ -717,18 +778,18 @@
   }
 
   .dataset-card {
-    background: white;
-    border: 1px solid #e1e5e9;
+    background: #fff;
+    border: 1px solid #e6ebf2;
     border-radius: 12px;
     padding: 20px;
     cursor: pointer;
     transition: all 0.3s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
   }
 
   .dataset-card:hover {
-    border-color: #667eea;
-    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+    border-color: #60a5fa;
+    box-shadow: 0 8px 22px rgba(59, 130, 246, 0.2);
     transform: translateY(-2px);
   }
 
@@ -741,6 +802,13 @@
 
   .dataset-icon {
     font-size: 24px;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef6ff;
+    border-radius: 10px;
   }
 
   .dataset-status {
@@ -770,19 +838,20 @@
   }
 
   .dataset-name {
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 600;
     margin: 0 0 8px 0;
-    color: #2d3748;
+    color: #1e293b;
   }
 
   .dataset-description {
-    color: #718096;
-    font-size: 14px;
+    color: #64748b;
+    font-size: 13px;
     margin: 0 0 12px 0;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -798,12 +867,12 @@
   }
 
   .meta-label {
-    color: #a0aec0;
+    color: #94a3b8;
     margin-right: 4px;
   }
 
   .meta-value {
-    color: #4a5568;
+    color: #334155;
     font-weight: 500;
   }
 
@@ -814,13 +883,14 @@
 
   .action-btn {
     flex: 1;
-    padding: 8px 12px;
-    border: 1px solid #e1e5e9;
+    padding: 9px 12px;
+    border: 1px solid #e2e8f0;
     background: white;
     border-radius: 6px;
     cursor: pointer;
     font-size: 12px;
     transition: all 0.3s;
+    font-weight: 600;
   }
 
   .view-docs {
@@ -834,12 +904,12 @@
   }
 
   .view-detail {
-    border-color: #667eea;
-    color: #667eea;
+    border-color: #3b82f6;
+    color: #3b82f6;
   }
 
   .view-detail:hover {
-    background: #667eea;
+    background: #3b82f6;
     color: white;
   }
 
@@ -863,7 +933,7 @@
 
   .page-btn {
     padding: 8px 16px;
-    border: 1px solid #e1e5e9;
+    border: 1px solid #dbe3ee;
     background: white;
     border-radius: 6px;
     cursor: pointer;
@@ -872,8 +942,8 @@
   }
 
   .page-btn:hover:not(:disabled) {
-    border-color: #667eea;
-    color: #667eea;
+    border-color: #3b82f6;
+    color: #3b82f6;
   }
 
   .page-btn:disabled {
@@ -897,14 +967,14 @@
   }
 
   .page-number:hover {
-    border-color: #667eea;
-    color: #667eea;
+    border-color: #3b82f6;
+    color: #3b82f6;
   }
 
   .page-number.active {
-    background: #667eea;
+    background: #3b82f6;
     color: white;
-    border-color: #667eea;
+    border-color: #3b82f6;
   }
 
   .pagination-info {
@@ -934,11 +1004,83 @@
     width: 100%;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+    border: 1px solid #e8edf5;
   }
 
   .modal-content.large {
     max-width: 900px;
+  }
+
+  .inline-documents-section {
+    margin-top: 16px;
+    background: #fff;
+    border: 1px solid #e8edf5;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+
+  .inline-detail-section {
+    margin-top: 16px;
+    background: #fff;
+    border: 1px solid #e8edf5;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+
+  .inline-detail-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e8edf5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .inline-detail-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #1e293b;
+  }
+
+  .inline-detail-body {
+    padding: 18px 20px;
+  }
+
+  .inline-documents-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e8edf5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .inline-documents-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #1e293b;
+  }
+
+  .inline-close-btn {
+    border: 1px solid #dbe3ee;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .inline-close-btn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+  }
+
+  .inline-documents-body {
+    padding: 18px 20px;
   }
 
   .modal-header {
@@ -1010,7 +1152,7 @@
 
   .detail-action-btn {
     padding: 10px 20px;
-    background: #667eea;
+    background: #3b82f6;
     color: white;
     border: none;
     border-radius: 8px;
@@ -1020,7 +1162,7 @@
   }
 
   .detail-action-btn:hover {
-    background: #5a67d8;
+    background: #2563eb;
     transform: translateY(-1px);
   }
 
@@ -1048,7 +1190,7 @@
   }
 
   .document-item:hover {
-    border-color: #667eea;
+    border-color: #60a5fa;
     background: #f8faff;
   }
 
@@ -1083,6 +1225,14 @@
 
   /* 响应式设计 */
   @media (max-width: 768px) {
+    .overview-section {
+      grid-template-columns: 1fr;
+    }
+
+    .page-title {
+      font-size: 24px;
+    }
+
     .datasets-grid {
       grid-template-columns: 1fr;
     }

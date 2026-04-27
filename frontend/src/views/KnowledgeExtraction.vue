@@ -1,7 +1,15 @@
 <template>
-  <div class="knowledge-extraction-container">
+  <div class="knowledge-extraction-page-wrapper">
+    <NavigationSidebar />
+    <div class="knowledge-extraction-container">
     <!-- 页面头部 -->
     <div class="page-header">
+      <div class="back-navigation">
+        <button @click="goBack" class="back-btn">
+          <i class="fas fa-arrow-left"></i>
+          返回
+        </button>
+      </div>
       <div class="header-content">
         <h1 class="page-title">
           <i class="fas fa-book-open"></i>
@@ -10,14 +18,49 @@
         <p class="page-description">
           从文档中智能提取结构化知识，支持PDF、Word、文本等多种格式
         </p>
+
+        <div class="header-tags">
+          <span class="tag-item"><i class="fas fa-file-alt"></i> 多格式解析</span>
+          <span class="tag-item"><i class="fas fa-table"></i> 结构化表格</span>
+          <span class="tag-item"><i class="fas fa-sitemap"></i> 图谱友好</span>
+        </div>
       </div>
     </div>
 
     <!-- 主要内容区域 -->
     <div class="main-content">
+      <div class="overview-strip">
+        <div class="overview-card" v-for="item in overviewCards" :key="item.title">
+          <div class="overview-icon"><i :class="item.icon"></i></div>
+          <div class="overview-body">
+            <div class="overview-title">{{ item.title }}</div>
+            <div class="overview-desc">{{ item.desc }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="workflow-strip">
+        <div class="workflow-item" v-for="(step, idx) in workflowSteps" :key="step.title">
+          <div class="workflow-index">{{ idx + 1 }}</div>
+          <div class="workflow-text">
+            <div class="workflow-title">{{ step.title }}</div>
+            <div class="workflow-desc">{{ step.desc }}</div>
+          </div>
+        </div>
+      </div>
+
       <!-- 文件上传区域 -->
       <div class="upload-section">
         <div class="upload-card">
+          <div class="panel-head">
+            <h2><i class="fas fa-upload"></i> 文档上传与抽取配置</h2>
+            <p>建议优先上传结构清晰文档，并在结果中检查编号与单位字段。</p>
+          </div>
+
+          <div class="upload-tips">
+            <span v-for="(tip, idx) in uploadTips" :key="idx">{{ tip }}</span>
+          </div>
+
           <div class="upload-area" 
                :class="{ 'drag-over': isDragOver }"
                @drop="handleDrop"
@@ -116,6 +159,21 @@
 
           <!-- 结果内容 -->
           <div v-else-if="extractionResult" class="results-content">
+              <div class="summary-dashboard">
+                <div class="summary-kpi-card" v-for="item in extractionSummaryKpis" :key="item.label">
+                  <div class="summary-kpi-label">{{ item.label }}</div>
+                  <div class="summary-kpi-value">{{ item.value }}</div>
+                  <div class="summary-kpi-note">{{ item.note }}</div>
+                </div>
+              </div>
+
+              <div class="summary-checklist">
+                <h3><i class="fas fa-clipboard-list"></i> 抽取后建议动作</h3>
+                <ul>
+                  <li v-for="(item, idx) in extractionChecklist" :key="idx">{{ item }}</li>
+                </ul>
+              </div>
+
             <!-- JSON格式结果 -->
             <div v-if="Array.isArray(extractionResult.extracted_knowledge)" class="json-results">
               <div class="view-toggle">
@@ -317,13 +375,18 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import apiClient from '@/utils/api'
 import { ElMessage } from 'element-plus'
+import NavigationSidebar from '@/components/NavigationSidebar.vue'
+
+const router = useRouter()
 
 // 响应式数据
 const uploadedFile = ref(null)
@@ -356,6 +419,47 @@ const materialsTableData = ref([ // 材料属性表格数据，仅初始化一�
 const hasResults = computed(() => {
   return extractionResult.value || errorMessage.value
 })
+
+const extractionSummaryKpis = computed(() => {
+  const knowledge = extractionResult.value?.extracted_knowledge
+  const itemCount = Array.isArray(knowledge) ? knowledge.length : (knowledge ? 1 : 0)
+  const fields = Array.isArray(knowledge) && knowledge.length ? Object.keys(knowledge[0]).length : 0
+  const elapsed = extractionResult.value?.elapsed_time ? `${extractionResult.value.elapsed_time.toFixed(1)}s` : '-'
+  return [
+    { label: '抽取条目数', value: `${itemCount}`, note: '结构化结果规模' },
+    { label: '字段覆盖数', value: `${fields}`, note: '每条数据主要字段' },
+    { label: '处理耗时', value: elapsed, note: '本次抽取耗时' },
+    { label: '结果状态', value: itemCount ? '完成' : '空结果', note: '建议复核关键字段' }
+  ]
+})
+
+const extractionChecklist = [
+  '优先检查文献编号、材料编号和性能值是否完整。',
+  '对关键性能字段执行单位统一与格式清洗。',
+  '将异常值样本标记后再进入图谱或建模流程。',
+  '导出前先切换到表格视图进行抽样复核。'
+]
+
+const overviewCards = [
+  { title: '文档智能解析', desc: '自动识别段落、表格和关键字段', icon: 'fas fa-file-signature' },
+  { title: '知识结构化', desc: '提取实体、属性、关系并标准化输出', icon: 'fas fa-project-diagram' },
+  { title: '结果可视审阅', desc: '支持卡片/表格/JSON 多视图核验', icon: 'fas fa-eye' },
+  { title: '数据可回填', desc: '可在材料属性表中编辑并同步结果', icon: 'fas fa-pen-square' }
+]
+
+const workflowSteps = [
+  { title: '上传文档', desc: '支持 PDF / DOCX / TXT / MD' },
+  { title: '自动抽取', desc: '执行实体识别与属性归类' },
+  { title: '人工复核', desc: '按表格视图检查关键字段' },
+  { title: '导出应用', desc: '用于知识图谱和下游建模' }
+]
+
+const uploadTips = [
+  '建议文档包含清晰标题与字段名',
+  '表格数据建议保留单位列',
+  '同类字段建议统一命名',
+  '抽取后优先核验编号与数值'
+]
 
 // 方法
 const triggerFileInput = () => {
@@ -950,51 +1054,190 @@ const toggleMaterialsTable = () => {
   showMaterialsTable.value = !showMaterialsTable.value
   ElMessage.info(showMaterialsTable.value ? '材料属性表格已显示' : '材料属性表格已隐藏')
 }
+
+const goBack = () => {
+  router.push({ name: 'SmartAgents' })
+}
 </script>
 
 <style scoped>
+.knowledge-extraction-page-wrapper {
+  display: flex;
+  height: 100vh;
+  background: #f3f6fb;
+}
+
 .knowledge-extraction-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 100%;
+  background: radial-gradient(circle at 10% -10%, #eef2ff 0%, #f7f9fc 42%, #f4f7fb 100%);
+  padding: 28px 30px 36px;
 }
 
 .page-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  max-width: 1360px;
+  margin: 0 auto 22px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 255, 0.95));
+  border-radius: 22px;
+  padding: 28px 30px;
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.08);
+  border: 1px solid #e8ecf8;
   text-align: center;
 }
 
+.back-navigation {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 14px;
+}
+
+.back-btn {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #e6ecfb;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+}
+
+.back-btn:hover {
+  background: #fff;
+  color: #1f2937;
+  border-color: #cfdaf8;
+}
+
 .page-title {
-  font-size: 2.5rem;
+  font-size: 42px;
   font-weight: 700;
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
+  letter-spacing: -0.5px;
+  color: #1f2b4a;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 10px;
 }
 
 .page-title i {
-  color: #667eea;
+  color: #5d74ff;
 }
 
 .page-description {
-  font-size: 1.1rem;
-  color: #7f8c8d;
+  font-size: 17px;
+  color: #65708a;
   margin: 0;
 }
 
+.header-tags {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-item {
+  background: #f2f5ff;
+  border: 1px solid #dce5ff;
+  color: #44517a;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .main-content {
+  max-width: 1360px;
+  margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
+  gap: 20px;
+}
+
+.overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-card {
+  background: #fff;
+  border: 1px solid #e8edf8;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.overview-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eef3ff;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overview-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2b4a;
+}
+
+.overview-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workflow-item {
+  border: 1px solid #e5ebfb;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9ff 100%);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.workflow-index {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #5f79ff;
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.workflow-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.workflow-desc {
+  font-size: 12px;
+  color: #64748b;
 }
 
 /* 上传区域 */
@@ -1003,50 +1246,93 @@ const toggleMaterialsTable = () => {
 }
 
 .upload-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf7;
+}
+
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  color: #1f2b4a;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.upload-tips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.upload-tips span {
+  background: #f5f7ff;
+  border: 1px solid #e2e8f7;
+  color: #475569;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .upload-area {
-  border: 3px dashed #ddd;
-  border-radius: 15px;
-  padding: 3rem;
+  border: 2px dashed #ccd6f6;
+  border-radius: 16px;
+  padding: 44px 26px;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: #f8f9fa;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9ff 100%);
 }
 
 .upload-area:hover {
-  border-color: #667eea;
-  background: #f0f8ff;
+  border-color: #5f79ff;
+  box-shadow: 0 8px 20px rgba(95, 121, 255, 0.15);
+  transform: translateY(-2px);
 }
 
 .upload-area.drag-over {
-  border-color: #667eea;
-  background: #e6f3ff;
+  border-color: #5f79ff;
+  background: linear-gradient(180deg, #eef3ff 0%, #eaf0ff 100%);
   transform: scale(1.02);
 }
 
 .upload-placeholder i {
-  font-size: 4rem;
-  color: #667eea;
-  margin-bottom: 1rem;
+  font-size: 48px;
+  color: #5f79ff;
+  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 999px;
+  background: rgba(95, 121, 255, 0.12);
 }
 
 .upload-placeholder h3 {
-  font-size: 1.5rem;
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
+  font-size: 32px;
+  color: #1f2b4a;
+  margin-bottom: 8px;
 }
 
 .upload-placeholder p {
-  color: #7f8c8d;
-  margin-bottom: 2rem;
+  color: #6a7693;
+  margin-bottom: 22px;
+  font-size: 15px;
 }
 
 .uploaded-file {
@@ -1059,10 +1345,11 @@ const toggleMaterialsTable = () => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: white;
-  padding: 1rem 1.5rem;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  background: #fff;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #e7ebf6;
+  box-shadow: 0 6px 16px rgba(17, 24, 39, 0.06);
 }
 
 .file-info i {
@@ -1081,7 +1368,7 @@ const toggleMaterialsTable = () => {
 }
 
 .action-buttons {
-  margin-top: 2rem;
+  margin-top: 20px;
   text-align: center;
 }
 
@@ -1091,46 +1378,106 @@ const toggleMaterialsTable = () => {
 }
 
 .results-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf7;
 }
 
 .results-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #ecf0f1;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #ecf0f6;
 }
 
 .results-header h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #2c3e50;
+  color: #1f2b4a;
   margin: 0;
 }
 
 .results-header i {
-  color: #f39c12;
+  color: #5f79ff;
 }
 
 .results-stats {
   display: flex;
-  gap: 1rem;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.summary-dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.summary-kpi-card {
+  background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+  border: 1px solid #e2e8f7;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.summary-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.summary-kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 4px 0;
+}
+
+.summary-kpi-note {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.summary-checklist {
+  border: 1px solid #e8edf7;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.summary-checklist h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-checklist ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  line-height: 1.75;
+  font-size: 13px;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  color: #7f8c8d;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  color: #51607f;
+  font-size: 13px;
+  background: #f4f7ff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e4eafc;
 }
 
 .loading-container {
@@ -1140,13 +1487,13 @@ const toggleMaterialsTable = () => {
 
 .loading-spinner i {
   font-size: 3rem;
-  color: #667eea;
+  color: #5f79ff;
   margin-bottom: 1rem;
 }
 
 .loading-spinner p {
-  font-size: 1.2rem;
-  color: #2c3e50;
+  font-size: 1.05rem;
+  color: #30405f;
   margin-bottom: 2rem;
 }
 
@@ -1167,7 +1514,7 @@ const toggleMaterialsTable = () => {
 
 .step.active {
   opacity: 1;
-  color: #667eea;
+  color: #5f79ff;
 }
 
 .step i {
@@ -1183,25 +1530,29 @@ const toggleMaterialsTable = () => {
 }
 
 .toggle-btn {
-  padding: 0.5rem 1rem;
-  border: 2px solid #ecf0f1;
-  background: white;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border: 1px solid #dfe6fa;
+  background: #fff;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: #47587d;
+  font-weight: 600;
 }
 
 .toggle-btn:hover {
-  border-color: #667eea;
+  border-color: #5f79ff;
+  color: #3048ce;
 }
 
 .toggle-btn.active {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
-  border-color: #667eea;
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(95, 121, 255, 0.28);
 }
 
 /* 卡片视图 */
@@ -1212,11 +1563,17 @@ const toggleMaterialsTable = () => {
 }
 
 .knowledge-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  border: 1px solid #ecf0f1;
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.25rem;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf8;
+  transition: all 0.25s ease;
+}
+
+.knowledge-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
 }
 
 .card-header {
@@ -1230,11 +1587,11 @@ const toggleMaterialsTable = () => {
 
 .card-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: #1f2b4a;
 }
 
 .card-index {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
@@ -1248,16 +1605,16 @@ const toggleMaterialsTable = () => {
 .field-label {
   display: block;
   font-weight: 600;
-  color: #34495e;
+  color: #32476d;
   margin-bottom: 0.3rem;
   font-size: 0.9rem;
 }
 
 .field-value {
-  background: #f8f9fa;
+  background: #f8faff;
   padding: 0.75rem;
   border-radius: 8px;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid #5f79ff;
   font-size: 0.95rem;
   line-height: 1.5;
 }
@@ -1271,17 +1628,20 @@ const toggleMaterialsTable = () => {
   width: 100%;
   border-collapse: collapse;
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .results-table th {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
-  padding: 1rem;
+  padding: 12px;
   text-align: left;
   font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .results-table td {
@@ -1289,10 +1649,14 @@ const toggleMaterialsTable = () => {
   border-bottom: 1px solid #ecf0f1;
 }
 
+.results-table tbody tr:nth-child(odd) {
+  background: #fcfdff;
+}
+
 .index-cell {
-  background: #f8f9fa;
+  background: #f4f7ff;
   font-weight: 600;
-  color: #667eea;
+  color: #5f79ff;
   text-align: center;
   width: 60px;
 }
@@ -1304,8 +1668,8 @@ const toggleMaterialsTable = () => {
 
 /* JSON视图 */
 .json-view {
-  background: #2d3748;
-  border-radius: 8px;
+  background: #1f2937;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -1322,9 +1686,9 @@ const toggleMaterialsTable = () => {
 /* 文本结果 */
 .text-results {
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
 .text-content pre {
@@ -1368,9 +1732,9 @@ const toggleMaterialsTable = () => {
 
 /* 通用按钮样式 */
 .btn {
-  padding: 0.75rem 1.5rem;
+  padding: 10px 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1378,16 +1742,17 @@ const toggleMaterialsTable = () => {
   align-items: center;
   gap: 0.5rem;
   text-decoration: none;
+  box-shadow: 0 5px 12px rgba(17, 24, 39, 0.08);
 }
 
 .btn-primary {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #5a6fd8;
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 10px 20px rgba(95, 121, 255, 0.28);
 }
 
 .btn-primary:disabled {
@@ -1397,23 +1762,43 @@ const toggleMaterialsTable = () => {
 }
 
 .btn-secondary {
-  background: #ecf0f1;
-  color: #2c3e50;
+  background: #eef2f8;
+  color: #2f3f61;
 }
 
 .btn-secondary:hover {
-  background: #d5dbdb;
+  background: #e1e8f4;
   transform: translateY(-2px);
 }
 
 .btn-info {
-  background: #3498db;
+  background: linear-gradient(135deg, #3ea7ff 0%, #2f8be9 100%);
   color: white;
 }
 
 .btn-info:hover {
-  background: #2980b9;
+  box-shadow: 0 10px 20px rgba(62, 167, 255, 0.26);
   transform: translateY(-2px);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #ffbf47 0%, #ff9b2f 100%);
+  color: #fff;
+}
+
+.btn-warning:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(255, 162, 66, 0.25);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff6f6f 0%, #ff4d4f 100%);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(255, 77, 79, 0.28);
 }
 
 .btn-lg {
@@ -1432,7 +1817,8 @@ const toggleMaterialsTable = () => {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e9edf7;
 }
 
 .materials-table-header {
@@ -1446,14 +1832,14 @@ const toggleMaterialsTable = () => {
 
 .materials-table-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: #1f2b4a;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .materials-table-header i {
-  color: #667eea;
+  color: #5f79ff;
 }
 
 .materials-table {
@@ -1466,17 +1852,17 @@ const toggleMaterialsTable = () => {
 }
 
 .materials-table th {
-  background: #667eea;
+  background: linear-gradient(135deg, #5f79ff 0%, #725cff 100%);
   color: white;
   padding: 0.75rem 0.5rem;
   text-align: center;
   font-weight: 600;
   font-size: 0.9rem;
-  border: 1px solid #5a6fd8;
+  border: 1px solid #5f79ff;
 }
 
 .materials-table th.merged-header {
-  background: #5a6fd8;
+  background: #5269f6;
   font-size: 0.85rem;
   padding: 0.5rem;
 }
@@ -1487,10 +1873,14 @@ const toggleMaterialsTable = () => {
   text-align: center;
 }
 
+.materials-table tbody tr:nth-child(odd) {
+  background: #fbfdff;
+}
+
 .table-input {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid #d7deef;
   border-radius: 4px;
   font-size: 0.9rem;
   box-sizing: border-box;
@@ -1499,8 +1889,8 @@ const toggleMaterialsTable = () => {
 
 .table-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  border-color: #5f79ff;
+  box-shadow: 0 0 0 3px rgba(95, 121, 255, 0.2);
 }
 
 .table-actions {
@@ -1525,6 +1915,23 @@ const toggleMaterialsTable = () => {
   .knowledge-extraction-container {
     padding: 1rem;
   }
+
+  .overview-strip,
+  .workflow-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    padding: 20px 16px;
+  }
+
+  .page-title {
+    font-size: 30px;
+  }
+
+  .upload-placeholder h3 {
+    font-size: 24px;
+  }
   
   .upload-area {
     padding: 2rem 1rem;
@@ -1538,6 +1945,10 @@ const toggleMaterialsTable = () => {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
+  }
+
+  .summary-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   
   .result-actions {

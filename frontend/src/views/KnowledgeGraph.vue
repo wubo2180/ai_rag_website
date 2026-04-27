@@ -5,6 +5,10 @@
       <div class="header">
         <h1>🔗 材料知识图谱</h1>
         <p class="subtitle">原材料 → 中间体 → 配方 → 性能 四级关联数据链</p>
+        <div class="system-summary">
+          <span class="summary-pill">当前体系：{{ activeSystemLabel }}</span>
+          <span class="summary-pill summary-pill-soft">支持单体系图谱与总图谱切换</span>
+        </div>
       </div>
 
       <!-- 控制面板 -->
@@ -63,7 +67,56 @@
               <el-option label="仅性能数据" value="performance"></el-option>
             </el-select>
           </div>
+
+          <div class="system-switcher">
+            <div class="system-switcher-title">体系图谱</div>
+            <div class="system-chip-grid">
+              <button
+                v-for="item in adhesiveSystems"
+                :key="item.value"
+                class="system-chip"
+                :class="{ active: selectedAdhesiveSystem === item.value }"
+                @click="handleAdhesiveSystemChange(item.value)"
+              >
+                <div class="chip-cn">{{ item.label }}</div>
+                <div class="chip-en">{{ item.enLabel }}</div>
+              </button>
+            </div>
+          </div>
         </el-card>
+      </div>
+
+      <div class="system-metrics-board">
+        <div
+          v-for="card in systemMetricsCards"
+          :key="card.value"
+          class="system-metric-card"
+          :class="{ active: selectedAdhesiveSystem === card.value }"
+          @click="handleAdhesiveSystemChange(card.value)"
+        >
+          <div class="metric-head">
+            <div class="metric-name">{{ card.label }}</div>
+            <div class="metric-name-en">{{ card.enLabel }}</div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-item">
+              <span>节点</span>
+              <strong>{{ card.nodes }}</strong>
+            </div>
+            <div class="metric-item">
+              <span>关系</span>
+              <strong>{{ card.edges }}</strong>
+            </div>
+            <div class="metric-item">
+              <span>配方</span>
+              <strong>{{ card.formulas }}</strong>
+            </div>
+            <div class="metric-item">
+              <span>性能</span>
+              <strong>{{ card.performances }}</strong>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 主内容区域 - 左右布局 -->
@@ -497,7 +550,7 @@
 
 <script>
   import NavigationSidebar from '@/components/NavigationSidebar.vue'
-  import { ref, onMounted, reactive, nextTick } from 'vue'
+  import { ref, onMounted, onUnmounted, reactive, nextTick, computed } from 'vue'
   import * as echarts from 'echarts'
   import apiClient from '@/utils/api'
   import { ElMessage } from 'element-plus'
@@ -513,7 +566,9 @@
       const drawerVisible = ref(false)
       const selectedNode = ref(null)
       const viewMode = ref('full')
+  const selectedAdhesiveSystem = ref('all')
       let chartInstance = null
+  let resizeHandler = null
 
       const stats = reactive({
         rawMaterials: 0,
@@ -525,6 +580,52 @@
       const graphData = reactive({
         nodes: [],
         edges: [],
+      })
+
+      const adhesiveSystems = [
+        {
+          value: 'all',
+          label: '总图谱',
+          enLabel: 'All Systems',
+          keywords: [],
+        },
+        {
+          value: 'thermal',
+          label: '导热胶',
+          enLabel: 'Thermally Conductive Adhesive',
+          keywords: ['导热胶', 'thermally conductive adhesive', 'thermal conductive', '导热'],
+        },
+        {
+          value: 'potting',
+          label: '灌封胶',
+          enLabel: 'Potting Compound / Potting Adhesive',
+          keywords: ['灌封胶', 'potting compound', 'potting adhesive', 'potting', '灌封'],
+        },
+        {
+          value: 'sealing',
+          label: '密封胶',
+          enLabel: 'Sealing Adhesive',
+          keywords: ['密封胶', 'sealing adhesive', 'sealing', '密封'],
+        },
+        {
+          value: 'structural',
+          label: '结构胶',
+          enLabel: 'Structural Adhesive',
+          keywords: ['结构胶', 'structural adhesive', 'structural', '结构'],
+        },
+        {
+          value: 'peelable',
+          label: '可剥胶',
+          enLabel: 'Peelable Adhesive',
+          keywords: ['可剥胶', 'peelable adhesive', 'peelable', '可剥'],
+        },
+      ]
+
+      const activeSystemLabel = computed(() => {
+        const current = adhesiveSystems.find(
+          (item) => item.value === selectedAdhesiveSystem.value
+        )
+        return current ? `${current.label} / ${current.enLabel}` : '总图谱 / All Systems'
       })
 
       // 搜索和表格相关数据
@@ -557,6 +658,113 @@
         }
         return colorMap[type] || 'info'
       }
+
+      const normalizeNodeSearchText = (node) => {
+        const raw = [
+          node?.name,
+          node?.code,
+          node?.type,
+          node?.data?.application_type,
+          node?.data?.product_type,
+          node?.data?.usage,
+          node?.data?.category,
+          node?.data?.system,
+          node?.data?.formula_system,
+          node?.data?.description,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+
+        return raw
+      }
+
+      const detectAdhesiveSystem = (node) => {
+        const explicitSystem = node?.data?.adhesive_system || node?.adhesive_system
+        if (explicitSystem && explicitSystem !== 'mixed') {
+          return explicitSystem
+        }
+
+        const nodeText = normalizeNodeSearchText(node)
+        if (!nodeText) return 'unknown'
+
+        const matched = adhesiveSystems.find((item) => {
+          if (item.value === 'all') return false
+          return item.keywords.some((kw) => nodeText.includes(kw.toLowerCase()))
+        })
+
+        return matched ? matched.value : 'unknown'
+      }
+
+      const getScopedGraphBySystem = (systemValue) => {
+        if (systemValue === 'all') {
+          return {
+            nodes: graphData.nodes,
+            edges: graphData.edges,
+          }
+        }
+
+        const formulaNodes = graphData.nodes.filter(
+          (node) => node.type === 'formula' && detectAdhesiveSystem(node) === systemValue
+        )
+
+        if (formulaNodes.length === 0) {
+          const fallbackNodes = graphData.nodes.filter(
+            (node) => detectAdhesiveSystem(node) === systemValue
+          )
+          const fallbackNodeIds = new Set(fallbackNodes.map((node) => node.id))
+          const fallbackEdges = graphData.edges.filter(
+            (edge) => fallbackNodeIds.has(edge.source) && fallbackNodeIds.has(edge.target)
+          )
+          return { nodes: fallbackNodes, edges: fallbackEdges }
+        }
+
+        const scopedIds = new Set(formulaNodes.map((node) => node.id))
+
+        // 配方 -> 中间体/性能（一层） -> 原材料（二层）
+        for (let depth = 0; depth < 2; depth++) {
+          graphData.edges.forEach((edge) => {
+            if (scopedIds.has(edge.source)) scopedIds.add(edge.target)
+            if (scopedIds.has(edge.target)) scopedIds.add(edge.source)
+          })
+        }
+
+        const scopedNodes = graphData.nodes.filter((node) => scopedIds.has(node.id))
+        const scopedEdges = graphData.edges.filter(
+          (edge) => scopedIds.has(edge.source) && scopedIds.has(edge.target)
+        )
+
+        return {
+          nodes: scopedNodes,
+          edges: scopedEdges,
+        }
+      }
+
+      const getSystemScopedNodes = () => {
+        return getScopedGraphBySystem(selectedAdhesiveSystem.value).nodes
+      }
+
+      const getSystemScopedEdges = (scopedNodes) => {
+        const nodeIds = new Set(scopedNodes.map((node) => node.id))
+        return graphData.edges.filter(
+          (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)
+        )
+      }
+
+      const systemMetricsCards = computed(() => {
+        return adhesiveSystems.map((system) => {
+          const scoped = getScopedGraphBySystem(system.value)
+          return {
+            value: system.value,
+            label: system.label,
+            enLabel: system.enLabel,
+            nodes: scoped.nodes.length,
+            edges: scoped.edges.length,
+            formulas: scoped.nodes.filter((node) => node.type === 'formula').length,
+            performances: scoped.nodes.filter((node) => node.type === 'performance').length,
+          }
+        })
+      })
 
       // 加载图谱数据
       const loadGraphData = async () => {
@@ -738,19 +946,22 @@
           chartInstance = echarts.init(graphContainer.value)
         }
 
-        // 根据视图模式过滤节点
-        let filteredNodesData = graphData.nodes
-        let filteredEdgesData = graphData.edges
+  // 先按体系过滤，再按节点类型过滤
+  const systemScopedNodes = getSystemScopedNodes()
+  const systemScopedEdges = getSystemScopedEdges(systemScopedNodes)
+
+  let filteredNodesData = systemScopedNodes
+  let filteredEdgesData = systemScopedEdges
 
         if (viewMode.value !== 'full') {
           // 只显示选中类型的节点
-          filteredNodesData = graphData.nodes.filter(
+          filteredNodesData = systemScopedNodes.filter(
             (node) => node.type === viewMode.value
           )
           const nodeIds = new Set(filteredNodesData.map((n) => n.id))
 
           // 只显示连接选中类型节点的边
-          filteredEdgesData = graphData.edges.filter(
+          filteredEdgesData = systemScopedEdges.filter(
             (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)
           )
 
@@ -1024,16 +1235,9 @@
       }
 
       const resetView = () => {
-        if (chartInstance) {
-          chartInstance.setOption({
-            series: [
-              {
-                data: graphData.nodes,
-                links: graphData.edges,
-              },
-            ],
-          })
-        }
+        viewMode.value = 'full'
+        renderGraph()
+        ElMessage.success('视图已重置')
       }
 
       // 处理搜索
@@ -1049,9 +1253,10 @@
       // 过滤数据
       const filterData = () => {
         const query = searchQuery.value.toLowerCase().trim()
+        const scopedNodes = getSystemScopedNodes()
 
         // 全部节点过滤
-        filteredNodes.value = graphData.nodes.filter((node) => {
+        filteredNodes.value = scopedNodes.filter((node) => {
           if (currentTab.value !== 'all' && node.type !== currentTab.value) {
             return false
           }
@@ -1059,19 +1264,19 @@
         })
 
         // 分类过滤
-        filteredRawMaterials.value = graphData.nodes.filter(
+        filteredRawMaterials.value = scopedNodes.filter(
           (node) => node.type === 'raw_material' && matchesSearch(node, query)
         )
 
-        filteredIntermediates.value = graphData.nodes.filter(
+        filteredIntermediates.value = scopedNodes.filter(
           (node) => node.type === 'intermediate' && matchesSearch(node, query)
         )
 
-        filteredFormulas.value = graphData.nodes.filter(
+        filteredFormulas.value = scopedNodes.filter(
           (node) => node.type === 'formula' && matchesSearch(node, query)
         )
 
-        filteredPerformances.value = graphData.nodes.filter(
+        filteredPerformances.value = scopedNodes.filter(
           (node) => node.type === 'performance' && matchesSearch(node, query)
         )
       }
@@ -1163,6 +1368,12 @@
         }
       }
 
+      const handleAdhesiveSystemChange = (systemValue) => {
+        selectedAdhesiveSystem.value = systemValue
+        filterData()
+        renderGraph()
+      }
+
       onMounted(async () => {
         console.log('组件已挂载，开始初始化...')
 
@@ -1175,11 +1386,23 @@
         await loadGraphData()
 
         // 添加窗口resize事件监听
-        window.addEventListener('resize', () => {
+        resizeHandler = () => {
           if (chartInstance) {
             chartInstance.resize()
           }
-        })
+        }
+        window.addEventListener('resize', resizeHandler)
+      })
+
+      onUnmounted(() => {
+        if (resizeHandler) {
+          window.removeEventListener('resize', resizeHandler)
+          resizeHandler = null
+        }
+        if (chartInstance) {
+          chartInstance.dispose()
+          chartInstance = null
+        }
       })
 
       return {
@@ -1188,6 +1411,10 @@
         drawerVisible,
         selectedNode,
         viewMode,
+  selectedAdhesiveSystem,
+  adhesiveSystems,
+  activeSystemLabel,
+  systemMetricsCards,
         stats,
         loadGraphData,
         resetView,
@@ -1206,6 +1433,7 @@
         viewNodeDetails,
         handleRowClick,
         handleViewModeChange,
+        handleAdhesiveSystemChange,
       }
     },
   }
@@ -1220,26 +1448,32 @@
   .knowledge-graph-container {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 60px;
+    padding: 22px 26px;
     max-width: 100%;
     width: 100%;
-    margin: 0 auto;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e8edf3 100%);
+    margin: 0;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(191, 219, 254, 0.5), transparent 30%),
+      radial-gradient(circle at 95% 12%, rgba(199, 210, 254, 0.48), transparent 28%),
+      linear-gradient(160deg, #f8fafc 0%, #f1f5f9 45%, #eef2ff 100%);
     min-height: 100vh;
+    box-sizing: border-box;
   }
 
   .header {
     text-align: center;
-    margin-bottom: 30px;
-    padding: 30px 0;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 20px;
+    padding: 28px 20px;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 16px;
+    border: 1px solid #dde7f5;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
   }
 
   .header h1 {
     font-size: 2.8rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 10px;
@@ -1252,11 +1486,102 @@
     font-weight: 500;
   }
 
+  .system-summary {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .summary-pill {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid #cfe0f7;
+    background: #eef6ff;
+    color: #1e3a8a;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .summary-pill-soft {
+    background: #f8fafc;
+    color: #475569;
+  }
+
   .control-panel {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1.2fr 1.6fr;
     gap: 20px;
     margin-bottom: 20px;
+  }
+
+  .system-metrics-board {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .system-metric-card {
+    border: 1px solid #dbe7f7;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .system-metric-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(59, 130, 246, 0.14);
+    border-color: #93c5fd;
+  }
+
+  .system-metric-card.active {
+    border-color: #4f46e5;
+    box-shadow: 0 12px 22px rgba(79, 70, 229, 0.2);
+    background: linear-gradient(150deg, #eef2ff, #f8faff);
+  }
+
+  .metric-head {
+    margin-bottom: 8px;
+  }
+
+  .metric-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .metric-name-en {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.2;
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .metric-item {
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: #f8fafc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  .metric-item strong {
+    color: #1e293b;
+    font-size: 12px;
   }
 
   /* 主内容左右布局 */
@@ -1274,10 +1599,11 @@
   }
 
   .stats-card {
-    background: white;
+    background: rgba(255, 255, 255, 0.94);
     border: none;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    border: 1px solid #dde7f5;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   }
 
   .stats-card :deep(.el-card__body) {
@@ -1316,6 +1642,7 @@
     font-size: 2.2rem;
     font-weight: 700;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -1329,10 +1656,11 @@
   .filter-card {
     display: flex;
     align-items: center;
-    background: white;
+    background: rgba(255, 255, 255, 0.95);
     border: none;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    border: 1px solid #dde7f5;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   }
 
   .filter-card :deep(.el-card__body) {
@@ -1346,6 +1674,66 @@
     flex-wrap: wrap;
     width: 100%;
     align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .system-switcher {
+    width: 100%;
+    border-top: 1px solid #e6edf8;
+    padding-top: 12px;
+  }
+
+  .system-switcher-title {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+
+  .system-chip-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .system-chip {
+    border: 1px solid #d6e2f3;
+    background: #f8fbff;
+    border-radius: 10px;
+    padding: 8px 10px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .system-chip:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 6px 14px rgba(59, 130, 246, 0.14);
+    transform: translateY(-1px);
+  }
+
+  .system-chip.active {
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    border-color: transparent;
+    box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .chip-cn {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .chip-en {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+    line-height: 1.3;
+  }
+
+  .system-chip.active .chip-cn,
+  .system-chip.active .chip-en {
+    color: #ffffff;
   }
 
   .filter-controls .el-button {
@@ -1366,9 +1754,10 @@
 
   .graph-card {
     border: none;
-    border-radius: 12px;
-    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.1);
-    background: white;
+    border-radius: 14px;
+    border: 1px solid #dde7f5;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
+    background: rgba(255, 255, 255, 0.95);
     overflow: hidden;
   }
 
@@ -1386,9 +1775,10 @@
 
   .table-card {
     border: none;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    background: white;
+    border-radius: 14px;
+    border: 1px solid #dde7f5;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.95);
     display: flex;
     flex-direction: column;
   }
@@ -1537,7 +1927,11 @@
   /* 响应式设计 */
   @media (max-width: 1200px) {
     .knowledge-graph-container {
-      max-width: 100%;
+      padding: 20px 16px;
+    }
+
+    .system-metrics-board {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
@@ -1550,12 +1944,16 @@
 
   @media (max-width: 1200px) {
     .knowledge-graph-container {
-      padding: 20px 30px;
+      padding: 20px 16px;
     }
 
     .main-content-layout {
       grid-template-columns: 1fr 1fr;
       gap: 16px;
+    }
+
+    .system-chip-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -1566,6 +1964,15 @@
 
     .knowledge-graph-container {
       padding: 15px;
+    }
+
+    .system-chip-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .system-metrics-board {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
 
     .main-content-layout {

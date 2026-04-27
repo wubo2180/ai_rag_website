@@ -147,6 +147,33 @@ const routes = [
     },
   },
   {
+    path: '/data-analysis',
+    name: 'DataAnalysis',
+    component: () => import('@/views/DataAnalysis.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '数据分析',
+    },
+  },
+  {
+    path: '/property-prediction',
+    name: 'PropertyPrediction',
+    component: () => import('@/views/PropertyPrediction.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '性质预测',
+    },
+  },
+  {
+    path: '/decision-support',
+    name: 'DecisionSupport',
+    component: () => import('@/views/DecisionSupport.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '决策支持',
+    },
+  },
+  {
     path: '/user-management',
     name: 'UserManagement',
     component: () => import('@/views/UserManagement.vue'),
