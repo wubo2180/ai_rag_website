@@ -43,6 +43,69 @@
         </div>
       </div>
 
+      <!-- 智能看板 -->
+      <div v-if="!loading" class="dashboard-section">
+        <div class="dashboard-kpis">
+          <div class="kpi-card">
+            <div class="kpi-label">任务总数</div>
+            <div class="kpi-value">{{ dashboardStats.total }}</div>
+            <div class="kpi-sub">全部任务</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">运行中</div>
+            <div class="kpi-value">{{ dashboardStats.running }}</div>
+            <div class="kpi-sub">实时任务负载</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">完成率</div>
+            <div class="kpi-value">{{ dashboardStats.successRate }}%</div>
+            <div class="kpi-sub">completed / total</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">平均耗时</div>
+            <div class="kpi-value">{{ dashboardStats.avgDuration }}</div>
+            <div class="kpi-sub">仅统计有耗时数据</div>
+          </div>
+        </div>
+
+        <div class="dashboard-panels">
+          <div class="dashboard-panel cockpit-main">
+            <h3><i class="fas fa-bullseye"></i> 任务状态态势</h3>
+            <div ref="statusDonutChartRef" class="dashboard-chart"></div>
+            <div class="status-legend">
+              <div v-for="item in statusDistribution" :key="item.status" class="legend-item">
+                <span class="legend-dot" :style="{ background: getStatusColor(item.status) }"></span>
+                <span class="legend-name">{{ getStatusText(item.status) }}</span>
+                <span class="legend-value">{{ item.count }} / {{ item.percent }}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-panel cockpit-main">
+            <h3><i class="fas fa-wave-square"></i> 近7天任务趋势</h3>
+            <div ref="trendLineChartRef" class="dashboard-chart"></div>
+            <div class="trend-summary">
+              <div class="trend-pill">近7天总量：{{ recentSevenDayTotal }}</div>
+              <div class="trend-pill">
+                峰值日：{{ peakDay.label || '-' }}（{{ peakDay.count }}）
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-panel cockpit-side">
+            <h3><i class="fas fa-robot"></i> 常用智能体 TOP5</h3>
+            <div v-if="topAgentUsage.length === 0" class="panel-empty">暂无数据</div>
+            <div v-else>
+              <div v-for="(agent, idx) in topAgentUsage" :key="`${agent.name}-${idx}`" class="agent-rank-row">
+                <div class="rank-index">#{{ idx + 1 }}</div>
+                <div class="rank-name">{{ agent.name }}</div>
+                <div class="rank-count">{{ agent.count }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-container">
         <div class="loading-spinner">
@@ -215,8 +278,9 @@
 
 <script setup>
   import NavigationSidebar from '@/components/NavigationSidebar.vue'
-  import { ref, onMounted, onUnmounted, computed } from 'vue'
+  import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
   import { useRouter } from 'vue-router'
+  import * as echarts from 'echarts'
   import apiClient from '@/utils/api'
 
   import TaskDetailModal from '@/components/TaskDetailModal.vue'
@@ -233,6 +297,236 @@
   const selectedTask = ref(null)
   const showDetailModal = ref(false)
   const showResultModal = ref(false)
+  const statusDonutChartRef = ref(null)
+  const trendLineChartRef = ref(null)
+
+  let statusDonutChart = null
+  let trendLineChart = null
+
+  const dashboardStats = computed(() => {
+    const total = tasks.value.length
+    const running = tasks.value.filter((t) => t.status === 'running').length
+    const completed = tasks.value.filter((t) => t.status === 'completed').length
+    const withDuration = tasks.value.filter((t) => Number(t.execution_time) > 0)
+    const avgSec = withDuration.length
+      ? withDuration.reduce((sum, t) => sum + Number(t.execution_time || 0), 0) /
+        withDuration.length
+      : 0
+
+    return {
+      total,
+      running,
+      successRate: total ? ((completed / total) * 100).toFixed(1) : '0.0',
+      avgDuration: avgSec ? formatDuration(avgSec) : '-'
+    }
+  })
+
+  const statusDistribution = computed(() => {
+    const total = tasks.value.length || 1
+    const statuses = ['pending', 'running', 'completed', 'failed', 'cancelled']
+    return statuses.map((status) => {
+      const count = tasks.value.filter((t) => t.status === status).length
+      return {
+        status,
+        count,
+        percent: Number(((count / total) * 100).toFixed(1))
+      }
+    })
+  })
+
+  const topAgentUsage = computed(() => {
+    const usageMap = new Map()
+    tasks.value.forEach((task) => {
+      const key = task.agent_name || '未知智能体'
+      usageMap.set(key, (usageMap.get(key) || 0) + 1)
+    })
+    return [...usageMap.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  })
+
+  const recentDailyTrend = computed(() => {
+    const days = 7
+    const now = new Date()
+    const bucket = []
+
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(now.getDate() - i)
+      const label = `${d.getMonth() + 1}/${d.getDate()}`
+      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+      const end = start + 24 * 60 * 60 * 1000
+      const count = tasks.value.filter((t) => {
+        const ts = new Date(t.created_at).getTime()
+        return ts >= start && ts < end
+      }).length
+      bucket.push({ label, count })
+    }
+
+    return bucket
+  })
+
+  const recentSevenDayTotal = computed(() => {
+    return recentDailyTrend.value.reduce((sum, item) => sum + item.count, 0)
+  })
+
+  const peakDay = computed(() => {
+    if (!recentDailyTrend.value.length) {
+      return { label: '-', count: 0 }
+    }
+    return recentDailyTrend.value.reduce((max, item) =>
+      item.count > max.count ? item : max
+    )
+  })
+
+  const getStatusColor = (status) => {
+    const colorMap = {
+      pending: '#f59e0b',
+      running: '#38bdf8',
+      completed: '#22c55e',
+      failed: '#ef4444',
+      cancelled: '#94a3b8'
+    }
+    return colorMap[status] || '#a78bfa'
+  }
+
+  const renderStatusDonutChart = () => {
+    if (!statusDonutChartRef.value) return
+
+    if (!statusDonutChart) {
+      statusDonutChart = echarts.init(statusDonutChartRef.value)
+    }
+
+    const chartData = statusDistribution.value
+      .filter((item) => item.count > 0)
+      .map((item) => ({
+        name: getStatusText(item.status),
+        value: item.count,
+        itemStyle: { color: getStatusColor(item.status) }
+      }))
+
+    const finalData = chartData.length
+      ? chartData
+      : [
+          {
+            name: '暂无数据',
+            value: 1,
+            itemStyle: { color: 'rgba(148, 163, 184, 0.35)' }
+          }
+        ]
+
+    statusDonutChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c} ({d}%)'
+      },
+      series: [
+        {
+          type: 'pie',
+          radius: ['56%', '76%'],
+          center: ['50%', '50%'],
+          padAngle: 2,
+          avoidLabelOverlap: true,
+          label: {
+            show: true,
+            color: '#334155',
+            formatter: '{d}%'
+          },
+          labelLine: {
+            show: true,
+            lineStyle: { color: 'rgba(148, 163, 184, 0.8)' }
+          },
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#ffffff',
+            borderWidth: 2
+          },
+          data: finalData
+        }
+      ]
+    })
+  }
+
+  const renderTrendLineChart = () => {
+    if (!trendLineChartRef.value) return
+
+    if (!trendLineChart) {
+      trendLineChart = echarts.init(trendLineChartRef.value)
+    }
+
+    const labels = recentDailyTrend.value.map((item) => item.label)
+    const values = recentDailyTrend.value.map((item) => item.count)
+
+    trendLineChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis'
+      },
+      grid: {
+        left: 24,
+        right: 16,
+        top: 20,
+        bottom: 28,
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.5)' } },
+        axisLabel: { color: '#64748b' }
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.18)' } },
+        axisLabel: { color: '#64748b' }
+      },
+      series: [
+        {
+          type: 'line',
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 8,
+          lineStyle: { color: '#38bdf8', width: 3 },
+          itemStyle: { color: '#38bdf8' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(56, 189, 248, 0.45)' },
+              { offset: 1, color: 'rgba(56, 189, 248, 0.02)' }
+            ])
+          },
+          data: values
+        }
+      ]
+    })
+  }
+
+  const renderDashboardCharts = async () => {
+    if (loading.value) return
+    await nextTick()
+    renderStatusDonutChart()
+    renderTrendLineChart()
+  }
+
+  const disposeDashboardCharts = () => {
+    if (statusDonutChart) {
+      statusDonutChart.dispose()
+      statusDonutChart = null
+    }
+    if (trendLineChart) {
+      trendLineChart.dispose()
+      trendLineChart = null
+    }
+  }
+
+  const resizeDashboardCharts = () => {
+    statusDonutChart?.resize()
+    trendLineChart?.resize()
+  }
 
   // 方法
   const fetchTasks = async () => {
@@ -247,7 +541,6 @@
         `/smart-agent/tasks/?${params.toString()}`
       )
       tasks.value = response.data.results || response.data || []
-      loading.value = false
     } catch (error) {
       console.error('获取任务列表失败:', error)
       // API失败时使用mock数据作为fallback
@@ -262,7 +555,9 @@
           progress: 0,
         },
       ]
+    } finally {
       loading.value = false
+      await renderDashboardCharts()
     }
   }
 
@@ -405,6 +700,7 @@
   onMounted(async () => {
     try {
       await Promise.all([fetchTasks(), fetchAgents()])
+      window.addEventListener('resize', resizeDashboardCharts)
 
       // 设置定时刷新（对于运行中的任务）
       refreshInterval = setInterval(() => {
@@ -426,6 +722,12 @@
       clearInterval(refreshInterval)
       refreshInterval = null
     }
+    window.removeEventListener('resize', resizeDashboardCharts)
+    disposeDashboardCharts()
+  })
+
+  watch([statusDistribution, recentDailyTrend], () => {
+    renderDashboardCharts()
   })
 </script>
 
@@ -439,7 +741,10 @@
     flex: 1;
     overflow-y: auto;
     min-height: 100vh;
-    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+    background:
+      radial-gradient(circle at 10% 12%, rgba(191, 219, 254, 0.55), transparent 38%),
+      radial-gradient(circle at 92% 8%, rgba(199, 210, 254, 0.45), transparent 34%),
+      linear-gradient(160deg, #f8fafc 0%, #f1f5f9 45%, #eef2ff 100%);
     padding: 2rem;
   }
 
@@ -516,9 +821,166 @@
     min-height: 400px;
   }
 
+  .dashboard-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .dashboard-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .kpi-card {
+    background: linear-gradient(145deg, #ffffff, #f8fafc);
+    border-radius: 14px;
+    border: 1px solid #dbe5f1;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08), inset 0 1px 0 #ffffff;
+    padding: 0.9rem 1rem;
+  }
+
+  .kpi-label {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  .kpi-value {
+    margin: 0.25rem 0;
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .kpi-sub {
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+
+  .dashboard-panels {
+    display: grid;
+    grid-template-columns: 1.1fr 1.3fr 0.9fr;
+    gap: 0.9rem;
+  }
+
+  .dashboard-panel {
+    background: linear-gradient(155deg, #ffffff, #f8fafc);
+    border-radius: 14px;
+    border: 1px solid #dbe5f1;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    padding: 0.9rem 1rem;
+  }
+
+  .dashboard-panel h3 {
+    margin: 0 0 0.8rem;
+    font-size: 0.95rem;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .cockpit-main {
+    min-height: 360px;
+  }
+
+  .cockpit-side {
+    min-height: 360px;
+  }
+
+  .dashboard-chart {
+    height: 220px;
+    width: 100%;
+  }
+
+  .status-legend {
+    margin-top: 0.3rem;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .legend-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.3);
+  }
+
+  .legend-name {
+    color: #334155;
+  }
+
+  .legend-value {
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  .trend-summary {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .trend-pill {
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.72rem;
+  }
+
+  .agent-rank-row {
+    display: grid;
+    grid-template-columns: 34px 1fr 36px;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.32rem 0;
+    border-bottom: 1px dashed #dbe5f1;
+  }
+
+  .agent-rank-row:last-child {
+    border-bottom: none;
+  }
+
+  .rank-index {
+    color: #4f46e5;
+    font-weight: 700;
+    font-size: 0.78rem;
+  }
+
+  .rank-name {
+    color: #334155;
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rank-count {
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-align: right;
+  }
+
+  .panel-empty {
+    color: #94a3b8;
+    font-size: 0.8rem;
+  }
+
   .loading-spinner {
     text-align: center;
-    color: white;
+    color: #334155;
   }
 
   .loading-spinner i {
@@ -528,7 +990,7 @@
 
   .empty-state {
     text-align: center;
-    color: white;
+    color: #334155;
     padding: 4rem 2rem;
   }
 
@@ -633,6 +1095,7 @@
     margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -770,6 +1233,14 @@
   @media (max-width: 768px) {
     .agent-tasks-container {
       padding: 1rem;
+    }
+
+    .dashboard-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dashboard-panels {
+      grid-template-columns: 1fr;
     }
 
     .task-grid {

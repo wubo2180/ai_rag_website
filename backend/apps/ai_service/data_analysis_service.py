@@ -20,7 +20,7 @@ class DataAnalysisDifyService:
     def __init__(self):
         """初始化服务"""
         self.api_base = os.environ.get('DIFY_API_URL')
-        self.api_key = os.environ.get('DIFY_AGENT_DATA_ANALYSIS_API_KEY')
+        self.api_key = os.environ.get('DIFY_AGENT_DataAnalysis_API_KEY')
 
         logger.info(f"初始化数据分析Dify服务: {self.api_base}")
 

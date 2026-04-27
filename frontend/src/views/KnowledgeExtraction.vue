@@ -4,6 +4,12 @@
     <div class="knowledge-extraction-container">
     <!-- 页面头部 -->
     <div class="page-header">
+      <div class="back-navigation">
+        <button @click="goBack" class="back-btn">
+          <i class="fas fa-arrow-left"></i>
+          返回
+        </button>
+      </div>
       <div class="header-content">
         <h1 class="page-title">
           <i class="fas fa-book-open"></i>
@@ -12,14 +18,49 @@
         <p class="page-description">
           从文档中智能提取结构化知识，支持PDF、Word、文本等多种格式
         </p>
+
+        <div class="header-tags">
+          <span class="tag-item"><i class="fas fa-file-alt"></i> 多格式解析</span>
+          <span class="tag-item"><i class="fas fa-table"></i> 结构化表格</span>
+          <span class="tag-item"><i class="fas fa-sitemap"></i> 图谱友好</span>
+        </div>
       </div>
     </div>
 
     <!-- 主要内容区域 -->
     <div class="main-content">
+      <div class="overview-strip">
+        <div class="overview-card" v-for="item in overviewCards" :key="item.title">
+          <div class="overview-icon"><i :class="item.icon"></i></div>
+          <div class="overview-body">
+            <div class="overview-title">{{ item.title }}</div>
+            <div class="overview-desc">{{ item.desc }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="workflow-strip">
+        <div class="workflow-item" v-for="(step, idx) in workflowSteps" :key="step.title">
+          <div class="workflow-index">{{ idx + 1 }}</div>
+          <div class="workflow-text">
+            <div class="workflow-title">{{ step.title }}</div>
+            <div class="workflow-desc">{{ step.desc }}</div>
+          </div>
+        </div>
+      </div>
+
       <!-- 文件上传区域 -->
       <div class="upload-section">
         <div class="upload-card">
+          <div class="panel-head">
+            <h2><i class="fas fa-upload"></i> 文档上传与抽取配置</h2>
+            <p>建议优先上传结构清晰文档，并在结果中检查编号与单位字段。</p>
+          </div>
+
+          <div class="upload-tips">
+            <span v-for="(tip, idx) in uploadTips" :key="idx">{{ tip }}</span>
+          </div>
+
           <div class="upload-area" 
                :class="{ 'drag-over': isDragOver }"
                @drop="handleDrop"
@@ -118,6 +159,21 @@
 
           <!-- 结果内容 -->
           <div v-else-if="extractionResult" class="results-content">
+              <div class="summary-dashboard">
+                <div class="summary-kpi-card" v-for="item in extractionSummaryKpis" :key="item.label">
+                  <div class="summary-kpi-label">{{ item.label }}</div>
+                  <div class="summary-kpi-value">{{ item.value }}</div>
+                  <div class="summary-kpi-note">{{ item.note }}</div>
+                </div>
+              </div>
+
+              <div class="summary-checklist">
+                <h3><i class="fas fa-clipboard-list"></i> 抽取后建议动作</h3>
+                <ul>
+                  <li v-for="(item, idx) in extractionChecklist" :key="idx">{{ item }}</li>
+                </ul>
+              </div>
+
             <!-- JSON格式结果 -->
             <div v-if="Array.isArray(extractionResult.extracted_knowledge)" class="json-results">
               <div class="view-toggle">
@@ -325,9 +381,12 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import apiClient from '@/utils/api'
 import { ElMessage } from 'element-plus'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
+
+const router = useRouter()
 
 // 响应式数据
 const uploadedFile = ref(null)
@@ -360,6 +419,47 @@ const materialsTableData = ref([ // 材料属性表格数据，仅初始化一�
 const hasResults = computed(() => {
   return extractionResult.value || errorMessage.value
 })
+
+const extractionSummaryKpis = computed(() => {
+  const knowledge = extractionResult.value?.extracted_knowledge
+  const itemCount = Array.isArray(knowledge) ? knowledge.length : (knowledge ? 1 : 0)
+  const fields = Array.isArray(knowledge) && knowledge.length ? Object.keys(knowledge[0]).length : 0
+  const elapsed = extractionResult.value?.elapsed_time ? `${extractionResult.value.elapsed_time.toFixed(1)}s` : '-'
+  return [
+    { label: '抽取条目数', value: `${itemCount}`, note: '结构化结果规模' },
+    { label: '字段覆盖数', value: `${fields}`, note: '每条数据主要字段' },
+    { label: '处理耗时', value: elapsed, note: '本次抽取耗时' },
+    { label: '结果状态', value: itemCount ? '完成' : '空结果', note: '建议复核关键字段' }
+  ]
+})
+
+const extractionChecklist = [
+  '优先检查文献编号、材料编号和性能值是否完整。',
+  '对关键性能字段执行单位统一与格式清洗。',
+  '将异常值样本标记后再进入图谱或建模流程。',
+  '导出前先切换到表格视图进行抽样复核。'
+]
+
+const overviewCards = [
+  { title: '文档智能解析', desc: '自动识别段落、表格和关键字段', icon: 'fas fa-file-signature' },
+  { title: '知识结构化', desc: '提取实体、属性、关系并标准化输出', icon: 'fas fa-project-diagram' },
+  { title: '结果可视审阅', desc: '支持卡片/表格/JSON 多视图核验', icon: 'fas fa-eye' },
+  { title: '数据可回填', desc: '可在材料属性表中编辑并同步结果', icon: 'fas fa-pen-square' }
+]
+
+const workflowSteps = [
+  { title: '上传文档', desc: '支持 PDF / DOCX / TXT / MD' },
+  { title: '自动抽取', desc: '执行实体识别与属性归类' },
+  { title: '人工复核', desc: '按表格视图检查关键字段' },
+  { title: '导出应用', desc: '用于知识图谱和下游建模' }
+]
+
+const uploadTips = [
+  '建议文档包含清晰标题与字段名',
+  '表格数据建议保留单位列',
+  '同类字段建议统一命名',
+  '抽取后优先核验编号与数值'
+]
 
 // 方法
 const triggerFileInput = () => {
@@ -954,6 +1054,10 @@ const toggleMaterialsTable = () => {
   showMaterialsTable.value = !showMaterialsTable.value
   ElMessage.info(showMaterialsTable.value ? '材料属性表格已显示' : '材料属性表格已隐藏')
 }
+
+const goBack = () => {
+  router.push({ name: 'SmartAgents' })
+}
 </script>
 
 <style scoped>
@@ -982,6 +1086,32 @@ const toggleMaterialsTable = () => {
   text-align: center;
 }
 
+.back-navigation {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 14px;
+}
+
+.back-btn {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #e6ecfb;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+}
+
+.back-btn:hover {
+  background: #fff;
+  color: #1f2937;
+  border-color: #cfdaf8;
+}
+
 .page-title {
   font-size: 42px;
   font-weight: 700;
@@ -1004,12 +1134,110 @@ const toggleMaterialsTable = () => {
   margin: 0;
 }
 
+.header-tags {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-item {
+  background: #f2f5ff;
+  border: 1px solid #dce5ff;
+  color: #44517a;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .main-content {
   max-width: 1360px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
   gap: 20px;
+}
+
+.overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-card {
+  background: #fff;
+  border: 1px solid #e8edf8;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.overview-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eef3ff;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overview-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2b4a;
+}
+
+.overview-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workflow-item {
+  border: 1px solid #e5ebfb;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9ff 100%);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.workflow-index {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #5f79ff;
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.workflow-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.workflow-desc {
+  font-size: 12px;
+  color: #64748b;
 }
 
 /* 上传区域 */
@@ -1023,6 +1251,41 @@ const toggleMaterialsTable = () => {
   padding: 24px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
   border: 1px solid #e9edf7;
+}
+
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  color: #1f2b4a;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.upload-tips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.upload-tips span {
+  background: #f5f7ff;
+  border: 1px solid #e2e8f7;
+  color: #475569;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .upload-area {
@@ -1147,6 +1410,62 @@ const toggleMaterialsTable = () => {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.summary-dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.summary-kpi-card {
+  background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+  border: 1px solid #e2e8f7;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.summary-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.summary-kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 4px 0;
+}
+
+.summary-kpi-note {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.summary-checklist {
+  border: 1px solid #e8edf7;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.summary-checklist h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-checklist ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  line-height: 1.75;
+  font-size: 13px;
 }
 
 .stat-item {
@@ -1320,11 +1639,18 @@ const toggleMaterialsTable = () => {
   padding: 12px;
   text-align: left;
   font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .results-table td {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid #ecf0f1;
+}
+
+.results-table tbody tr:nth-child(odd) {
+  background: #fcfdff;
 }
 
 .index-cell {
@@ -1547,6 +1873,10 @@ const toggleMaterialsTable = () => {
   text-align: center;
 }
 
+.materials-table tbody tr:nth-child(odd) {
+  background: #fbfdff;
+}
+
 .table-input {
   width: 100%;
   padding: 0.5rem;
@@ -1586,6 +1916,11 @@ const toggleMaterialsTable = () => {
     padding: 1rem;
   }
 
+  .overview-strip,
+  .workflow-strip {
+    grid-template-columns: 1fr;
+  }
+
   .page-header {
     padding: 20px 16px;
   }
@@ -1610,6 +1945,10 @@ const toggleMaterialsTable = () => {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
+  }
+
+  .summary-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   
   .result-actions {

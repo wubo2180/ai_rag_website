@@ -36,6 +36,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = (
             'user',
+            'avatar_url',
             'nickname',
             'bio',
             'preferred_ai_model',
