@@ -56,6 +56,9 @@ urlpatterns = [
     
     # AI 服务 API
     path('api/ai-service/', include('apps.ai_service.urls')),
+
+    # OCR 统一代理 API（Django app）
+    path('api/ocr/', include('apps.ocr.urls')),
     
     # 文档管理 API
     path('api/documents/', include('apps.documents.urls')),

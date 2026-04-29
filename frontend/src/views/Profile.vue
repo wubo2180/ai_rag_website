@@ -341,11 +341,12 @@ onMounted(() => {
 .profile-container {
   flex: 1;
   overflow-y: auto;
-  display: flex;
-  justify-content: center;
-  padding: 20px;
+  display: block;
+  width: 100%;
+  padding: 20px 24px;
   min-height: 100vh;
   background: #f5f5f5;
+  box-sizing: border-box;
 }
 
 .profile-card {
@@ -354,7 +355,9 @@ onMounted(() => {
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 900px;
+  max-width: none;
+  min-height: calc(100vh - 40px);
+  box-sizing: border-box;
 }
 
 .avatar-section {
@@ -471,6 +474,15 @@ onMounted(() => {
 }
 
 @media (max-width: 900px) {
+  .profile-container {
+    padding: 16px;
+  }
+
+  .profile-card {
+    padding: 20px;
+    min-height: auto;
+  }
+
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

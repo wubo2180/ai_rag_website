@@ -1,0 +1,39 @@
+# PDF解析环境依赖包 - 安全版本（跳过编译问题包）
+# 使用PaddleX 3.2.0、PaddleOCR 3.2.0和PP-StructureV3
+
+# PaddlePaddle核心框架 (CPU版本)
+paddlepaddle==3.2.0
+
+# PaddleOCR - OCR工具包
+paddleocr==3.2.0
+
+# 图像处理和计算机视觉
+opencv-python==4.9.0.80
+Pillow==10.3.0
+numpy==1.24.3
+
+# PDF处理
+PyPDF2==3.0.1
+pdf2image==1.17.0
+pymupdf==1.24.5
+
+# 文档结构分析相关
+# layoutparser==0.3.4  # 暂时跳过，可能依赖有问题的包
+
+# 工具包
+requests==2.31.0
+tqdm==4.66.4
+matplotlib==3.7.1
+scipy==1.11.4
+
+# 其他常用依赖
+pyyaml==6.0.2
+shapely==2.0.4
+# imgaug==0.4.0  # 暂时跳过
+lmdb==1.4.1
+premailer==3.10.0
+openpyxl==3.1.2
+attrdict==2.0.1
+# Polygon3==3.0.9.1  # 编译问题，暂时跳过
+# lanms-neo==1.0.2   # 编译问题，暂时跳过
+pyclipper==1.3.0.post5

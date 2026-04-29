@@ -49,9 +49,11 @@
         </div>
       </div>
 
-      <!-- 文件上传区域 -->
-      <div class="upload-section">
-        <div class="upload-card">
+      <div class="content-grid">
+        <div class="workbench-column">
+          <!-- 文件上传区域 -->
+          <div class="upload-section">
+            <div class="upload-card">
           <div class="panel-head">
             <h2><i class="fas fa-upload"></i> 文档上传与抽取配置</h2>
             <p>建议优先上传结构清晰文档，并在结果中检查编号与单位字段。</p>
@@ -108,12 +110,12 @@
               {{ processing ? '处理中...' : '开始知识抽取' }}
             </button>
           </div>
-        </div>
-      </div>
+            </div>
+          </div>
 
-      <!-- 结果显示区域 -->
-      <div class="results-section" v-if="hasResults || processing">
-        <div class="results-card">
+          <!-- 结果显示区域 -->
+          <div class="results-section" v-if="hasResults || processing">
+            <div class="results-card">
           <div class="results-header">
             <h2>
               <i class="fas fa-lightbulb"></i>
@@ -372,7 +374,43 @@
               </button>
             </div>
           </div>
+            </div>
+          </div>
         </div>
+
+        <aside class="history-panel">
+          <div class="history-card">
+            <div class="history-header">
+              <h3><i class="fas fa-history"></i> 抽取文档历史</h3>
+              <button class="btn btn-secondary btn-sm" @click="clearExtractionHistory" :disabled="!extractionHistory.length">
+                清空
+              </button>
+            </div>
+
+            <div v-if="extractionHistory.length === 0" class="history-empty">
+              <i class="fas fa-folder-open"></i>
+              <p>暂无抽取历史</p>
+            </div>
+
+            <ul v-else class="history-list">
+              <li v-for="item in extractionHistory" :key="item.id" class="history-item">
+                <div class="history-item-top">
+                  <span class="history-name" :title="item.file_name">{{ item.file_name }}</span>
+                  <span class="history-status" :class="item.status">{{ item.status === 'success' ? '成功' : '失败' }}</span>
+                </div>
+                <div class="history-meta">
+                  <span>{{ item.file_type }}</span>
+                  <span>{{ item.file_size_label }}</span>
+                </div>
+                <div class="history-meta">
+                  <span>条目 {{ item.item_count }}</span>
+                  <span>耗时 {{ item.elapsed_time_label }}</span>
+                </div>
+                <div class="history-time">{{ formatHistoryTime(item.extracted_at) }}</div>
+              </li>
+            </ul>
+          </div>
+        </aside>
       </div>
     </div>
     </div>
@@ -380,7 +418,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '@/utils/api'
 import { ElMessage } from 'element-plus'
@@ -397,6 +435,7 @@ const extractionResult = ref(null)
 const errorMessage = ref('')
 const viewMode = ref('cards')
 const fileInput = ref(null)
+const extractionHistory = ref([])
 const showMaterialsTable = ref(false) // 默认不显示材料属性表格，避免影响页面加载性能
 const materialsTableData = ref([ // 材料属性表格数据，仅初始化一行
   {
@@ -460,6 +499,121 @@ const uploadTips = [
   '同类字段建议统一命名',
   '抽取后优先核验编号与数值'
 ]
+
+const EXTRACTION_HISTORY_KEY = 'knowledge_extraction_history_v1'
+const HISTORY_USER_ID = 'web_user'
+
+const getFileTypeLabel = (filename = '') => {
+  const extension = filename.split('.').pop()?.toLowerCase()
+  const typeMap = {
+    pdf: 'PDF',
+    doc: 'DOC',
+    docx: 'DOCX',
+    txt: 'TXT',
+    md: 'MD'
+  }
+  return typeMap[extension] || (extension ? extension.toUpperCase() : 'FILE')
+}
+
+const loadExtractionHistoryFromLocal = () => {
+  try {
+    const raw = localStorage.getItem(EXTRACTION_HISTORY_KEY)
+    extractionHistory.value = raw ? JSON.parse(raw) : []
+  } catch (error) {
+    extractionHistory.value = []
+  }
+}
+
+const persistExtractionHistory = () => {
+  localStorage.setItem(EXTRACTION_HISTORY_KEY, JSON.stringify(extractionHistory.value))
+}
+
+const normalizeHistoryItem = (item) => ({
+  id: item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  file_name: item.file_name || '-',
+  file_type: item.file_type || getFileTypeLabel(item.file_name || ''),
+  file_size: Number(item.file_size || 0),
+  file_size_label: item.file_size_label || formatFileSize(Number(item.file_size || 0)),
+  extracted_at: item.extracted_at || item.created_at || new Date().toISOString(),
+  status: item.status || 'failed',
+  item_count: Number(item.item_count || 0),
+  elapsed_time: item.elapsed_time,
+  elapsed_time_label: item.elapsed_time_label || (item.elapsed_time ? formatTime(item.elapsed_time) : '-'),
+  error_message: item.error_message || ''
+})
+
+const fetchExtractionHistoryFromServer = async () => {
+  const response = await apiClient.get('/ai-service/knowledge-extraction-history/', {
+    params: {
+      user_id: HISTORY_USER_ID,
+      limit: 30
+    }
+  })
+
+  const items = response?.data?.data?.items || []
+  extractionHistory.value = items.map(normalizeHistoryItem)
+  persistExtractionHistory()
+}
+
+const loadExtractionHistory = async () => {
+  try {
+    await fetchExtractionHistoryFromServer()
+  } catch (error) {
+    loadExtractionHistoryFromLocal()
+  }
+}
+
+const appendLocalExtractionHistory = ({ status, elapsedTime = null, itemCount = 0, error = '' }) => {
+  const file = uploadedFile.value
+  if (!file) return
+
+  const item = normalizeHistoryItem({
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    file_name: file.name,
+    file_type: getFileTypeLabel(file.name),
+    file_size: file.size,
+    file_size_label: formatFileSize(file.size),
+    extracted_at: new Date().toISOString(),
+    status,
+    item_count: itemCount,
+    elapsed_time: elapsedTime,
+    elapsed_time_label: elapsedTime ? formatTime(elapsedTime) : '-',
+    error_message: error
+  })
+
+  extractionHistory.value = [item, ...extractionHistory.value].slice(0, 30)
+  persistExtractionHistory()
+}
+
+const syncHistoryAfterExtraction = async (fallbackPayload) => {
+  try {
+    await fetchExtractionHistoryFromServer()
+  } catch (error) {
+    appendLocalExtractionHistory(fallbackPayload)
+  }
+}
+
+const clearExtractionHistory = async () => {
+  try {
+    await apiClient.delete('/ai-service/knowledge-extraction-history/', {
+      params: {
+        user_id: HISTORY_USER_ID
+      }
+    })
+    extractionHistory.value = []
+    persistExtractionHistory()
+    ElMessage.success('抽取历史已清空')
+  } catch (error) {
+    extractionHistory.value = []
+    persistExtractionHistory()
+    ElMessage.warning('后端清空失败，已清空本地历史')
+  }
+}
+
+const formatHistoryTime = (value) => {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN')
+}
 
 // 方法
 const triggerFileInput = () => {
@@ -538,7 +692,7 @@ const processFile = async () => {
   try {
     const formData = new FormData()
     formData.append('file', uploadedFile.value)
-    formData.append('user_id', 'web_user')
+  formData.append('user_id', HISTORY_USER_ID)
     
     // 模拟处理步骤
     currentStep.value = 2
@@ -561,6 +715,11 @@ const processFile = async () => {
       if (typeof extractionResult.value.extracted_knowledge === 'string') {
         parseTextToTableData(extractionResult.value.extracted_knowledge)
       }
+      await syncHistoryAfterExtraction({
+        status: 'success',
+        elapsedTime: extractionResult.value?.elapsed_time,
+        itemCount: getItemCount()
+      })
       ElMessage.success('知识抽取完成！')
     } else {
       throw new Error(response.data.message || '处理失败')
@@ -569,6 +728,10 @@ const processFile = async () => {
   } catch (error) {
     console.error('知识抽取失败:', error)
     errorMessage.value = error.response?.data?.message || error.message || '处理失败，请重试'
+    await syncHistoryAfterExtraction({
+      status: 'failed',
+      error: errorMessage.value
+    })
     ElMessage.error(errorMessage.value)
   } finally {
     processing.value = false
@@ -1058,6 +1221,10 @@ const toggleMaterialsTable = () => {
 const goBack = () => {
   router.push({ name: 'SmartAgents' })
 }
+
+onMounted(async () => {
+  await loadExtractionHistory()
+})
 </script>
 
 <style scoped>
@@ -1070,14 +1237,16 @@ const goBack = () => {
 .knowledge-extraction-container {
   flex: 1;
   overflow-y: auto;
-  min-height: 100%;
+  min-height: 100vh;
+  width: 100%;
   background: radial-gradient(circle at 10% -10%, #eef2ff 0%, #f7f9fc 42%, #f4f7fb 100%);
   padding: 28px 30px 36px;
+  box-sizing: border-box;
 }
 
 .page-header {
-  max-width: 1360px;
-  margin: 0 auto 22px;
+  width: 100%;
+  margin: 0 0 22px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 255, 0.95));
   border-radius: 22px;
   padding: 28px 30px;
@@ -1155,11 +1324,24 @@ const goBack = () => {
 }
 
 .main-content {
-  max-width: 1360px;
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   display: grid;
   grid-template-columns: 1fr;
   gap: 20px;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.workbench-column {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
 .overview-strip {
@@ -1242,7 +1424,7 @@ const goBack = () => {
 
 /* 上传区域 */
 .upload-section {
-  grid-row: 1;
+  grid-row: auto;
 }
 
 .upload-card {
@@ -1374,7 +1556,117 @@ const goBack = () => {
 
 /* 结果区域 */
 .results-section {
-  grid-row: 2;
+  grid-row: auto;
+}
+
+.history-panel {
+  position: sticky;
+  top: 14px;
+}
+
+.history-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid #e7ecf8;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  max-height: calc(100vh - 42px);
+  overflow-y: auto;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.history-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #1f2b4a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-empty {
+  border: 1px dashed #d8e0f5;
+  border-radius: 10px;
+  padding: 24px 12px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.history-empty i {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.history-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.history-item {
+  border: 1px solid #e8edf8;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fcfdff;
+}
+
+.history-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.history-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-status {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid #dbeafe;
+  color: #1d4ed8;
+  background: #eff6ff;
+  flex-shrink: 0;
+}
+
+.history-status.failed {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.history-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.history-time {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
 .results-card {
@@ -1914,6 +2206,18 @@ const goBack = () => {
 @media (max-width: 768px) {
   .knowledge-extraction-container {
     padding: 1rem;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-panel {
+    position: static;
+  }
+
+  .history-card {
+    max-height: none;
   }
 
   .overview-strip,
