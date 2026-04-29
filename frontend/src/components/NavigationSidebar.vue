@@ -76,6 +76,15 @@
           ><span class="tooltip">我的任务</span></a
         >
       </li>
+      <li>
+        <a href="#" @click.prevent="navigateToOCRCenter"
+          ><img
+            src="../assets/talk page/talk@3X_63.png"
+            class="menu-icon"
+          /><span class="menu-text"> OCR中心</span
+          ><span class="tooltip">OCR中心</span></a
+        >
+      </li>
       <li v-if="isAdmin">
         <a href="#" @click.prevent="navigateToDocuments"
           ><img
@@ -202,6 +211,10 @@
         router.push('/agent-tasks')
       }
 
+      const navigateToOCRCenter = () => {
+        router.push('/ocr-center')
+      }
+
       const navigateToDocuments = () => {
         if (!isAdmin.value) {
           console.warn('需要管理员权限访问文档管理')
@@ -263,6 +276,7 @@
         navigateToSmartAgents,
   navigateToProfile,
         navigateToAgentTasks,
+    navigateToOCRCenter,
         navigateToDocuments,
         navigateToKnowledgeBase,
         navigateToKnowledgeGraph,

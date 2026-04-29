@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.chat',
     'apps.knowledgegraph',
+    'apps.ocr',
     'apps.ai_service',
     'apps.documents',
     'apps.knowledgebase',
@@ -252,3 +253,10 @@ AI_MODEL_TIMEOUTS = {
     'Kimi': 90,               # Kimi中等速度
     'default': 120             # 默认超时
 }
+
+# OCR 服务直连配置（Django 统一代理层）
+# 默认端口与 sources 下各服务启动脚本保持一致：commission=6001, paper=6002, checker=5001
+OCR_COMMISSION_BASE_URL = os.environ.get('OCR_COMMISSION_BASE_URL', 'http://127.0.0.1:6001')
+OCR_PAPER_BASE_URL = os.environ.get('OCR_PAPER_BASE_URL', 'http://127.0.0.1:6002')
+OCR_CHECKER_BASE_URL = os.environ.get('OCR_CHECKER_BASE_URL', 'http://127.0.0.1:5001')
+OCR_PROXY_TIMEOUT = float(os.environ.get('OCR_PROXY_TIMEOUT', '120'))
