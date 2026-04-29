@@ -30,3 +30,4 @@ static_collected/
 # 保留目录结构
 !staticfiles/.gitkeep
 test/
+.env*
