@@ -1,0 +1,271 @@
+{'field_extraction_results': [
+        {'extraction_timestamp': '2025-10-27 19: 10: 24.226041', 'source_content_blocks': 131, 'grid_cells_count': 410, 'matched_cells_count': 115, 'total_fields_extracted': 22, 'extraction_statistics': {'single_cell_fields': 4, 'adjacent_cell_fields': 9, 'handwritten_fields': 4, 'table_data_count': 0
+            }, 'extracted_fields': {'委托编号': {'type': 'single_cell', 'value': 'IBTC20230420007', 'source_cell': {'coordinates': '(1,
+                        0)', 'full_text': '服务类型：加急 委托编号：IBTC20230420007', 'confidence': 0.9952371418476105
+                    }, 'extraction_method': 'single_cell_pattern'
+                }, '服务类型': {'type': 'single_cell', 'value': '加急 委托编号：IBTC20230420007', 'source_cell': {'coordinates': '(1,
+                        0)', 'full_text': '服务类型：加急 委托编号：IBTC20230420007', 'confidence': 0.9952371418476105
+                    }, 'extraction_method': 'single_cell_pattern'
+                }, '是否需要报告': {'type': 'single_cell', 'value': '否', 'source_cell': {'coordinates': '(1,
+                        1)', 'full_text': '是否需要报告：否', 'confidence': 0.996510922908783
+                    }, 'extraction_method': 'single_cell_pattern'
+                }, '委托人': {'type': 'adjacent_cells', 'value': '饶毅', 'label_cell': {'coordinates': '(2,
+                        0)', 'text': '委托人', 'confidence': 0.9999229311943054
+                    }, 'content_cell': {'coordinates': '(2,
+                        1)', 'text': '饶毅', 'confidence': 0.9976738691329956
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9976738691329956
+                    }
+                }, '样品数量': {'type': 'adjacent_cells', 'value': '1.0 KG 1p15/889', 'label_cell': {'coordinates': '(5,
+                        1)', 'text': '样品数量', 'confidence': 0.9995384216308594
+                    }, 'content_cell': {'coordinates': '(5,
+                        2)', 'text': '1.0 KG 1p15/889', 'confidence': 0.8618312776088715
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.8618312776088715
+                    }
+                }, '样品代码': {'type': 'adjacent_cells', 'value': 'F-IBOXRM0147F', 'label_cell': {'coordinates': '(5,
+                        3)', 'text': '样品代码', 'confidence': 0.9997203946113586
+                    }, 'content_cell': {'coordinates': '(5,
+                        4)', 'text': 'F-IBOXRM0147F', 'confidence': 0.9880701303482056
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9880701303482056
+                    }
+                }, '送样时间': {'type': 'adjacent_cells', 'value': '2023-04-2010: 20: 23', 'label_cell': {'coordinates': '(7,
+                        1)', 'text': '送样时间', 'confidence': 0.9990771412849426
+                    }, 'content_cell': {'coordinates': '(7,
+                        2)', 'text': '2023-04-2010: 20: 23', 'confidence': 0.9816308617591858
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9816308617591858
+                    }
+                }, '余样处理': {'type': 'adjacent_cells', 'value': '留样', 'label_cell': {'coordinates': '(11,
+                        0)', 'text': '余样处理', 'confidence': 0.999413013458252
+                    }, 'content_cell': {'coordinates': '(11,
+                        1)', 'text': '留样', 'confidence': 0.9992420673370361
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9992420673370361
+                    }
+                }, '样品储存方式': {'type': 'adjacent_cells', 'value': '常温', 'label_cell': {'coordinates': '(13,
+                        0)', 'text': '样品储存方式', 'confidence': 0.9995906352996826
+                    }, 'content_cell': {'coordinates': '(13,
+                        1)', 'text': '常温', 'confidence': 0.9976580142974854
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9976580142974854
+                    }
+                }, '委托地址': {'type': 'adjacent_cells', 'value': '深圳市龙华区观澜大布巷社区布新路222号泰松科技园F、G栋', 'label_cell': {'coordinates': '(11,
+                        2)', 'text': '委托地址', 'confidence': 0.9987422823905945
+                    }, 'content_cell': {'coordinates': '(11,
+                        3)', 'text': '深圳市龙华区观澜大布巷社区布新路222号泰松科技园F、G栋', 'confidence': 0.9922894239425659
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9922894239425659
+                    }
+                }, '有无特殊条件': {'type': 'adjacent_cells', 'value': '无', 'label_cell': {'coordinates': '(19,
+                        0)', 'text': '有无特殊条件', 'confidence': 0.9996013641357422
+                    }, 'content_cell': {'coordinates': '(19,
+                        1)', 'text': '无', 'confidence': 0.9998693466186523
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9998693466186523
+                    }
+                }, '条件是': {'type': 'adjacent_cells', 'value': '一', 'label_cell': {'coordinates': '(19,
+                        2)', 'text': '条件是', 'confidence': 0.9999496936798096
+                    }, 'content_cell': {'coordinates': '(19,
+                        3)', 'text': '一', 'confidence': 0.5350033044815063
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.5350033044815063
+                    }
+                }, '测试员': {'type': 'handwritten', 'value': '测试员：', 'source_cell': {'coordinates': '(68,
+                        0)', 'full_text': '测试员：', 'confidence': 0.9833993911743164
+                    }, 'extraction_method': 'handwritten_content_from_full_text', 'is_handwritten': True
+                }, '数据复核人': {'type': 'handwritten', 'value': '数据复核人：', 'source_cell': {'coordinates': '(70,
+                        0)', 'full_text': '数据复核人：', 'confidence': 0.9917088150978088
+                    }, 'extraction_method': 'handwritten_content_from_full_text', 'is_handwritten': True
+                }, '复核日期': {'type': 'handwritten', 'value': '202.4.', 'source_cell': {'coordinates': '(68,
+                        1)', 'full_text': '复核日期： 202.4.', 'confidence': 0.894561767578125
+                    }, 'extraction_method': 'handwritten_content', 'is_handwritten': True
+                }, '申请单是否填写完整': {'type': 'choice_field', 'value': '否', 'label_cell': {'coordinates': '(79,
+                        0)', 'text': '申请单是否填写完整？无缺项或少项？', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(79,
+                        1)', 'text': '□否', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern'
+                }, '样品实物信息是否一致': {'type': 'choice_field', 'value': '是', 'label_cell': {'coordinates': '(81,
+                        0)', 'text': '样品实物信息与委托单表述是否一致？', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(81,
+                        1)', 'text': '□否 □是', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern'
+                }, '样品是否完好': {'type': 'choice_field', 'value': '是', 'label_cell': {'coordinates': '(83,
+                        1)', 'text': '样品是否完好并无多余附带物，是否满足测试条件？', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(83,
+                        2)', 'text': '是 □否', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern'
+                }, '其他检查项': {'type': 'choice_field', 'value': '是', 'label_cell': {'coordinates': '(85,
+                        1)', 'text': '其他：', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(85,
+                        2)', 'text': '□否 □是', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern'
+                }, '测试项目表': {'type': 'multi_row_table', 'table_type': 'type1', 'header': ['测试条件', '产品标准', '单位', '测试结果', '测试员', '备注'
+                    ], 'data': [
+                        {'测试条件': '测试设备', '产品标准': '测试标准', '单位': '', '测试结果': '', '测试员': '', '备注': ''
+                        }
+                    ], 'header_row_id': 21, 'total_data_rows': 1, 'extraction_method': 'type1_table_pattern'
+                }, '表格编号': {'type': 'single_cell', 'value': 'FM-IBTC-QP-004-04A', 'source_block': {'id': 'content_6', 'text': '表格编号：FM-IBTC-QP-004-04A', 'confidence': 0.9873797297477722, 'center': [
+                            2132.0,
+                            298.5
+                        ]
+                    }, 'extraction_method': 'unmatched_block_pattern'
+                }, '业务受理人签字': {'type': 'handwritten', 'value': '有202.4.20', 'label_block': {'id': 'content_129', 'text': '业务受理人签字/日期：', 'bbox': {'min_x': 1451.5, 'max_x': 1511.5, 'min_y': 3099.5, 'max_y': 3129.5
+                        }, 'confidence': 0.9793739914894104
+                    }, 'content_block': {'id': 'content_128', 'text': '有202.4.20', 'bbox': {'min_x': 1908.5, 'max_x': 1968.5, 'min_y': 3123.5, 'max_y': 3153.5
+                        }, 'confidence': 0.7247516512870789
+                    }, 'extraction_method': 'uncelled_handwritten_adjacent', 'is_handwritten': True
+                }
+            }, 'page_number': 1
+        }
+    ], 'combined_results': {'combined_timestamp': '2025-10-27T19: 10: 27.118786', 'total_pages': 1, 'combined_ocr_data': {'total_text_boxes': 135, 'all_recognized_text': [], 'confidence_summary': {'min_confidence': 1.0, 'max_confidence': 0.0, 'avg_confidence': 0.0
+            }
+        }, 'combined_field_data': {'total_fields_extracted': 22, 'all_extracted_fields': {'委托编号': {'type': 'single_cell', 'value': 'IBTC20230420007', 'source_cell': {'coordinates': '(1,
+                        0)', 'full_text': '服务类型：加急 委托编号：IBTC20230420007', 'confidence': 0.9952371418476105
+                    }, 'extraction_method': 'single_cell_pattern', 'source_page': 1
+                }, '服务类型': {'type': 'single_cell', 'value': '加急 委托编号：IBTC20230420007', 'source_cell': {'coordinates': '(1,
+                        0)', 'full_text': '服务类型：加急 委托编号：IBTC20230420007', 'confidence': 0.9952371418476105
+                    }, 'extraction_method': 'single_cell_pattern', 'source_page': 1
+                }, '是否需要报告': {'type': 'single_cell', 'value': '否', 'source_cell': {'coordinates': '(1,
+                        1)', 'full_text': '是否需要报告：否', 'confidence': 0.996510922908783
+                    }, 'extraction_method': 'single_cell_pattern', 'source_page': 1
+                }, '委托人': {'type': 'adjacent_cells', 'value': '饶毅', 'label_cell': {'coordinates': '(2,
+                        0)', 'text': '委托人', 'confidence': 0.9999229311943054
+                    }, 'content_cell': {'coordinates': '(2,
+                        1)', 'text': '饶毅', 'confidence': 0.9976738691329956
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9976738691329956
+                    }, 'source_page': 1
+                }, '样品数量': {'type': 'adjacent_cells', 'value': '1.0 KG 1p15/889', 'label_cell': {'coordinates': '(5,
+                        1)', 'text': '样品数量', 'confidence': 0.9995384216308594
+                    }, 'content_cell': {'coordinates': '(5,
+                        2)', 'text': '1.0 KG 1p15/889', 'confidence': 0.8618312776088715
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.8618312776088715
+                    }, 'source_page': 1
+                }, '样品代码': {'type': 'adjacent_cells', 'value': 'F-IBOXRM0147F', 'label_cell': {'coordinates': '(5,
+                        3)', 'text': '样品代码', 'confidence': 0.9997203946113586
+                    }, 'content_cell': {'coordinates': '(5,
+                        4)', 'text': 'F-IBOXRM0147F', 'confidence': 0.9880701303482056
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9880701303482056
+                    }, 'source_page': 1
+                }, '送样时间': {'type': 'adjacent_cells', 'value': '2023-04-2010: 20: 23', 'label_cell': {'coordinates': '(7,
+                        1)', 'text': '送样时间', 'confidence': 0.9990771412849426
+                    }, 'content_cell': {'coordinates': '(7,
+                        2)', 'text': '2023-04-2010: 20: 23', 'confidence': 0.9816308617591858
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9816308617591858
+                    }, 'source_page': 1
+                }, '余样处理': {'type': 'adjacent_cells', 'value': '留样', 'label_cell': {'coordinates': '(11,
+                        0)', 'text': '余样处理', 'confidence': 0.999413013458252
+                    }, 'content_cell': {'coordinates': '(11,
+                        1)', 'text': '留样', 'confidence': 0.9992420673370361
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9992420673370361
+                    }, 'source_page': 1
+                }, '样品储存方式': {'type': 'adjacent_cells', 'value': '常温', 'label_cell': {'coordinates': '(13,
+                        0)', 'text': '样品储存方式', 'confidence': 0.9995906352996826
+                    }, 'content_cell': {'coordinates': '(13,
+                        1)', 'text': '常温', 'confidence': 0.9976580142974854
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9976580142974854
+                    }, 'source_page': 1
+                }, '委托地址': {'type': 'adjacent_cells', 'value': '深圳市龙华区观澜大布巷社区布新路222号泰松科技园F、G栋', 'label_cell': {'coordinates': '(11,
+                        2)', 'text': '委托地址', 'confidence': 0.9987422823905945
+                    }, 'content_cell': {'coordinates': '(11,
+                        3)', 'text': '深圳市龙华区观澜大布巷社区布新路222号泰松科技园F、G栋', 'confidence': 0.9922894239425659
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9922894239425659
+                    }, 'source_page': 1
+                }, '有无特殊条件': {'type': 'adjacent_cells', 'value': '无', 'label_cell': {'coordinates': '(19,
+                        0)', 'text': '有无特殊条件', 'confidence': 0.9996013641357422
+                    }, 'content_cell': {'coordinates': '(19,
+                        1)', 'text': '无', 'confidence': 0.9998693466186523
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.9998693466186523
+                    }, 'source_page': 1
+                }, '条件是': {'type': 'adjacent_cells', 'value': '一', 'label_cell': {'coordinates': '(19,
+                        2)', 'text': '条件是', 'confidence': 0.9999496936798096
+                    }, 'content_cell': {'coordinates': '(19,
+                        3)', 'text': '一', 'confidence': 0.5350033044815063
+                    }, 'extraction_method': 'adjacent_cells_optimized', 'match_quality': {'label_match_score': 1.0, 'content_quality_score': 0.5350033044815063
+                    }, 'source_page': 1
+                }, '测试员': {'type': 'handwritten', 'value': '测试员：', 'source_cell': {'coordinates': '(68,
+                        0)', 'full_text': '测试员：', 'confidence': 0.9833993911743164
+                    }, 'extraction_method': 'handwritten_content_from_full_text', 'is_handwritten': True, 'source_page': 1
+                }, '数据复核人': {'type': 'handwritten', 'value': '数据复核人：', 'source_cell': {'coordinates': '(70,
+                        0)', 'full_text': '数据复核人：', 'confidence': 0.9917088150978088
+                    }, 'extraction_method': 'handwritten_content_from_full_text', 'is_handwritten': True, 'source_page': 1
+                }, '复核日期': {'type': 'handwritten', 'value': '202.4.', 'source_cell': {'coordinates': '(68,
+                        1)', 'full_text': '复核日期： 202.4.', 'confidence': 0.894561767578125
+                    }, 'extraction_method': 'handwritten_content', 'is_handwritten': True, 'source_page': 1
+                }, '申请单是否填写完整': {'type': 'choice_field', 'value': '否', 'label_cell': {'coordinates': '(79,
+                        0)', 'text': '申请单是否填写完整？无缺项或少项？', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(79,
+                        1)', 'text': '□否', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern', 'source_page': 1
+                }, '样品实物信息是否一致': {'type': 'choice_field', 'value': '是', 'label_cell': {'coordinates': '(81,
+                        0)', 'text': '样品实物信息与委托单表述是否一致？', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(81,
+                        1)', 'text': '□否 □是', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern', 'source_page': 1
+                }, '样品是否完好': {'type': 'choice_field', 'value': '是', 'label_cell': {'coordinates': '(83,
+                        1)', 'text': '样品是否完好并无多余附带物，是否满足测试条件？', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(83,
+                        2)', 'text': '是 □否', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern', 'source_page': 1
+                }, '其他检查项': {'type': 'choice_field', 'value': '是', 'label_cell': {'coordinates': '(85,
+                        1)', 'text': '其他：', 'confidence': 0.0
+                    }, 'choice_cell': {'coordinates': '(85,
+                        2)', 'text': '□否 □是', 'confidence': 0.0
+                    }, 'extraction_method': 'choice_field_pattern', 'source_page': 1
+                }, '测试项目表': {'type': 'multi_row_table', 'table_type': 'type1', 'header': ['测试条件', '产品标准', '单位', '测试结果', '测试员', '备注'
+                    ], 'data': [
+                        {'测试条件': '测试设备', '产品标准': '测试标准', '单位': '', '测试结果': '', '测试员': '', '备注': ''
+                        }
+                    ], 'header_row_id': 21, 'total_data_rows': 1, 'extraction_method': 'type1_table_pattern', 'source_page': 1
+                }, '表格编号': {'type': 'single_cell', 'value': 'FM-IBTC-QP-004-04A', 'source_block': {'id': 'content_6', 'text': '表格编号：FM-IBTC-QP-004-04A', 'confidence': 0.9873797297477722, 'center': [
+                            2132.0,
+                            298.5
+                        ]
+                    }, 'extraction_method': 'unmatched_block_pattern', 'source_page': 1
+                }, '业务受理人签字': {'type': 'handwritten', 'value': '有202.4.20', 'label_block': {'id': 'content_129', 'text': '业务受理人签字/日期：', 'bbox': {'min_x': 1451.5, 'max_x': 1511.5, 'min_y': 3099.5, 'max_y': 3129.5
+                        }, 'confidence': 0.9793739914894104
+                    }, 'content_block': {'id': 'content_128', 'text': '有202.4.20', 'bbox': {'min_x': 1908.5, 'max_x': 1968.5, 'min_y': 3123.5, 'max_y': 3153.5
+                        }, 'confidence': 0.7247516512870789
+                    }, 'extraction_method': 'uncelled_handwritten_adjacent', 'is_handwritten': True, 'source_page': 1
+                }
+            }, 'field_sources': {'委托编号': [
+                    1
+                ], '服务类型': [
+                    1
+                ], '是否需要报告': [
+                    1
+                ], '委托人': [
+                    1
+                ], '样品数量': [
+                    1
+                ], '样品代码': [
+                    1
+                ], '送样时间': [
+                    1
+                ], '余样处理': [
+                    1
+                ], '样品储存方式': [
+                    1
+                ], '委托地址': [
+                    1
+                ], '有无特殊条件': [
+                    1
+                ], '条件是': [
+                    1
+                ], '测试员': [
+                    1
+                ], '数据复核人': [
+                    1
+                ], '复核日期': [
+                    1
+                ], '申请单是否填写完整': [
+                    1
+                ], '样品实物信息是否一致': [
+                    1
+                ], '样品是否完好': [
+                    1
+                ], '其他检查项': [
+                    1
+                ], '测试项目表': [
+                    1
+                ], '表格编号': [
+                    1
+                ], '业务受理人签字': [
+                    1
+                ]
+            }
+        }
+    }
+}

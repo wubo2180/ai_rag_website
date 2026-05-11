@@ -1,0 +1,61 @@
+{
+  "labelWidth": "100px",
+  "labelPosition": "left",
+  "sections": [
+    {
+      "title": "文献基本信息",
+      "description": "填写论文的基本识别信息",
+      "fields": [
+        {
+          "name": "article_id",
+          "label": "文献编号",
+          "type": "text",
+          "required": true,
+          "span": 12,
+          "placeholder": "如：A1",
+          "pattern": "^[A-Z]\\d+$",
+          "patternMessage": "格式：大写字母+数字，如A1",
+          "tip": "格式要求：大写字母开头，后跟数字，例如：A1、B2、C3"
+        },
+        {
+          "name": "article_name",
+          "label": "文献名称",
+          "type": "textarea",
+          "required": true,
+          "span": 24,
+          "rows": 2,
+          "placeholder": "请输入文献标题",
+          "maxLength": 500,
+          "tip": "请输入完整的论文标题，支持中英文"
+        },
+        {
+          "name": "performance_trend",
+          "label": "性能趋势",
+          "type": "textarea",
+          "span": 24,
+          "rows": 3,
+          "placeholder": "请输入性能趋势描述",
+          "maxLength": 1000,
+          "tip": "描述该文献中材料的性能变化趋势和主要发现"
+        }
+      ]
+    },
+    {
+      "title": "说明",
+      "description": "四级数据连接（Material-Intermediate-Property）功能说明",
+      "fields": [
+        {
+          "name": "_note",
+          "label": "功能说明",
+          "type": "textarea",
+          "span": 24,
+          "rows": 5,
+          "disabled": true,
+          "defaultValue": "⚠️ 四级数据连接功能包含：\n\n1. 材料/中间体列表（可动态添加/删除）\n   - 材料编号、原材料名称、CAS号\n   - 中间体编号、中间体名称、中间体组成\n\n2. 性能数据表格（每个材料可添加多条性能）\n   - 性能编号、性能名称、性能值\n\n此功能涉及嵌套的动态子表，当前 DynamicForm 组件暂不支持。\n如需实现，请继续使用 PaperForm 硬编码组件。"
+        }
+      ]
+    }
+  ]
+}
+
+
