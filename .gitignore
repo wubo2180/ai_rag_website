@@ -31,3 +31,11 @@ static_collected/
 !staticfiles/.gitkeep
 test/
 .env*
+# 原始压缩包
+*.tar.gz
+*.zip
+*.rar
+
+# OS
+.DS_Store
+._*
