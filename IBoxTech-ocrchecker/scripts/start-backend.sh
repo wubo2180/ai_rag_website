@@ -10,14 +10,14 @@ echo "🚀 启动OCR系统后端服务..."
 cd backend
 
 # 检查虚拟环境
-if [ ! -d "venv" ]; then
-    echo "❌ 虚拟环境不存在，请先运行安装脚本: ./scripts/setup.sh"
-    exit 1
-fi
+# if [ ! -d "venv" ]; then
+#     echo "❌ 虚拟环境不存在，请先运行安装脚本: ./scripts/setup.sh"
+#     exit 1
+# fi
 
 # 激活虚拟环境
-echo "🔧 激活Python虚拟环境..."
-source venv/bin/activate
+# echo "🔧 激活Python虚拟环境..."
+# source venv/bin/activate
 
 # 检查环境配置文件
 if [ ! -f ".env" ]; then
