@@ -68,6 +68,7 @@ const routes = [
     path: '/chat2',
     redirect: '/chat',
   },
+
   {
     path: '/documents',
     name: 'Documents',

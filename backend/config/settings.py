@@ -32,6 +32,18 @@ if DATABASE_TYPE == 'mysql':
                 'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             },
         }
+        # 'ocr_db': {
+        #     'ENGINE': 'django.db.backends.mysql',
+        #     'NAME': os.environ.get('MYSQL_DB_OCR'),
+        #     'USER': os.environ.get('MYSQL_USER_OCR'),
+        #     'PASSWORD': os.environ.get('MYSQL_PASSWORD_OCR'),
+        #     'HOST': os.environ.get('MYSQL_HOST_OCR', 'localhost'),
+        #     'PORT': os.environ.get('MYSQL_PORT_OCR', '3306'),
+        #     'OPTIONS': {
+        #         'charset': 'utf8mb4',
+        #         'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        #     },
+        # }
         }
 else:
     # 默认使用SQLite
@@ -41,6 +53,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+# DATABASE_ROUTERS = ['db_router.DatabaseRouter']
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
