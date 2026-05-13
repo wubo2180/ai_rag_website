@@ -166,9 +166,10 @@ const router = useRouter()
 const serviceMap = {
   commission: { key: 'commission', name: '委托识别服务' },
   paper: { key: 'paper', name: '论文识别服务' },
+  checker: { key: 'checker', name: '校验系统服务' },
 }
 
-const service = computed(() => serviceMap[String(route.params.service || '').toLowerCase()] || serviceMap.paper)
+const service = computed(() => serviceMap[String(route.params.service || '').toLowerCase()] || serviceMap.commission)
 
 const viewMode = ref('split')
 const isEditing = ref(false)
@@ -213,7 +214,11 @@ const buildSnapshot = () => JSON.stringify({
 
 const snapshot = ref(buildSnapshot())
 
-const documentTitle = computed(() => (service.value.key === 'paper' ? '论文数据' : '委托数据'))
+const documentTitle = computed(() => {
+  if (service.value.key === 'paper') return '论文数据'
+  if (service.value.key === 'checker') return '校验数据'
+  return '委托数据'
+})
 const dynamicBasicEntries = computed(() => Object.entries(dynamicBasicInfo.value).map(([key, value]) => ({ key, value })))
 
 const toDisplayValue = (v) => {
@@ -415,6 +420,11 @@ const saveDraft = () => {
 }
 
 const submitAnalyze = async () => {
+  if (service.value.key === 'checker') {
+    ElMessage.info('校验系统服务当前用于任务核验，暂不支持直接重新识别。')
+    return
+  }
+
   if (!pdfFile.value) {
     ElMessage.warning('请先加载PDF文件')
     return

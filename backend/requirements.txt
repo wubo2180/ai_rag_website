@@ -60,3 +60,4 @@ cryptography==43.0.3
 python-dateutil==2.9.0
 pytz==2024.2
 pdf2image==1.16.0                    # PDF 转图片
+minio==7.2.0                          # MinIO 对象存储客户端

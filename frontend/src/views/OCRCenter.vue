@@ -14,6 +14,7 @@
           <p>当前统一入口：<code>{{ gatewayBase }}</code></p>
         </div>
         <div class="status-right">
+          <button class="btn btn-primary" @click="goMigratedModule">迁移版业务台</button>
           <button class="btn btn-secondary" @click="checkGatewayHealth">健康检查</button>
           <span :class="['health-badge', gatewayStatus]">{{ statusLabel }}</span>
         </div>
@@ -70,10 +71,12 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 import { ElMessage } from 'element-plus'
 import ocrGatewayAPI from '@/services/ocrGateway'
 
+const router = useRouter()
 const gatewayBase = '/api/ocr'
 const gatewayStatus = ref('idle')
 const taskIdInput = ref('')
@@ -148,6 +151,10 @@ const queryTaskStatus = async () => {
 
 const openGatewayEndpoint = (service) => {
   openServiceEntry(service)
+}
+
+const goMigratedModule = () => {
+  router.push('/ocr/dashboard')
 }
 
 const openServiceEntry = async (service) => {
