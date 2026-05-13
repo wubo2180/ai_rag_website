@@ -130,6 +130,51 @@ const routes = [
     },
   },
   {
+    path: '/ocr/dashboard',
+    name: 'OcrDashboard',
+    redirect: '/ocr-center',
+    meta: {
+      requiresAuth: false,
+      title: 'OCR中心',
+    },
+  },
+  {
+    path: '/ocr/files',
+    name: 'OcrFileManagement',
+    component: () => import('@/views/ocr/OcrFileManagement.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件管理',
+    },
+  },
+  {
+    path: '/ocr/upload',
+    name: 'OcrFileUpload',
+    component: () => import('@/views/ocr/OcrFileUpload.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件上传',
+    },
+  },
+  {
+    path: '/ocr/recognize/:fileId',
+    name: 'OcrRecognize',
+    component: () => import('@/views/ocr/OcrRecognize.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件识别',
+    },
+  },
+  {
+    path: '/ocr/review/:fileId',
+    name: 'OcrReview',
+    component: () => import('@/views/ocr/OcrReview.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件核对',
+    },
+  },
+  {
     path: '/ocr-center',
     name: 'OCRCenter',
     component: () => import('@/views/OCRCenter.vue'),
