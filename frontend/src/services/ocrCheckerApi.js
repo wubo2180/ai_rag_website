@@ -8,6 +8,10 @@ const ocrCheckerApi = {
     return ocrGatewayAPI.proxyRequest(SERVICE, 'api/files', 'GET', null, params)
   },
 
+  countFiles(params = {}) {
+    return ocrGatewayAPI.proxyRequest(SERVICE, 'api/files/count', 'GET', null, params)
+  },
+
   getFileDetail(fileId) {
     return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}`, 'GET')
   },

@@ -65,6 +65,9 @@ class CheckerLocalService:
         if request.method == 'GET' and normalized in ('api/files', 'files'):
             return self._list_files(request)
 
+        if request.method == 'GET' and normalized in ('api/files/count', 'files/count'):
+            return self._count_files(request)
+
         detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)', normalized)
         if request.method == 'GET' and detail_match:
             file_id = int(detail_match.group('file_id'))
@@ -170,13 +173,34 @@ class CheckerLocalService:
 
             paginator = Paginator(queryset, per_page)
             page_obj = paginator.get_page(page)
-            files_data = [self._serialize_file(item) for item in page_obj.object_list]
+            files_data = []
+            serialize_error_count = 0
+            for item in page_obj.object_list:
+                try:
+                    files_data.append(self._serialize_file(item))
+                except Exception:
+                    serialize_error_count += 1
+                    files_data.append(
+                        {
+                            'id': item.pk,
+                            'filename': item.filename,
+                            'document_type_code': item.document_type_code,
+                            'ocr_status': item.ocr_status,
+                            'review_status': item.review_status,
+                            'created_at': str(item.created_at) if item.created_at else None,
+                            'updated_at': str(item.updated_at) if item.updated_at else None,
+                        }
+                    )
+
+            message = '获取文件列表成功（Django本地checker）'
+            if serialize_error_count:
+                message = f'获取文件列表成功（部分记录降级返回，异常{serialize_error_count}条）'
 
             return {
                 'status_code': 200,
                 'body': {
                     'success': True,
-                    'message': '获取文件列表成功（Django本地checker）',
+                    'message': message,
                     'data': {
                         'files': files_data,
                         'total': paginator.count,
@@ -228,6 +252,41 @@ class CheckerLocalService:
                 'body': {
                     'success': False,
                     'message': f'获取文件详情失败: {exc}',
+                    'service': self.service_name,
+                },
+            }
+
+    def _count_files(self, request):
+        try:
+            status_filter = request.GET.get('status')
+            review_status_filter = request.GET.get('review_status')
+            document_type_filter = request.GET.get('document_type')
+
+            queryset = File.objects.filter(is_deleted=False)
+
+            if status_filter:
+                queryset = queryset.filter(ocr_status=status_filter)
+            if review_status_filter:
+                queryset = queryset.filter(review_status=review_status_filter)
+            if document_type_filter:
+                queryset = queryset.filter(document_type_code=document_type_filter)
+
+            return {
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'message': '获取文件统计成功（Django本地checker）',
+                    'data': {
+                        'total': queryset.count(),
+                    },
+                },
+            }
+        except Exception as exc:
+            return {
+                'status_code': 500,
+                'body': {
+                    'success': False,
+                    'message': f'读取文件统计失败: {exc}',
                     'service': self.service_name,
                 },
             }
