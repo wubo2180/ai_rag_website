@@ -17,7 +17,7 @@ httptools==0.6.4                   # HTTP 解析器
 websockets==13.1                   # WebSocket 支持
 
 # 数据库 (异步支持)
-mysqlclient==2.2.6                 # MySQL 同步驱动 (推荐)
+# mysqlclient==2.2.6               # Optional: needs system MySQL/MariaDB dev libraries; PyMySQL fallback is enabled
 PyMySQL==1.1.1                     # MySQL 纯Python驱动 (备选)
 aiomysql==0.2.0                    # MySQL 异步驱动
 aiosqlite==0.20.0                  # SQLite 异步驱动 (开发用)
@@ -28,6 +28,7 @@ hiredis==3.0.0                     # Redis 高性能解析器
 django-redis==5.4.0                # Django Redis 缓存后端
 
 # HTTP请求和服务器 (异步支持)
+Werkzeug==3.1.3                    # Required by apps.ocr models
 requests==2.32.3                   # 同步 HTTP 客户端
 httpx==0.28.1                      # 异步 HTTP 客户端
 aiohttp==3.11.10                   # 异步 HTTP 库
@@ -39,6 +40,9 @@ Pillow==11.0.0
 # 数据处理 (知识图谱功能)
 pandas==2.2.3
 numpy==2.1.3
+
+# Compatibility
+setuptools>=75.0.0,<81.0.0        # Provides pkg_resources for older dependencies
 
 # 开发和调试工具
 django-debug-toolbar==4.4.6

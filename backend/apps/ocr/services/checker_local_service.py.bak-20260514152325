@@ -3,19 +3,16 @@ import hashlib
 import mimetypes
 import os
 import re
-import threading
 import uuid
 import json
 import importlib
 
 from django.conf import settings
 from django.core.paginator import Paginator
-from django.db import close_old_connections, connection
+from django.db import connection
 from django.utils import timezone
-import requests
 
 from ..models import File, OCRResult
-from .config import get_service_base_urls, get_timeout
 
 
 _PLACEHOLDER_PDF_BYTES = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 72>>stream\nBT /F1 18 Tf 72 720 Td (PDF preview placeholder - source file unavailable) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000363 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n433\n%%EOF\n"
@@ -153,15 +150,6 @@ class CheckerLocalService:
             },
             'test_items': [],
             'special_tests': [],
-        }
-
-    @staticmethod
-    def _empty_paper_document_payload():
-        return {
-            'article_id': '',
-            'article_name': '',
-            'performance_trend': '',
-            'hierarchical_data': [],
         }
 
     @staticmethod
@@ -519,21 +507,16 @@ class CheckerLocalService:
                 }
 
             document_type = self._normalize_document_type(file_obj)
-            cached = self._document_data_cache.get(file_id)
-            persisted = self._load_latest_ocr_payload(file_id)
+            force_refresh = str(getattr(request, 'GET', {}).get('refresh', '')).strip().lower() in {'1', 'true', 'yes'}
+            cached = None if force_refresh else self._document_data_cache.get(file_id)
             if document_type == 'paper':
                 cached_paper = cached if isinstance(cached, dict) else None
-                persisted_paper = persisted if isinstance(persisted, dict) else None
                 legacy_paper = self._load_paper_document_from_legacy_tables(file_id)
-                data = self._select_richer_paper_payload(cached_paper, persisted_paper)
-                data = self._select_richer_paper_payload(data, legacy_paper)
+                data = self._select_richer_paper_payload(cached_paper, legacy_paper)
                 if isinstance(data, dict):
                     self._document_data_cache[file_id] = data
             elif isinstance(cached, dict) and self._is_meaningful_document_payload(document_type, cached):
                 data = cached
-            elif isinstance(persisted, dict) and self._is_meaningful_document_payload(document_type, persisted):
-                data = persisted
-                self._document_data_cache[file_id] = data
             else:
                 data = self._default_document_payload(document_type, file_obj)
 
@@ -557,25 +540,6 @@ class CheckerLocalService:
                 'body': {'success': False, 'message': f'读取文档数据失败: {exc}'},
             }
 
-    def _load_latest_ocr_payload(self, file_id: int):
-        try:
-            result = OCRResult.objects.filter(file_id=file_id).order_by('-updated_at', '-id').first()
-            if not result or not isinstance(result.raw_result, dict):
-                return None
-
-            raw_result = result.raw_result
-            structured = raw_result.get('structured_data')
-            if isinstance(structured, dict):
-                return structured
-
-            if self._is_meaningful_document_payload('paper', raw_result):
-                return raw_result
-            if self._is_meaningful_document_payload('commission', raw_result):
-                return raw_result
-            return None
-        except Exception:
-            return None
-
     @staticmethod
     def _is_meaningful_document_payload(document_type: str, payload):
         if not isinstance(payload, dict):
@@ -586,8 +550,7 @@ class CheckerLocalService:
                 return True
             if str(payload.get('article_name') or '').strip():
                 return True
-            performance_trend = str(payload.get('performance_trend') or '').strip()
-            if performance_trend and performance_trend != '待补充':
+            if str(payload.get('performance_trend') or '').strip():
                 return True
             hierarchical_data = payload.get('hierarchical_data')
             if isinstance(hierarchical_data, list) and len(hierarchical_data) > 0:
@@ -1155,30 +1118,26 @@ class CheckerLocalService:
 
             task_id = f'local-{uuid.uuid4().hex[:12]}'
             document_type = self._normalize_document_type(file_obj)
+            if file_id not in self._document_data_cache:
+                self._document_data_cache[file_id] = self._default_document_payload(document_type, file_obj)
+
+            file_obj.ocr_status = 'completed'
+            file_obj.ocr_completed_at = timezone.now()
+            file_obj.save(update_fields=['ocr_status', 'ocr_completed_at', 'updated_at'])
+
             self._tasks[task_id] = {
-                'status': 'processing',
+                'status': 'completed',
                 'result': {
-                    'structured_data': self._default_document_payload(document_type, file_obj),
+                    'structured_data': self._document_data_cache[file_id],
                     'document_type': document_type,
                 },
             }
-
-            file_obj.ocr_status = 'processing'
-            file_obj.ocr_started_at = timezone.now()
-            file_obj.save(update_fields=['ocr_status', 'ocr_started_at', 'updated_at'])
-
-            thread = threading.Thread(
-                target=self._run_recognize_task,
-                args=(task_id, file_id),
-                daemon=True,
-            )
-            thread.start()
 
             return {
                 'status_code': 200,
                 'body': {
                     'success': True,
-                    'message': 'OCR识别任务已提交',
+                    'message': '本地识别任务已完成',
                     'data': {'task_id': task_id},
                 },
             }
@@ -1187,381 +1146,6 @@ class CheckerLocalService:
                 'status_code': 500,
                 'body': {'success': False, 'message': f'启动识别失败: {exc}'},
             }
-
-    def _run_recognize_task(self, task_id: str, file_id: int):
-        close_old_connections()
-        try:
-            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
-            if not file_obj:
-                raise ValueError('文件不存在')
-
-            document_type = self._normalize_document_type(file_obj)
-            raw_result = self._call_upstream_ocr(file_obj, document_type)
-            structured_data = self._parse_upstream_ocr_result(raw_result, document_type, file_obj)
-
-            if not self._is_meaningful_document_payload(document_type, structured_data):
-                raise ValueError('OCR服务未返回可用结构化字段')
-
-            self._document_data_cache[file_id] = structured_data
-            self._store_ocr_payload(file_obj, structured_data, raw_result)
-
-            file_obj.ocr_status = 'completed'
-            file_obj.ocr_completed_at = timezone.now()
-            file_obj.ocr_error_message = None
-            file_obj.save(update_fields=['ocr_status', 'ocr_completed_at', 'ocr_error_message', 'updated_at'])
-
-            self._tasks[task_id] = {
-                'status': 'completed',
-                'result': {
-                    'structured_data': structured_data,
-                    'document_type': document_type,
-                },
-            }
-        except Exception as exc:
-            try:
-                File.objects.filter(id=file_id).update(
-                    ocr_status='failed',
-                    ocr_error_message=str(exc),
-                    updated_at=timezone.now(),
-                )
-            except Exception:
-                pass
-
-            self._tasks[task_id] = {
-                'status': 'failed',
-                'error_message': str(exc),
-                'result': {},
-            }
-        finally:
-            close_old_connections()
-
-    def _read_file_bytes(self, file_obj: File):
-        file_path = Path(file_obj.file_path or '')
-        if file_path.exists() and file_path.is_file():
-            return file_path.read_bytes()
-
-        minio_bytes = self._try_download_from_minio(file_obj)
-        if minio_bytes is not None:
-            return minio_bytes
-
-        raise FileNotFoundError('源文件不可读，无法提交OCR识别')
-
-    def _call_upstream_ocr(self, file_obj: File, document_type: str):
-        service = 'paper' if document_type == 'paper' else 'commission'
-        base_url = get_service_base_urls().get(service)
-        if not base_url:
-            raise ValueError(f'未配置{service} OCR服务地址')
-
-        content = self._read_file_bytes(file_obj)
-        filename = file_obj.filename or file_obj.stored_filename or f'file-{file_obj.pk}.pdf'
-        mime_type = file_obj.mime_type or 'application/pdf'
-        url = f'{base_url}/api/analyze'
-
-        response = requests.post(
-            url,
-            files={'file': (filename, content, mime_type)},
-            data={'user': 'ai-rag-django', 'response_mode': 'blocking'},
-            timeout=max(get_timeout(), 300),
-        )
-
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise ValueError(f'OCR服务返回非JSON响应: HTTP {response.status_code}') from exc
-
-        if not (200 <= response.status_code < 300):
-            raise ValueError(payload.get('message') or f'OCR服务请求失败: HTTP {response.status_code}')
-        if payload.get('success') is False:
-            raise ValueError(payload.get('message') or 'OCR服务识别失败')
-
-        return payload
-
-    def _parse_upstream_ocr_result(self, raw_result, document_type: str, file_obj: File):
-        if document_type == 'paper':
-            return self._parse_paper_ocr_result(raw_result, file_obj)
-        return self._parse_commission_ocr_result(raw_result)
-
-    def _store_ocr_payload(self, file_obj: File, structured_data: dict, raw_result=None):
-        try:
-            OCRResult.objects.update_or_create(
-                file_id=file_obj.pk,
-                page_number=1,
-                defaults={
-                    'raw_text': '',
-                    'raw_result': {
-                        'structured_data': structured_data,
-                        'upstream_raw_result': raw_result or {},
-                    },
-                    'form_fields': structured_data,
-                    'ocr_engine': 'upstream-ocr',
-                    'review_status': 'pending',
-                },
-            )
-        except Exception:
-            pass
-
-    @staticmethod
-    def _extract_scalar_value(value):
-        if isinstance(value, dict):
-            if 'value' in value:
-                return CheckerLocalService._extract_scalar_value(value.get('value'))
-            if 'text' in value:
-                return CheckerLocalService._extract_scalar_value(value.get('text'))
-            if 'content' in value:
-                return CheckerLocalService._extract_scalar_value(value.get('content'))
-            return ''
-        if isinstance(value, list):
-            for item in value:
-                scalar = CheckerLocalService._extract_scalar_value(item)
-                if scalar:
-                    return scalar
-            return ''
-        if value is None:
-            return ''
-        return str(value).strip()
-
-    @staticmethod
-    def _looks_like_table_field(field_name: str, field_data):
-        field_type = field_data.get('type', '') if isinstance(field_data, dict) else ''
-        return (
-            field_type == 'multi_row_table'
-            or (isinstance(field_data, dict) and any(key in field_data for key in ('data', 'rows', 'tests')))
-            or ('表' in field_name and field_name not in {'表格编号'})
-        )
-
-    def _parse_commission_ocr_result(self, raw_result):
-        field_name_mapping = {
-            '表格编号': 'form_number',
-            '委托编号': 'commission_number',
-            '服务类型': 'service_type',
-            '是否需要报告': 'need_report',
-            '研发项目': 'project_number',
-            '物料代码': 'material_number',
-            '产品或原材料型号': 'product_number',
-            '样品重量': 'sample_weight',
-            '委托部门': 'commission_department',
-            '委托人': 'commissioner',
-            '委托日期': 'commission_date',
-            '委托地址': 'commission_address',
-            '样品名称': 'sample_name',
-            '样品数量': 'sample_quantity',
-            '样品代码': 'sample_code',
-            '样品批次': 'sample_batch',
-            '送样时间': 'delivery_time',
-            '需求时间': 'required_time',
-            '余样处理': 'sample_disposal',
-            '样品储存方式': 'storage_method',
-            '测试性质': 'test_nature',
-            '测试说明': 'test_description',
-            '有无特殊条件': 'special_condition_flag',
-            '条件是': 'special_condition_detail',
-            '测试员': 'tester',
-            '数据复核人': 'data_reviewer',
-            '复核日期': 'review_date',
-            '送样人签名': 'delivery_person_signature',
-            '样品是否完好': 'sample_condition',
-            '业务受理人签字': 'business_handler_signature',
-            '申请单是否填写完整': 'form_complete',
-            '样品实物信息是否一致': 'sample_info_consistent',
-        }
-
-        structured = {'basic_info': {}, 'test_items': [], 'special_tests': []}
-        data = raw_result.get('data', raw_result) if isinstance(raw_result, dict) else {}
-
-        if isinstance(data.get('basic_info'), dict):
-            structured['basic_info'].update(data.get('basic_info') or {})
-        if isinstance(data.get('test_items'), list):
-            structured['test_items'] = data.get('test_items') or []
-        if isinstance(data.get('special_tests'), list):
-            structured['special_tests'] = data.get('special_tests') or []
-
-        field_results = data.get('field_extraction_results') if isinstance(data, dict) else None
-        if isinstance(field_results, list):
-            collected_fields = {}
-            for page_data in field_results:
-                extracted_fields = page_data.get('extracted_fields') if isinstance(page_data, dict) else None
-                if not isinstance(extracted_fields, dict):
-                    continue
-
-                for field_name, field_data in extracted_fields.items():
-                    if self._looks_like_table_field(field_name, field_data):
-                        self._parse_commission_table(field_name, field_data, structured)
-                        continue
-
-                    mapped_name = field_name_mapping.get(field_name, field_name)
-                    value = self._extract_scalar_value(field_data)
-                    if value and mapped_name not in collected_fields:
-                        collected_fields[mapped_name] = value
-
-            structured['basic_info'].update(collected_fields)
-
-        combined = data.get('combined_results') if isinstance(data, dict) else None
-        if isinstance(combined, dict) and not structured['basic_info']:
-            combined_field_data = combined.get('combined_field_data')
-            if isinstance(combined_field_data, dict):
-                extracted = combined_field_data.get('all_extracted_fields')
-                if isinstance(extracted, dict):
-                    for key, value in extracted.items():
-                        mapped_name = field_name_mapping.get(key, key)
-                        scalar = self._extract_scalar_value(value)
-                        if scalar:
-                            structured['basic_info'][mapped_name] = scalar
-
-        return structured
-
-    @staticmethod
-    def _parse_commission_table(field_name: str, field_data, structured: dict):
-        if not isinstance(field_data, dict):
-            return
-
-        test_item_mapping = {
-            '测试项目': 'test_item',
-            '测试设备': 'test_equipment',
-            '测试标准': 'test_standard',
-            '测试条件': 'test_condition',
-            '产品标准': 'product_standard',
-            '单位': 'unit',
-            '测试结果': 'test_result',
-            '测试员': 'tester',
-            '备注': 'remark',
-        }
-        special_test_mapping = {
-            '测试类型': 'test_type',
-            '元素名称': 'element_name',
-            '标准值': 'standard_value',
-            '标准': 'standard_value',
-            '实测值': 'measured_value',
-            '实测': 'measured_value',
-            '备注': 'remark',
-        }
-
-        if isinstance(field_data.get('tests'), list):
-            for group in field_data.get('tests') or []:
-                test_name = group.get('test_name', '') if isinstance(group, dict) else ''
-                rows = group.get('data', []) if isinstance(group, dict) else []
-                for row_index, row in enumerate(rows if isinstance(rows, list) else []):
-                    if not isinstance(row, dict):
-                        continue
-                    mapped = {'test_type': test_name, 'sort_order': row_index}
-                    for key, value in row.items():
-                        mapped[special_test_mapping.get(key, key)] = value
-                    structured['special_tests'].append(mapped)
-            return
-
-        rows = field_data.get('data') or field_data.get('rows') or []
-        if not isinstance(rows, list):
-            return
-
-        is_special = any(token in field_name.lower() for token in ('特殊', 'rohs', 'special')) or '测试结果表' in field_name
-        mapping = special_test_mapping if is_special else test_item_mapping
-        target = 'special_tests' if is_special else 'test_items'
-        for row_index, row in enumerate(rows):
-            if not isinstance(row, dict):
-                continue
-            mapped = {'sort_order': row_index}
-            for key, value in row.items():
-                mapped[mapping.get(key, key)] = value
-            structured[target].append(mapped)
-
-    @staticmethod
-    def _jsonish(value):
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
-        if text.startswith('```'):
-            text = re.sub(r'^```(?:json)?', '', text).strip()
-            text = re.sub(r'```$', '', text).strip()
-        if not text or text[0] not in '[{':
-            return value
-        try:
-            return json.loads(text)
-        except Exception:
-            return value
-
-    def _parse_paper_ocr_result(self, raw_result, file_obj: File):
-        structured = self._empty_paper_document_payload()
-        queue = [raw_result]
-        visited = set()
-
-        while queue:
-            current = self._jsonish(queue.pop(0))
-            if id(current) in visited:
-                continue
-            visited.add(id(current))
-
-            if isinstance(current, list):
-                queue.extend(current)
-                continue
-            if not isinstance(current, dict):
-                continue
-
-            paper_data = current.get('文献') if isinstance(current.get('文献'), dict) else current
-            self._fill_paper_fields(paper_data, structured)
-
-            for key in ('data', 'outputs', 'result', 'payload', 'content', 'answer', 'text'):
-                if key in current:
-                    queue.append(current[key])
-            for value in current.values():
-                if isinstance(value, (dict, list, str)):
-                    queue.append(value)
-        return structured
-
-    def _fill_paper_fields(self, paper_data: dict, structured: dict):
-        for key in ('文献编号（Article ID）', '文献编号', 'article_id'):
-            if paper_data.get(key):
-                structured['article_id'] = paper_data.get(key)
-                break
-        for key in ('文献名称（Article Name）', '文献名称', 'article_name'):
-            if paper_data.get(key):
-                structured['article_name'] = paper_data.get(key)
-                break
-        for key in ('性能趋势', 'performance_trend'):
-            if paper_data.get(key):
-                structured['performance_trend'] = paper_data.get(key)
-                break
-        for key in ('四级数据连接（4-level Data Linkage）', '四级数据连接', 'hierarchical_data', 'material_intermediates'):
-            if isinstance(paper_data.get(key), list):
-                structured['hierarchical_data'] = [
-                    self._normalize_paper_hierarchy_item(item)
-                    for item in paper_data.get(key)
-                    if isinstance(item, dict)
-                ]
-                break
-
-    @staticmethod
-    def _normalize_paper_hierarchy_item(item: dict):
-        materials = item.get('原材料（Materials）') or item.get('materials') or item
-        intermediates = item.get('中间体（Intermediates）') or item.get('intermediates') or item
-        if isinstance(materials, list):
-            materials = materials[0] if materials else {}
-        if isinstance(intermediates, list):
-            intermediates = intermediates[0] if intermediates else {}
-        if not isinstance(materials, dict):
-            materials = {}
-        if not isinstance(intermediates, dict):
-            intermediates = {}
-
-        properties = item.get('性能（Properties）') or item.get('properties') or item.get('性能') or []
-        normalized_properties = []
-        if isinstance(properties, list):
-            for prop in properties:
-                if not isinstance(prop, dict):
-                    continue
-                normalized_properties.append({
-                    'property_id': prop.get('性能编号（Property ID）') or prop.get('性能编号') or prop.get('property_id') or '',
-                    'property_name': prop.get('性能名称（Property Name）') or prop.get('性能名称') or prop.get('property_name') or '',
-                    'property_value': prop.get('性能值（Property Value）') or prop.get('性能值') or prop.get('property_value') or '',
-                })
-
-        return {
-            'material_id': materials.get('材料编号（Material ID）') or item.get('材料编号') or item.get('material_id') or '',
-            'material_name': materials.get('原材料名称（Material Name）') or item.get('原材料名称') or item.get('material_name') or '',
-            'cas_number': materials.get('CAS号（CAS Number）') or item.get('CAS号') or item.get('cas_number') or '',
-            'intermediate_id': intermediates.get('中间体编号（Intermediate ID）') or item.get('中间体编号') or item.get('intermediate_id') or '',
-            'intermediate_name': intermediates.get('中间体名称（Intermediate Name）') or item.get('中间体名称') or item.get('intermediate_name') or '',
-            'intermediate_composition': item.get('中间体组成（Intermediate Compositions）') or item.get('中间体组成') or item.get('intermediate_composition') or '',
-            'properties': normalized_properties,
-        }
 
     def _get_task_status(self, task_id: str):
         task = self._tasks.get(task_id)
@@ -1577,7 +1161,6 @@ class CheckerLocalService:
                 'success': True,
                 'status': task.get('status', 'completed'),
                 'result': task.get('result', {}),
-                'error_message': task.get('error_message'),
             },
         }
 
@@ -1593,7 +1176,6 @@ class CheckerLocalService:
                 ocr_result = {}
 
             self._document_data_cache[file_id] = ocr_result
-            self._store_ocr_payload(file_obj, ocr_result, {'source': 'manual-save'})
 
             file_obj.ocr_status = 'completed'
             file_obj.save(update_fields=['ocr_status', 'updated_at'])

@@ -27,6 +27,29 @@ def load_config(config_path: str = "config.yaml"):
 config = load_config()
 
 
+def extract_dify_error(result: Any) -> Optional[str]:
+    def normalize(message: str) -> str:
+        text = str(message or '').strip()
+        if not text:
+            return '论文分析失败'
+        lowered = text.lower()
+        if 'insufficient balance' in lowered or 'status code 402' in lowered:
+            return '论文OCR上游模型余额不足，请充值或更换可用模型配置'
+        return text
+
+    if not isinstance(result, dict):
+        return None
+
+    if str(result.get('status', '')).lower() in {'error', 'failed'}:
+        return normalize(result.get('message') or result.get('error') or '论文分析失败')
+
+    nested = result.get('data')
+    if isinstance(nested, dict) and str(nested.get('status', '')).lower() in {'failed', 'error', 'stopped'}:
+        return normalize(nested.get('error') or nested.get('message') or '论文分析失败')
+
+    return None
+
+
 class HealthResponse(BaseModel):
     """健康检查响应模型"""
     status: str
@@ -182,12 +205,13 @@ async def analyze_file(
         if isinstance(dify_result, dict):
             # 判断Dify是否成功
             dify_status = dify_result.get('status', 'unknown')
+            dify_error = extract_dify_error(dify_result)
             
-            if dify_status == 'error':
+            if dify_status == 'error' or dify_error:
                 # Dify处理失败
                 return AnalyzeResponse(
                     success=False,
-                    message=dify_result.get('message', '论文分析失败'),
+                    message=dify_error or dify_result.get('message', '论文分析失败'),
                     data=dify_result,
                     processing_time=processing_time
                 )
@@ -231,4 +255,3 @@ if __name__ == "__main__":
         port=config['api']['port'],
         reload=config['api']['debug']
     )
-

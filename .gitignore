@@ -22,6 +22,9 @@ __pycache__/
 
 backend/logs/*
 !backend/logs/.gitkeep
+logs/
+runtime/
+backend/media/
 
 staticfiles/
 static_collected/
