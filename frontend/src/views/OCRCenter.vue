@@ -14,10 +14,8 @@
           <p>当前统一入口：<code>{{ gatewayBase }}</code></p>
         </div>
         <div class="status-right">
-          <button class="btn btn-secondary" @click="refreshDashboard" :disabled="statsLoading || filesLoading">
-            {{ statsLoading || filesLoading ? '刷新中...' : '刷新仪表盘' }}
-          </button>
           <button class="btn btn-secondary" @click="checkGatewayHealth">健康检查</button>
+          <button class="btn btn-primary" @click="refreshDashboard">刷新数据</button>
           <span :class="['health-badge', gatewayStatus]">{{ statusLabel }}</span>
         </div>
       </div>
@@ -74,7 +72,7 @@
             <tbody>
               <tr v-for="row in fileRows" :key="row.id">
                 <td>{{ row.id }}</td>
-                <td class="filename">{{ row.filename }}</td>
+                <td class="filename">{{ row.filename || row.file_name || '-' }}</td>
                 <td>{{ row.document_type_code || '-' }}</td>
                 <td>{{ row.ocr_status || '-' }}</td>
                 <td>{{ row.review_status || '-' }}</td>
@@ -104,18 +102,18 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 import { ElMessage } from 'element-plus'
-import ocrGatewayAPI from '@/services/ocrGateway'
 import ocrCheckerApi from '@/services/ocrCheckerApi'
+import ocrGatewayAPI from '@/services/ocrGateway'
 
 const router = useRouter()
 const gatewayBase = '/api/ocr'
 const gatewayStatus = ref('idle')
-const statsLoading = ref(false)
 const filesLoading = ref(false)
+
 const fileRows = ref([])
 const stats = ref({
   totalFiles: 0,
@@ -164,21 +162,16 @@ const extractListData = (responseData) => {
     })
   }
 
-  return {
-    files: [],
-    total: 0,
-  }
+  return { files: [], total: 0 }
 }
 
 const getTotalByFilter = async (params = {}) => {
-  const data = await ocrCheckerApi.countFiles(params)
-  const root = data?.data || data || {}
-  const payload = root?.data || root || {}
-  return Number(payload.total || 0)
+  const data = await ocrCheckerApi.listFiles({ ...params, page: 1, per_page: 1 })
+  const listPayload = extractListData(data)
+  return Number(listPayload.total || 0)
 }
 
 const loadStats = async () => {
-  statsLoading.value = true
   try {
     const [totalFiles, ocrCompleted, reviewCompleted, paperFiles, commissionFiles] = await Promise.all([
       getTotalByFilter(),
@@ -198,8 +191,6 @@ const loadStats = async () => {
     }
   } catch (error) {
     ElMessage.warning(error?.response?.data?.message || '统计数据读取失败')
-  } finally {
-    statsLoading.value = false
   }
 }
 
@@ -216,8 +207,31 @@ const loadFiles = async () => {
   }
 }
 
+const checkGatewayHealth = async () => {
+  gatewayStatus.value = 'checking'
+  try {
+    await ocrGatewayAPI.health()
+    gatewayStatus.value = 'ok'
+    ElMessage.success('Django OCR统一代理连接正常')
+  } catch {
+    gatewayStatus.value = 'down'
+    ElMessage.warning('OCR统一代理不可达，请检查 Django 或上游 OCR 服务状态')
+  }
+}
+
 const refreshDashboard = async () => {
   await Promise.all([loadStats(), loadFiles()])
+}
+
+const goRecognize = (fileId, ocrStatus) => {
+  if (!fileId) return
+  const action = String(ocrStatus || '').toLowerCase() === 'completed' ? 're-recognize' : 'recognize'
+  router.push({ path: '/ocr/files', query: { fileId: String(fileId), action } })
+}
+
+const goReview = (fileId) => {
+  if (!fileId) return
+  router.push({ path: '/ocr/checker/review', query: { fileId: String(fileId) } })
 }
 
 const formatTime = (value) => {
@@ -227,27 +241,9 @@ const formatTime = (value) => {
   return d.toLocaleString('zh-CN', { hour12: false })
 }
 
-const checkGatewayHealth = async () => {
-  gatewayStatus.value = 'checking'
-  try {
-    await ocrGatewayAPI.health()
-    gatewayStatus.value = 'ok'
-    ElMessage.success('Django OCR统一代理连接正常')
-  } catch (error) {
-    gatewayStatus.value = 'down'
-    ElMessage.warning('OCR统一代理不可达，请检查 Django 或上游 OCR 服务状态')
-  }
-}
-
-const goRecognize = (fileId) => {
-  router.push(`/ocr/recognize/${fileId}`)
-}
-
-const goReview = (fileId) => {
-  router.push(`/ocr/review/${fileId}`)
-}
-
-refreshDashboard()
+onMounted(async () => {
+  await Promise.all([checkGatewayHealth(), refreshDashboard()])
+})
 </script>
 
 <style scoped>
@@ -263,10 +259,16 @@ refreshDashboard()
   box-sizing: border-box;
 }
 
-.page-header {
+.page-header,
+.status-card,
+.panel-card,
+.stat-card {
   background: #fff;
   border: 1px solid #e8edf7;
   border-radius: 14px;
+}
+
+.page-header {
   padding: 20px;
   margin-bottom: 14px;
 }
@@ -289,9 +291,6 @@ refreshDashboard()
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  background: #fff;
-  border: 1px solid #e8edf7;
-  border-radius: 14px;
   padding: 16px;
   margin-bottom: 14px;
 }
@@ -319,9 +318,6 @@ refreshDashboard()
 }
 
 .stat-card {
-  background: #fff;
-  border: 1px solid #e8edf7;
-  border-radius: 12px;
   padding: 14px;
 }
 
@@ -352,9 +348,6 @@ refreshDashboard()
 }
 
 .panel-card {
-  background: #fff;
-  border: 1px solid #e8edf7;
-  border-radius: 14px;
   padding: 16px;
   margin-bottom: 14px;
 }
@@ -369,47 +362,44 @@ refreshDashboard()
 
 .panel-head h3 {
   margin: 0;
-  color: #1e293b;
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #1e293b;
 }
 
 .panel-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .file-table-wrap {
-  overflow: auto;
-  border: 1px solid #eef2f7;
-  border-radius: 10px;
+  overflow-x: auto;
 }
 
 .file-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 860px;
 }
 
 .file-table th,
 .file-table td {
-  border-bottom: 1px solid #eef2f7;
-  padding: 10px 12px;
+  border-bottom: 1px solid #eef2f8;
+  padding: 10px 8px;
   text-align: left;
   font-size: 13px;
 }
 
 .file-table th {
-  background: #f8fafc;
-  color: #475569;
+  color: #64748b;
+  font-weight: 600;
 }
 
 .filename {
   max-width: 260px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ops-cell {
@@ -490,14 +480,16 @@ refreshDashboard()
     padding: 14px;
   }
 
-  .status-card {
+  .status-card,
+  .panel-head {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .panel-head {
-    flex-direction: column;
-    align-items: flex-start;
+  .status-right,
+  .panel-actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
 }
 </style>

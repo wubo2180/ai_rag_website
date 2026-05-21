@@ -797,7 +797,6 @@ class CheckerLocalService:
                     'status_code': 404,
                     'body': {'success': False, 'message': '文件不存在'},
                 }
-
             document_type = self._normalize_document_type(file_obj)
             cached = self._document_data_cache.get(file_id)
             persisted = self._load_latest_ocr_payload(file_id)
