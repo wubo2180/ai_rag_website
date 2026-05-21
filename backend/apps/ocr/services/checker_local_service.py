@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from pathlib import Path
 import hashlib
 import mimetypes
@@ -128,6 +129,127 @@ class CheckerLocalService:
             return json.loads(request.body.decode('utf-8'))
         except Exception:
             return {}
+=======
+from pathlib import Path
+import os
+import re
+import uuid
+import json
+import importlib
+
+from django.core.paginator import Paginator
+from django.db import connection
+from django.utils import timezone
+
+from ..models import File, OCRResult
+
+
+_PLACEHOLDER_PDF_BYTES = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 72>>stream\nBT /F1 18 Tf 72 720 Td (PDF preview placeholder - source file unavailable) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000363 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n433\n%%EOF\n"
+
+
+class CheckerLocalService:
+    """checker 的 Django 本地适配器（纯 Django 轻量模式，不依赖 Flask 运行时）。"""
+
+    def __init__(self):
+        self._load_error = None
+        self._tasks = {}
+        self._document_data_cache = {}
+        self._minio_probe_cache = {'ok': None, 'error': None}
+
+    @property
+    def service_name(self):
+        return 'checker'
+
+    def health(self):
+        return {
+            'status': 'ok',
+            'service': self.service_name,
+            'mode': 'local-in-django-lite',
+            'message': 'checker 已切换为 Django 轻量模式（不依赖 sources 目录）',
+        }
+
+    def proxy(self, request, path: str):
+        normalized = (path or '').lstrip('/').lower()
+
+        if normalized in ('', '/') and request.method == 'GET':
+            health = self.health()
+            return {
+                'status_code': 200,
+                'body': {
+                    'message': 'Checker OCR API (Django Local)',
+                    'service': self.service_name,
+                    'version': '1.0.0',
+                    'mode': health.get('mode', 'local-in-django-lite'),
+                    'health': health,
+                    'endpoints': {
+                        'health': '/api/ocr/checker/health - GET - 服务健康检查',
+                        'proxy': '/api/ocr/checker/<path> - 统一代理入口（按策略回退）',
+                    },
+                },
+            }
+
+        if normalized == 'health' and request.method == 'GET':
+            return {
+                'status_code': 200,
+                'body': self.health(),
+            }
+
+        if request.method == 'GET' and normalized in ('api/files', 'files'):
+            return self._list_files(request)
+
+        detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)', normalized)
+        if request.method == 'GET' and detail_match:
+            file_id = int(detail_match.group('file_id'))
+            return self._get_file_detail(file_id)
+
+        doc_data_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/document-data', normalized)
+        if doc_data_match and request.method in ('GET', 'PUT'):
+            file_id = int(doc_data_match.group('file_id'))
+            if request.method == 'GET':
+                return self._get_document_data(file_id, request=request)
+            return self._put_document_data(request, file_id)
+
+        complete_review_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/complete-review', normalized)
+        if complete_review_match and request.method == 'POST':
+            file_id = int(complete_review_match.group('file_id'))
+            return self._complete_review(file_id)
+
+        preview_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/preview', normalized)
+        if preview_match and request.method == 'GET':
+            file_id = int(preview_match.group('file_id'))
+            return self._get_preview_url(file_id)
+
+        download_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/download', normalized)
+        if download_match and request.method == 'GET':
+            file_id = int(download_match.group('file_id'))
+            return self._download_file(file_id)
+
+        recognize_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/ocr/recognize', normalized)
+        if recognize_match and request.method == 'POST':
+            file_id = int(recognize_match.group('file_id'))
+            return self._start_recognize(file_id)
+
+        task_match = re.fullmatch(r'(api/)?files/ocr/task/(?P<task_id>[a-z0-9\-]+)', normalized)
+        if task_match and request.method == 'GET':
+            return self._get_task_status(task_match.group('task_id'))
+
+        save_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/ocr/save', normalized)
+        if save_match and request.method == 'POST':
+            file_id = int(save_match.group('file_id'))
+            return self._save_ocr_result(request, file_id)
+
+        return None
+
+    @staticmethod
+    def _parse_json_body(request):
+        try:
+            if not request.body:
+                return {}
+            return json.loads(request.body.decode('utf-8'))
+        except Exception:
+            return {}
+
+# >>>>>>> parent of 3d11ed6 (将OCR统计面板bug修复了)
     @staticmethod
     def _default_document_payload(document_type: str, file_obj=None):
         file_name = (getattr(file_obj, 'filename', '') or '').strip()
@@ -447,6 +569,7 @@ class CheckerLocalService:
     @staticmethod
     def _normalize_document_type(file_obj: File):
         return (file_obj.document_type_code or 'commission').strip().lower()
+<<<<<<< HEAD
 
     @staticmethod
     def _serialize_file(file_obj: File):
@@ -797,6 +920,104 @@ class CheckerLocalService:
                     'status_code': 404,
                     'body': {'success': False, 'message': '文件不存在'},
                 }
+
+=======
+
+    @staticmethod
+    def _serialize_file(file_obj: File):
+        return file_obj.to_dict()
+
+    def _list_files(self, request):
+        try:
+            page = max(int(request.GET.get('page', 1)), 1)
+            per_page = min(max(int(request.GET.get('per_page', 20)), 1), 100)
+            status_filter = request.GET.get('status')
+            review_status_filter = request.GET.get('review_status')
+            document_type_filter = request.GET.get('document_type')
+
+            queryset = File.objects.filter(is_deleted=False).order_by('-created_at')
+
+            if status_filter:
+                queryset = queryset.filter(ocr_status=status_filter)
+            if review_status_filter:
+                queryset = queryset.filter(review_status=review_status_filter)
+            if document_type_filter:
+                queryset = queryset.filter(document_type_code=document_type_filter)
+
+            paginator = Paginator(queryset, per_page)
+            page_obj = paginator.get_page(page)
+            files_data = [self._serialize_file(item) for item in page_obj.object_list]
+
+            return {
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'message': '获取文件列表成功（Django本地checker）',
+                    'data': {
+                        'files': files_data,
+                        'total': paginator.count,
+                        'pages': paginator.num_pages if paginator.count else 0,
+                        'current_page': page,
+                        'per_page': per_page,
+                    },
+                },
+            }
+        except Exception as exc:
+            return {
+                'status_code': 500,
+                'body': {
+                    'success': False,
+                    'message': f'读取文件列表失败: {exc}',
+                    'service': self.service_name,
+                },
+            }
+
+    def _get_file_detail(self, file_id: int):
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {
+                        'success': False,
+                        'message': '文件不存在',
+                    },
+                }
+
+            payload = self._serialize_file(file_obj)
+            payload['ocr_results'] = [
+                item.to_dict(include_raw=True)
+                for item in OCRResult.objects.filter(file_id=file_obj.pk).order_by('page_number', 'id')
+            ]
+
+            return {
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'message': '获取文件详情成功（Django本地checker）',
+                    'data': payload,
+                },
+            }
+        except Exception as exc:
+            return {
+                'status_code': 500,
+                'body': {
+                    'success': False,
+                    'message': f'获取文件详情失败: {exc}',
+                    'service': self.service_name,
+                },
+            }
+
+    def _get_document_data(self, file_id: int, request=None):
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'message': '文件不存在'},
+                }
+
+>>>>>>> parent of 3d11ed6 (将OCR统计面板bug修复了)
             document_type = self._normalize_document_type(file_obj)
             cached = self._document_data_cache.get(file_id)
             persisted = self._load_latest_ocr_payload(file_id)
