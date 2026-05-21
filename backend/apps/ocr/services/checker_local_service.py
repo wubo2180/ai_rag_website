@@ -1716,7 +1716,12 @@ class CheckerLocalService:
         try:
             upload_payload = upload_resp.json()
         except ValueError as exc:
-            raise ValueError(f'Dify文件上传返回非JSON: HTTP {upload_resp.status_code}') from exc
+            content_type = upload_resp.headers.get('Content-Type', '')
+            body_preview = (upload_resp.text or '')[:200].replace('\n', ' ').strip()
+            raise ValueError(
+                f'Dify文件上传返回非JSON: HTTP {upload_resp.status_code}, url={upload_url}, '
+                f'content_type={content_type}, body={body_preview}'
+            ) from exc
 
         if not (200 <= upload_resp.status_code < 300):
             message = (

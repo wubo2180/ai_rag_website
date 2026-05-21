@@ -19,7 +19,7 @@
           <div class="history-empty-content">
             <img
               class="history-empty-icon"
-              src="../assets/talk page/talk@3x_09.png"
+              src="../../assets/talk page/talk@3x_09.png"
               alt="未登录提示"
             />
             <p class="history-empty-tip">登录后可查看历史对话！</p>
