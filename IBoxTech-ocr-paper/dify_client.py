@@ -35,6 +35,22 @@ class DifyClient:
         """
         with open(config_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
+
+    @staticmethod
+    def _extract_workflow_failure(payload: Any) -> Optional[str]:
+        if not isinstance(payload, dict):
+            return None
+
+        if str(payload.get("status", "")).lower() in {"error", "failed"}:
+            return str(payload.get("message") or payload.get("error") or "工作流执行失败").strip()
+
+        nested = payload.get("data")
+        if isinstance(nested, dict):
+            nested_status = str(nested.get("status", "")).lower()
+            if nested_status in {"failed", "error", "stopped"}:
+                return str(nested.get("error") or nested.get("message") or "工作流执行失败").strip()
+
+        return None
     
     def upload_file(self, file_path: str, user: Optional[str] = None) -> Optional[str]:
         """
@@ -137,8 +153,18 @@ class DifyClient:
             print(f"工作流响应状态码: {response.status_code}")
             
             if response.status_code == 200:
+                payload = response.json()
+                workflow_error = self._extract_workflow_failure(payload)
+                if workflow_error:
+                    print(f"工作流执行失败: {workflow_error}")
+                    return {
+                        "status": "error",
+                        "message": workflow_error,
+                        "details": payload,
+                    }
+
                 print("工作流执行成功")
-                return response.json()
+                return payload
             else:
                 print(f"工作流执行失败，状态码: {response.status_code}")
                 print(f"错误详情: {response.text}")
@@ -200,4 +226,3 @@ if __name__ == "__main__":
         print(result)
     else:
         print(f"文件不存在: {file_path}")
-
