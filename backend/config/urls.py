@@ -25,7 +25,7 @@ def favicon_svg_view(request):
 </svg>'''
     return HttpResponse(svg_content, content_type='image/svg+xml')
 
-def serve_vue_app(request):
+def serve_vue_app(request, path=None):
     """服务Vue.js单页应用"""
     from django.http import FileResponse
     vue_index_path = os.path.join(settings.BASE_DIR.parent, 'frontend', 'dist', 'index.html')

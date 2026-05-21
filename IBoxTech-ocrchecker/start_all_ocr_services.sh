@@ -66,9 +66,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 if check_port 6001 "委托单OCR"; then
     start_service \
         "委托单OCR" \
-        "/home/h3c/workspace/IBoxTech-ocr-commission" \
+        "/home/xjlab/zhy/all-anbos/ai_rag_website/IBoxTech-ocr-commission" \
         6001 \
-        "nohup python api_server.py > /tmp/ocr_commission.log 2>&1"
+        "nohup ./venv/bin/python api_server.py > /tmp/ocr_commission.log 2>&1"
 else
     echo -e "${GREEN}✅ 委托单OCR服务已在运行${NC}"
 fi
@@ -83,9 +83,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 if check_port 6002 "论文OCR"; then
     start_service \
         "论文OCR" \
-        "/home/h3c/workspace/IBoxTech-ocr-paper" \
+        "/home/xjlab/zhy/all-anbos/ai_rag_website/IBoxTech-ocr-paper" \
         6002 \
-        "nohup python api_server.py > /tmp/ocr_paper.log 2>&1"
+        "nohup ./venv/bin/python api_server.py > /tmp/ocr_paper.log 2>&1"
 else
     echo -e "${GREEN}✅ 论文OCR服务已在运行${NC}"
 fi
@@ -100,9 +100,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 if check_port 5001 "主系统"; then
     start_service \
         "主系统" \
-        "/home/h3c/workspace/IBoxTech-ocrchecker/backend" \
+        "/home/xjlab/zhy/all-anbos/ai_rag_website/IBoxTech-ocrchecker/backend" \
         5001 \
-        "nohup python app.py > /tmp/ocrchecker.log 2>&1"
+        "nohup ./venv/bin/python app.py > /tmp/ocrchecker.log 2>&1"
 else
     echo -e "${GREEN}✅ 主系统已在运行${NC}"
 fi
@@ -127,5 +127,4 @@ echo "   tail -f /tmp/ocr_commission.log"
 echo "   tail -f /tmp/ocr_paper.log"
 echo "   tail -f /tmp/ocrchecker.log"
 echo ""
-
 

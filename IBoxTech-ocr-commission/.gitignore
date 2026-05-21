@@ -39,8 +39,8 @@ output/
 results/
 
 # 环境变量
-.env
-.env.*
+# .env
+# .env.*
 
 # 测试结果
 api_test_result.json
