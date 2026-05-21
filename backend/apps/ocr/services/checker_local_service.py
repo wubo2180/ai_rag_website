@@ -249,7 +249,7 @@ class CheckerLocalService:
         except Exception:
             return {}
 
->>>>>>> parent of 3d11ed6 (将OCR统计面板bug修复了)
+# >>>>>>> parent of 3d11ed6 (将OCR统计面板bug修复了)
     @staticmethod
     def _default_document_payload(document_type: str, file_obj=None):
         file_name = (getattr(file_obj, 'filename', '') or '').strip()
