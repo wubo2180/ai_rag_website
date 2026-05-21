@@ -5,7 +5,7 @@
     <div class="ocr-center-container">
       <div class="page-header">
         <h1><i class="fas fa-camera-retro"></i> OCR中心</h1>
-        <p>OCR 统一仪表盘：展示识别与核对进度，并在下方直接管理文件。</p>
+        <p>OCR 统一仪表盘：展示识别与核对进度，并在下方直接管理最近文件。</p>
       </div>
 
       <div class="status-card">
@@ -45,13 +45,13 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">文档类型分布</div>
-          <div class="stat-mini">论文 {{ stats.paperFiles }} · 委托 {{ stats.commissionFiles }}</div>
+          <div class="stat-mini">论文 {{ stats.paperFiles }} | 委托 {{ stats.commissionFiles }}</div>
         </div>
       </div>
 
       <div class="panel-card">
         <div class="panel-head">
-          <h3><i class="fas fa-folder-open"></i> 文件管理（最近文件）</h3>
+          <h3><i class="fas fa-folder-open"></i> 最近文件（最新10条）</h3>
           <div class="panel-actions">
             <button class="btn btn-secondary" @click="loadFiles">刷新列表</button>
             <button class="btn btn-primary" @click="router.push('/ocr/files')">进入完整文件管理</button>
@@ -79,9 +79,13 @@
                 <td>{{ row.ocr_status || '-' }}</td>
                 <td>{{ row.review_status || '-' }}</td>
                 <td>{{ formatTime(row.updated_at || row.created_at) }}</td>
-                <td class="ops">
-                  <button class="link" @click="goRecognize(row.id)">识别</button>
-                  <button class="link" @click="goReview(row.id)">核对</button>
+                <td class="ops-cell">
+                  <div class="action-group">
+                    <button class="action-btn action-primary" @click="goRecognize(row.id, row.ocr_status)">
+                      {{ recognizeActionLabel(row.ocr_status) }}
+                    </button>
+                    <button class="action-btn" @click="goReview(row.id)">进入核对</button>
+                  </div>
                 </td>
               </tr>
 
@@ -95,7 +99,6 @@
           </table>
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -134,6 +137,10 @@ const reviewRate = computed(() => {
   if (!stats.value.totalFiles) return 0
   return ((stats.value.reviewCompleted / stats.value.totalFiles) * 100).toFixed(1)
 })
+
+const recognizeActionLabel = (status) => {
+  return String(status || '').toLowerCase() === 'completed' ? '重新识别' : '开始识别'
+}
 
 const extractListData = (responseData) => {
   const queue = [responseData]
@@ -228,7 +235,7 @@ const checkGatewayHealth = async () => {
     ElMessage.success('Django OCR统一代理连接正常')
   } catch (error) {
     gatewayStatus.value = 'down'
-    ElMessage.warning('OCR统一代理不可达，请检查 Django 或上游OCR服务状态')
+    ElMessage.warning('OCR统一代理不可达，请检查 Django 或上游 OCR 服务状态')
   }
 }
 
@@ -278,11 +285,30 @@ refreshDashboard()
 }
 
 .status-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   background: #fff;
   border: 1px solid #e8edf7;
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 14px;
+}
+
+.status-left h3 {
+  margin: 0;
+}
+
+.status-left p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .stats-grid {
@@ -386,43 +412,39 @@ refreshDashboard()
   text-overflow: ellipsis;
 }
 
-.ops {
-  white-space: nowrap;
+.ops-cell {
+  min-width: 190px;
 }
 
-.link {
-  border: none;
-  background: none;
-  color: #4f46e5;
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action-btn {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  color: #334155;
+  padding: 6px 10px;
+  border-radius: 8px;
   cursor: pointer;
-  margin-right: 8px;
+  line-height: 1.2;
+}
+
+.action-btn:hover {
+  background: #f8fafc;
+}
+
+.action-primary {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 .empty {
   text-align: center;
   color: #94a3b8;
-}
-
-.status-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.status-left h3 {
-  margin: 0;
-}
-
-.status-left p {
-  margin: 6px 0 0;
-  color: #64748b;
-}
-
-.status-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .health-badge {

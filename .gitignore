@@ -33,6 +33,7 @@ static_collected/
 # 保留目录结构
 !staticfiles/.gitkeep
 test/
+ocr_test/
 # 原始压缩包
 *.tar.gz
 *.zip

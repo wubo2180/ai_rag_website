@@ -20,6 +20,7 @@
     "katex": "^0.16.25",
     "marked": "^16.4.0",
     "marked-katex-extension": "^5.1.5",
+    "pdfjs-dist": "^4.10.38",
     "pinia": "^2.1.7",
     "uuid": "^13.0.0",
     "vue": "^3.4.0",

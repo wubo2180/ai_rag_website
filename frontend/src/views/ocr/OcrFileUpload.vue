@@ -13,7 +13,7 @@
           <div class="type-switch" role="radiogroup" aria-label="文档类型">
             <label :class="['type-option', { active: documentType === 'paper' }]">
               <input v-model="documentType" type="radio" value="paper" />
-              论文/文献
+              论文 / 文献
             </label>
             <label :class="['type-option', { active: documentType === 'commission' }]">
               <input v-model="documentType" type="radio" value="commission" />
@@ -41,12 +41,26 @@
             @drop.prevent="onDrop"
           >
             <div class="dropzone-title">拖拽一批 PDF 到这里</div>
-            <div class="dropzone-subtitle">也可以点击这个区域，一次框选多个文件</div>
+            <div class="dropzone-subtitle">也可以点击这里，一次框选多个文件</div>
             <div class="dropzone-meta">
               <span>仅支持 PDF</span>
               <span>已选 {{ selectedFiles.length }} 个</span>
               <span>总大小 {{ totalSizeText }}</span>
+              <span>单批最多 {{ maxChunkFiles }} 个 / {{ formatSize(maxChunkBytes) }}</span>
             </div>
+          </div>
+          <div class="field-tip">
+            一次选择很多文件也没关系，系统会自动拆成多批上传并入库。
+          </div>
+        </div>
+
+        <div v-if="uploading" class="upload-progress">
+          <div class="progress-header">
+            <span>正在上传第 {{ currentChunkIndex }} / {{ totalChunks }} 批</span>
+            <span>{{ uploadedCount }} / {{ selectedFiles.length }} 个文件</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-value" :style="{ width: `${progressPercent}%` }"></div>
           </div>
         </div>
 
@@ -66,7 +80,7 @@
             清空
           </button>
           <button class="btn primary" :disabled="!canUpload" @click="upload">
-            {{ uploading ? '上传中...' : `批量上传并入库 (${selectedFiles.length})` }}
+            {{ uploadButtonText }}
           </button>
         </div>
       </div>
@@ -87,6 +101,12 @@ const selectedFiles = ref([])
 const documentType = ref('')
 const uploading = ref(false)
 const isDragActive = ref(false)
+const currentChunkIndex = ref(0)
+const totalChunks = ref(0)
+const uploadedCount = ref(0)
+
+const maxChunkFiles = 40
+const maxChunkBytes = 120 * 1024 * 1024
 
 const fileKey = (file) => `${file.name}__${file.size}__${file.lastModified}`
 
@@ -103,9 +123,47 @@ const totalSizeText = computed(() => {
   return formatSize(total)
 })
 
-const canUpload = computed(() => {
-  return Boolean(selectedFiles.value.length && documentType.value && !uploading.value)
+const canUpload = computed(() => Boolean(selectedFiles.value.length && documentType.value && !uploading.value))
+
+const progressPercent = computed(() => {
+  if (!selectedFiles.value.length) return 0
+  return Math.min(100, Math.round((uploadedCount.value / selectedFiles.value.length) * 100))
 })
+
+const uploadButtonText = computed(() => {
+  if (uploading.value) {
+    return `上传中... (${uploadedCount.value}/${selectedFiles.value.length})`
+  }
+  return `批量上传并入库 (${selectedFiles.value.length})`
+})
+
+const buildChunks = (files) => {
+  const chunks = []
+  let currentChunk = []
+  let currentBytes = 0
+
+  files.forEach((file) => {
+    const fileSize = Number(file?.size || 0)
+    const shouldStartNextChunk =
+      currentChunk.length > 0 &&
+      (currentChunk.length >= maxChunkFiles || currentBytes + fileSize > maxChunkBytes)
+
+    if (shouldStartNextChunk) {
+      chunks.push(currentChunk)
+      currentChunk = []
+      currentBytes = 0
+    }
+
+    currentChunk.push(file)
+    currentBytes += fileSize
+  })
+
+  if (currentChunk.length) {
+    chunks.push(currentChunk)
+  }
+
+  return chunks
+}
 
 const mergeFiles = (files) => {
   const onlyPdf = Array.from(files || []).filter((item) => {
@@ -155,32 +213,54 @@ const onDrop = (e) => {
 const clearFiles = () => {
   selectedFiles.value = []
   isDragActive.value = false
+  currentChunkIndex.value = 0
+  totalChunks.value = 0
+  uploadedCount.value = 0
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
 }
 
+const uploadChunk = async (files) => {
+  const fd = new FormData()
+  files.forEach((item) => {
+    fd.append('files', item)
+  })
+  fd.append('document_type_code', documentType.value)
+  return ocrCheckerApi.batchUpload(fd)
+}
+
 const upload = async () => {
   if (!canUpload.value) return
 
+  const chunks = buildChunks(selectedFiles.value)
   uploading.value = true
+  currentChunkIndex.value = 0
+  totalChunks.value = chunks.length
+  uploadedCount.value = 0
+
   try {
-    const fd = new FormData()
-    selectedFiles.value.forEach((item) => {
-      fd.append('files', item)
-    })
-    fd.append('document_type_code', documentType.value)
+    let successTotal = 0
 
-    const resp = await ocrCheckerApi.batchUpload(fd)
-    const total = resp?.data?.total || resp?.data?.data?.total || selectedFiles.value.length
+    for (let index = 0; index < chunks.length; index += 1) {
+      currentChunkIndex.value = index + 1
+      const chunk = chunks[index]
+      const resp = await uploadChunk(chunk)
+      const payload = resp?.data && typeof resp.data === 'object' ? resp.data : resp
+      const total = Number(payload?.total ?? payload?.data?.total ?? chunk.length)
+      successTotal += total
+      uploadedCount.value += chunk.length
+    }
 
-    ElMessage.success(`上传成功，共入库 ${total} 个文件`)
+    ElMessage.success(`上传成功，共入库 ${successTotal} 个文件`)
     clearFiles()
     router.push('/ocr/files')
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '上传失败，请检查 checker 服务')
+    ElMessage.error(e?.response?.data?.message || '上传失败，请检查 checker 服务状态')
   } finally {
     uploading.value = false
+    currentChunkIndex.value = 0
+    totalChunks.value = 0
   }
 }
 </script>
@@ -192,6 +272,7 @@ const upload = async () => {
 .panel { background:#fff; border:1px solid #e8edf7; border-radius:12px; padding:16px; }
 .field { margin-bottom:14px; }
 .label { display:block; margin-bottom:8px; color:#334155; font-size:13px; font-weight:600; }
+.field-tip { margin-top:10px; color:#64748b; font-size:12px; }
 .type-switch { display:flex; gap:8px; flex-wrap:wrap; }
 .type-option { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 12px; border:1px solid #dce4f4; border-radius:8px; color:#475569; cursor:pointer; background:#fff; }
 .type-option.active { border-color:#4f46e5; color:#312e81; background:#eef2ff; }
@@ -203,6 +284,10 @@ const upload = async () => {
 .dropzone-subtitle { color:#64748b; font-size:13px; }
 .dropzone-meta { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; color:#475569; font-size:12px; }
 .dropzone-meta span { padding:4px 10px; border-radius:999px; background:#e2e8f0; }
+.upload-progress { margin:0 0 16px; padding:12px; border:1px solid #e5e7eb; border-radius:10px; background:#f8fafc; }
+.progress-header { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; color:#475569; font-size:13px; }
+.progress-track { height:8px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
+.progress-value { height:100%; border-radius:999px; background:#6366f1; transition:width .2s ease; }
 .file-list { margin:0 0 16px; padding:0; list-style:none; border:1px solid #eef2f7; border-radius:10px; overflow:hidden; }
 .file-item { display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border-top:1px solid #eef2f7; font-size:13px; }
 .file-item:first-child { border-top:none; }
