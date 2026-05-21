@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from pathlib import Path
 import hashlib
 import mimetypes
@@ -16,7 +15,7 @@ from django.utils import timezone
 import requests
 
 from ..models import File, OCRResult
-from .config import get_service_base_urls, get_timeout
+from .config import get_paper_dify_config, get_service_base_urls, get_timeout
 
 
 _PLACEHOLDER_PDF_BYTES = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 72>>stream\nBT /F1 18 Tf 72 720 Td (PDF preview placeholder - source file unavailable) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000363 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n433\n%%EOF\n"
@@ -129,127 +128,7 @@ class CheckerLocalService:
             return json.loads(request.body.decode('utf-8'))
         except Exception:
             return {}
-=======
-from pathlib import Path
-import os
-import re
-import uuid
-import json
-import importlib
 
-from django.core.paginator import Paginator
-from django.db import connection
-from django.utils import timezone
-
-from ..models import File, OCRResult
-
-
-_PLACEHOLDER_PDF_BYTES = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 72>>stream\nBT /F1 18 Tf 72 720 Td (PDF preview placeholder - source file unavailable) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000363 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n433\n%%EOF\n"
-
-
-class CheckerLocalService:
-    """checker 的 Django 本地适配器（纯 Django 轻量模式，不依赖 Flask 运行时）。"""
-
-    def __init__(self):
-        self._load_error = None
-        self._tasks = {}
-        self._document_data_cache = {}
-        self._minio_probe_cache = {'ok': None, 'error': None}
-
-    @property
-    def service_name(self):
-        return 'checker'
-
-    def health(self):
-        return {
-            'status': 'ok',
-            'service': self.service_name,
-            'mode': 'local-in-django-lite',
-            'message': 'checker 已切换为 Django 轻量模式（不依赖 sources 目录）',
-        }
-
-    def proxy(self, request, path: str):
-        normalized = (path or '').lstrip('/').lower()
-
-        if normalized in ('', '/') and request.method == 'GET':
-            health = self.health()
-            return {
-                'status_code': 200,
-                'body': {
-                    'message': 'Checker OCR API (Django Local)',
-                    'service': self.service_name,
-                    'version': '1.0.0',
-                    'mode': health.get('mode', 'local-in-django-lite'),
-                    'health': health,
-                    'endpoints': {
-                        'health': '/api/ocr/checker/health - GET - 服务健康检查',
-                        'proxy': '/api/ocr/checker/<path> - 统一代理入口（按策略回退）',
-                    },
-                },
-            }
-
-        if normalized == 'health' and request.method == 'GET':
-            return {
-                'status_code': 200,
-                'body': self.health(),
-            }
-
-        if request.method == 'GET' and normalized in ('api/files', 'files'):
-            return self._list_files(request)
-
-        detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)', normalized)
-        if request.method == 'GET' and detail_match:
-            file_id = int(detail_match.group('file_id'))
-            return self._get_file_detail(file_id)
-
-        doc_data_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/document-data', normalized)
-        if doc_data_match and request.method in ('GET', 'PUT'):
-            file_id = int(doc_data_match.group('file_id'))
-            if request.method == 'GET':
-                return self._get_document_data(file_id, request=request)
-            return self._put_document_data(request, file_id)
-
-        complete_review_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/complete-review', normalized)
-        if complete_review_match and request.method == 'POST':
-            file_id = int(complete_review_match.group('file_id'))
-            return self._complete_review(file_id)
-
-        preview_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/preview', normalized)
-        if preview_match and request.method == 'GET':
-            file_id = int(preview_match.group('file_id'))
-            return self._get_preview_url(file_id)
-
-        download_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/download', normalized)
-        if download_match and request.method == 'GET':
-            file_id = int(download_match.group('file_id'))
-            return self._download_file(file_id)
-
-        recognize_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/ocr/recognize', normalized)
-        if recognize_match and request.method == 'POST':
-            file_id = int(recognize_match.group('file_id'))
-            return self._start_recognize(file_id)
-
-        task_match = re.fullmatch(r'(api/)?files/ocr/task/(?P<task_id>[a-z0-9\-]+)', normalized)
-        if task_match and request.method == 'GET':
-            return self._get_task_status(task_match.group('task_id'))
-
-        save_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/ocr/save', normalized)
-        if save_match and request.method == 'POST':
-            file_id = int(save_match.group('file_id'))
-            return self._save_ocr_result(request, file_id)
-
-        return None
-
-    @staticmethod
-    def _parse_json_body(request):
-        try:
-            if not request.body:
-                return {}
-            return json.loads(request.body.decode('utf-8'))
-        except Exception:
-            return {}
-
-# >>>>>>> parent of 3d11ed6 (将OCR统计面板bug修复了)
     @staticmethod
     def _default_document_payload(document_type: str, file_obj=None):
         file_name = (getattr(file_obj, 'filename', '') or '').strip()
@@ -569,7 +448,6 @@ class CheckerLocalService:
     @staticmethod
     def _normalize_document_type(file_obj: File):
         return (file_obj.document_type_code or 'commission').strip().lower()
-<<<<<<< HEAD
 
     @staticmethod
     def _serialize_file(file_obj: File):
@@ -920,104 +798,6 @@ class CheckerLocalService:
                     'status_code': 404,
                     'body': {'success': False, 'message': '文件不存在'},
                 }
-
-=======
-
-    @staticmethod
-    def _serialize_file(file_obj: File):
-        return file_obj.to_dict()
-
-    def _list_files(self, request):
-        try:
-            page = max(int(request.GET.get('page', 1)), 1)
-            per_page = min(max(int(request.GET.get('per_page', 20)), 1), 100)
-            status_filter = request.GET.get('status')
-            review_status_filter = request.GET.get('review_status')
-            document_type_filter = request.GET.get('document_type')
-
-            queryset = File.objects.filter(is_deleted=False).order_by('-created_at')
-
-            if status_filter:
-                queryset = queryset.filter(ocr_status=status_filter)
-            if review_status_filter:
-                queryset = queryset.filter(review_status=review_status_filter)
-            if document_type_filter:
-                queryset = queryset.filter(document_type_code=document_type_filter)
-
-            paginator = Paginator(queryset, per_page)
-            page_obj = paginator.get_page(page)
-            files_data = [self._serialize_file(item) for item in page_obj.object_list]
-
-            return {
-                'status_code': 200,
-                'body': {
-                    'success': True,
-                    'message': '获取文件列表成功（Django本地checker）',
-                    'data': {
-                        'files': files_data,
-                        'total': paginator.count,
-                        'pages': paginator.num_pages if paginator.count else 0,
-                        'current_page': page,
-                        'per_page': per_page,
-                    },
-                },
-            }
-        except Exception as exc:
-            return {
-                'status_code': 500,
-                'body': {
-                    'success': False,
-                    'message': f'读取文件列表失败: {exc}',
-                    'service': self.service_name,
-                },
-            }
-
-    def _get_file_detail(self, file_id: int):
-        try:
-            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
-            if not file_obj:
-                return {
-                    'status_code': 404,
-                    'body': {
-                        'success': False,
-                        'message': '文件不存在',
-                    },
-                }
-
-            payload = self._serialize_file(file_obj)
-            payload['ocr_results'] = [
-                item.to_dict(include_raw=True)
-                for item in OCRResult.objects.filter(file_id=file_obj.pk).order_by('page_number', 'id')
-            ]
-
-            return {
-                'status_code': 200,
-                'body': {
-                    'success': True,
-                    'message': '获取文件详情成功（Django本地checker）',
-                    'data': payload,
-                },
-            }
-        except Exception as exc:
-            return {
-                'status_code': 500,
-                'body': {
-                    'success': False,
-                    'message': f'获取文件详情失败: {exc}',
-                    'service': self.service_name,
-                },
-            }
-
-    def _get_document_data(self, file_id: int, request=None):
-        try:
-            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
-            if not file_obj:
-                return {
-                    'status_code': 404,
-                    'body': {'success': False, 'message': '文件不存在'},
-                }
-
->>>>>>> parent of 3d11ed6 (将OCR统计面板bug修复了)
             document_type = self._normalize_document_type(file_obj)
             cached = self._document_data_cache.get(file_id)
             persisted = self._load_latest_ocr_payload(file_id)
@@ -1682,8 +1462,25 @@ class CheckerLocalService:
                 raise ValueError('文件不存在')
 
             document_type = self._normalize_document_type(file_obj)
-            raw_result = self._call_upstream_ocr(file_obj, document_type)
-            structured_data = self._parse_upstream_ocr_result(raw_result, document_type, file_obj)
+            fallback_note = None
+            try:
+                raw_result = self._call_upstream_ocr(file_obj, document_type)
+                structured_data = self._parse_upstream_ocr_result(raw_result, document_type, file_obj)
+            except Exception as upstream_exc:
+                # paper 场景优先做本地降级，避免上游临时不可用时整单失败。
+                if document_type == 'paper':
+                    structured_data = self._build_paper_fallback_payload(file_id, file_obj)
+                    if self._is_meaningful_document_payload(document_type, structured_data):
+                        raw_result = {
+                            'status': 'fallback',
+                            'message': str(upstream_exc),
+                            'source': 'local-cache-or-legacy',
+                        }
+                        fallback_note = f'论文OCR上游不可达，已使用本地数据降级填充：{upstream_exc}'
+                    else:
+                        raise upstream_exc
+                else:
+                    raise upstream_exc
 
             if not self._is_meaningful_document_payload(document_type, structured_data):
                 raise ValueError('OCR服务未返回可用结构化字段')
@@ -1701,6 +1498,7 @@ class CheckerLocalService:
                 'result': {
                     'structured_data': structured_data,
                     'document_type': document_type,
+                    'warning': fallback_note,
                 },
             }
         except Exception as exc:
@@ -1720,6 +1518,22 @@ class CheckerLocalService:
             }
         finally:
             close_old_connections()
+
+    def _build_paper_fallback_payload(self, file_id: int, file_obj: File):
+        cached = self._document_data_cache.get(file_id)
+        persisted = self._load_latest_ocr_payload(file_id)
+        legacy = self._load_paper_document_from_legacy_tables(file_id)
+
+        data = self._select_richer_paper_payload(
+            cached if isinstance(cached, dict) else None,
+            persisted if isinstance(persisted, dict) else None,
+        )
+        data = self._select_richer_paper_payload(data, legacy if isinstance(legacy, dict) else None)
+        data = self._normalize_paper_payload(data)
+
+        if not self._is_meaningful_document_payload('paper', data):
+            data = self._default_document_payload('paper', file_obj)
+        return data
 
     def _read_file_bytes(self, file_obj: File):
         file_path = Path(file_obj.file_path or '')
@@ -1772,39 +1586,250 @@ class CheckerLocalService:
             },
         }
 
+    @staticmethod
+    def _parse_extra_dict(extra):
+        if not extra:
+            return {}
+        if isinstance(extra, dict):
+            return extra
+        if not isinstance(extra, str):
+            return {}
+        try:
+            parsed = json.loads(extra)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+
+    @classmethod
+    def _deep_merge_dict(cls, base, override):
+        if not isinstance(base, dict):
+            base = {}
+        if not isinstance(override, dict):
+            return dict(base)
+
+        merged = dict(base)
+        for key, value in override.items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = cls._deep_merge_dict(merged.get(key), value)
+            else:
+                merged[key] = value
+        return merged
+
+    @classmethod
+    def _build_paper_additional_inputs(cls, file_obj: File):
+        defaults = cls._paper_ocr_additional_inputs(file_obj)
+        # 兼容“extra JSON”能力：可通过环境变量覆盖默认模板。
+        # 示例：OCR_PAPER_EXTRA='{"output_requirements":"..."}'
+        env_extra = cls._parse_extra_dict(os.environ.get('OCR_PAPER_EXTRA'))
+        return cls._deep_merge_dict(defaults, env_extra)
+
+    @staticmethod
+    def _paper_allowed_extensions():
+        raw = (os.environ.get('OCR_PAPER_ALLOWED_EXTENSIONS') or 'pdf').strip()
+        values = [item.strip().lower().lstrip('.') for item in raw.split(',') if item.strip()]
+        return set(values or ['pdf'])
+
+    @staticmethod
+    def _paper_max_file_size_mb():
+        raw = (os.environ.get('OCR_PAPER_MAX_MB') or '').strip()
+        try:
+            value = float(raw) if raw else 50.0
+        except Exception:
+            value = 50.0
+        return max(value, 1.0)
+
+    def _validate_upstream_input_file(self, file_obj: File, content: bytes, document_type: str):
+        if document_type != 'paper':
+            return
+
+        filename = (file_obj.filename or file_obj.stored_filename or '').strip()
+        extension = Path(filename).suffix.lower().lstrip('.')
+        allowed_extensions = self._paper_allowed_extensions()
+        if extension not in allowed_extensions:
+            allowed_text = ', '.join(sorted(allowed_extensions))
+            raise ValueError(f'不支持的论文文件类型: {extension or "未知"}，允许类型: {allowed_text}')
+
+        max_mb = self._paper_max_file_size_mb()
+        size_mb = len(content or b'') / (1024 * 1024)
+        if size_mb > max_mb:
+            raise ValueError(f'论文文件大小超过限制：最大允许 {max_mb:.0f}MB，当前 {size_mb:.2f}MB')
+
+    @staticmethod
+    def _normalize_dify_error_message(message):
+        text = str(message or '').strip()
+        if not text:
+            return '论文分析失败'
+        lowered = text.lower()
+        if 'insufficient balance' in lowered or 'status code 402' in lowered:
+            return '论文OCR上游模型余额不足，请充值或更换可用模型配置'
+        return text
+
+    @classmethod
+    def _extract_dify_error(cls, result):
+        if not isinstance(result, dict):
+            return None
+
+        if str(result.get('status', '')).lower() in {'error', 'failed'}:
+            return cls._normalize_dify_error_message(
+                result.get('message') or result.get('error') or '论文分析失败'
+            )
+
+        nested = result.get('data')
+        if isinstance(nested, dict) and str(nested.get('status', '')).lower() in {'failed', 'error', 'stopped'}:
+            return cls._normalize_dify_error_message(
+                nested.get('error') or nested.get('message') or '论文分析失败'
+            )
+
+        return None
+
+    @staticmethod
+    def _join_url(base_url: str, endpoint: str):
+        return f"{(base_url or '').rstrip('/')}/{(endpoint or '').lstrip('/')}"
+
+    def _call_paper_dify(self, file_obj: File, content: bytes, mime_type: str, additional_inputs: dict):
+        cfg = get_paper_dify_config()
+        base_url = cfg.get('base_url') or ''
+        api_key = cfg.get('api_key') or ''
+        if not base_url:
+            raise ValueError('未配置 OCR_PAPER_DIFY_BASE_URL（或 DIFY_API_URL），无法直连 Dify 论文识别')
+        if not api_key:
+            raise ValueError('未配置 OCR_PAPER_DIFY_API_KEY（或 DIFY_API_KEY），无法直连 Dify 论文识别')
+
+        filename = file_obj.filename or file_obj.stored_filename or f'file-{file_obj.pk}.pdf'
+        user = cfg.get('default_user') or 'ai-rag-django'
+        timeout = max(float(cfg.get('timeout', get_timeout())), 30.0)
+
+        upload_url = self._join_url(base_url, cfg.get('upload_endpoint', '/files/upload'))
+        upload_headers = {'Authorization': f'Bearer {api_key}'}
+
+        try:
+            upload_resp = requests.post(
+                upload_url,
+                headers=upload_headers,
+                files={'file': (filename, content, mime_type or 'application/pdf')},
+                data={'user': user},
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            raise ValueError(f'Dify文件上传失败，无法连接 {upload_url}: {exc}') from exc
+
+        try:
+            upload_payload = upload_resp.json()
+        except ValueError as exc:
+            raise ValueError(f'Dify文件上传返回非JSON: HTTP {upload_resp.status_code}') from exc
+
+        if not (200 <= upload_resp.status_code < 300):
+            message = (
+                upload_payload.get('message')
+                or upload_payload.get('error')
+                or f'Dify文件上传失败: HTTP {upload_resp.status_code}'
+            )
+            raise ValueError(message)
+
+        upload_file_id = (
+            upload_payload.get('id')
+            or (upload_payload.get('data') or {}).get('id')
+            or (upload_payload.get('data') or {}).get('file_id')
+        )
+        if not upload_file_id:
+            raise ValueError('Dify文件上传成功但未返回文件ID')
+
+        workflow_url = self._join_url(base_url, cfg.get('workflow_endpoint', '/workflows/run'))
+        workflow_headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        }
+        workflow_body = {
+            'inputs': {
+                'file': {
+                    'transfer_method': cfg.get('transfer_method', 'local_file'),
+                    'upload_file_id': upload_file_id,
+                    'type': cfg.get('file_type', 'document'),
+                },
+                **(additional_inputs or {}),
+            },
+            'response_mode': cfg.get('response_mode', 'blocking'),
+            'user': user,
+        }
+
+        try:
+            workflow_resp = requests.post(
+                workflow_url,
+                headers=workflow_headers,
+                json=workflow_body,
+                timeout=max(timeout, get_timeout()),
+            )
+        except requests.RequestException as exc:
+            raise ValueError(f'Dify工作流调用失败，无法连接 {workflow_url}: {exc}') from exc
+
+        try:
+            workflow_payload = workflow_resp.json()
+        except ValueError as exc:
+            raise ValueError(f'Dify工作流返回非JSON: HTTP {workflow_resp.status_code}') from exc
+
+        workflow_error = self._extract_dify_error(workflow_payload)
+        if workflow_error:
+            raise ValueError(workflow_error)
+
+        if not (200 <= workflow_resp.status_code < 300):
+            message = (
+                workflow_payload.get('message')
+                or workflow_payload.get('error')
+                or f'Dify工作流调用失败: HTTP {workflow_resp.status_code}'
+            )
+            raise ValueError(message)
+
+        return workflow_payload
+
     def _call_upstream_ocr(self, file_obj: File, document_type: str):
         service = 'paper' if document_type == 'paper' else 'commission'
         base_url = get_service_base_urls().get(service)
-        if not base_url:
+        if document_type != 'paper' and not base_url:
             raise ValueError(f'未配置{service} OCR服务地址')
 
         content = self._read_file_bytes(file_obj)
+        self._validate_upstream_input_file(file_obj, content, document_type)
         filename = file_obj.filename or file_obj.stored_filename or f'file-{file_obj.pk}.pdf'
         mime_type = file_obj.mime_type or 'application/pdf'
+
+        if document_type == 'paper':
+            paper_inputs = self._build_paper_additional_inputs(file_obj)
+            if get_paper_dify_config().get('enabled', True):
+                return self._call_paper_dify(file_obj, content, mime_type, paper_inputs)
+
         url = f'{base_url}/api/analyze'
         request_data = {'user': 'ai-rag-django', 'response_mode': 'blocking'}
         if document_type == 'paper':
             request_data['extra'] = json.dumps(
-                self._paper_ocr_additional_inputs(file_obj),
+                paper_inputs,
                 ensure_ascii=False,
             )
 
-        response = requests.post(
-            url,
-            files={'file': (filename, content, mime_type)},
-            data=request_data,
-            timeout=max(get_timeout(), 300),
-        )
+        try:
+            response = requests.post(
+                url,
+                files={'file': (filename, content, mime_type)},
+                data=request_data,
+                timeout=max(get_timeout(), 300),
+            )
+        except requests.RequestException as exc:
+            raise ValueError(
+                f'无法连接{service} OCR服务（{base_url}），请确认对应服务已启动，或在 backend 配置 OCR_{service.upper()}_BASE_URL。原始错误: {exc}'
+            ) from exc
 
         try:
             payload = response.json()
         except ValueError as exc:
-            raise ValueError(f'OCR?????JSON??: HTTP {response.status_code}') from exc
+            raise ValueError(f'OCR服务返回非JSON响应: HTTP {response.status_code}') from exc
+
+        upstream_error = self._extract_dify_error(payload)
+        if upstream_error:
+            raise ValueError(upstream_error)
 
         if not (200 <= response.status_code < 300):
-            raise ValueError(payload.get('message') or f'OCR??????: HTTP {response.status_code}')
+            raise ValueError(payload.get('message') or f'OCR服务调用失败: HTTP {response.status_code}')
         if payload.get('success') is False:
-            raise ValueError(payload.get('message') or 'OCR??????')
+            raise ValueError(payload.get('message') or 'OCR服务处理失败')
 
         return payload
 
