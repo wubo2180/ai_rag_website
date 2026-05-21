@@ -132,10 +132,10 @@ const routes = [
   {
     path: '/ocr/dashboard',
     name: 'OcrDashboard',
-    redirect: '/ocr-center',
+    component: () => import('@/views/ocr/OcrDashboard.vue'),
     meta: {
       requiresAuth: false,
-      title: 'OCR中心',
+      title: 'OCR仪表盘',
     },
   },
   {
