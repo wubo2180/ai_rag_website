@@ -18,7 +18,7 @@
         </div>
         <div class="card" @click="go('/ocr-center')">
           <h3>OCR 中心</h3>
-          <p>进入统一代理入口与服务工作台。</p>
+          <p>进入统一代理入口与 OCR 任务总览。</p>
         </div>
       </div>
     </div>

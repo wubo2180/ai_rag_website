@@ -18,9 +18,9 @@
       <div v-if="fileInfo" class="panel">
         <div class="meta-grid">
           <div><b>文件名：</b>{{ fileInfo.filename }}</div>
-          <div><b>文档类型：</b>{{ fileInfo.document_type_code || '-' }}</div>
-          <div><b>OCR 状态：</b>{{ fileInfo.ocr_status || '-' }}</div>
-          <div><b>核对状态：</b>{{ fileInfo.review_status || '-' }}</div>
+          <div><b>文档类型：</b>{{ fileDocumentTypeText }}</div>
+          <div><b>OCR 状态：</b>{{ fileOcrStatusText }}</div>
+          <div><b>核对状态：</b>{{ fileReviewStatusText }}</div>
         </div>
       </div>
 
@@ -73,6 +73,37 @@ const fallbackTitle = computed(() => String(fileInfo.value?.filename || '').repl
 const paperHighlightTerms = computed(() => (
   docType.value === 'paper' ? buildPaperHighlightTerms(formData.value, fallbackTitle.value) : []
 ))
+
+const normalizeStatus = (value) => String(value || '').toLowerCase()
+
+const getDocumentTypeText = (code) => {
+  const normalized = normalizeStatus(code)
+  if (normalized === 'paper') return '论文'
+  if (normalized === 'commission') return '委托单'
+  return '-'
+}
+
+const getOcrStatusText = (status) => {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'completed') return '已识别'
+  if (normalized === 'pending') return '待识别'
+  if (normalized === 'processing') return '识别中'
+  if (normalized === 'failed') return '识别失败'
+  return '-'
+}
+
+const getReviewStatusText = (status) => {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'completed') return '已核对'
+  if (['unassigned', 'pending', 'assigned'].includes(normalized)) return '待核对'
+  if (['processing', 'in_progress'].includes(normalized)) return '核对中'
+  if (normalized === 'failed') return '核对失败'
+  return '-'
+}
+
+const fileDocumentTypeText = computed(() => getDocumentTypeText(fileInfo.value?.document_type_code))
+const fileOcrStatusText = computed(() => getOcrStatusText(fileInfo.value?.ocr_status))
+const fileReviewStatusText = computed(() => getReviewStatusText(fileInfo.value?.review_status))
 
 const hasCommissionShape = (obj) => {
   if (!obj || typeof obj !== 'object') return false

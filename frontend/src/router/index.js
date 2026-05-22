@@ -184,15 +184,6 @@ const routes = [
     },
   },
   {
-    path: '/ocr-center/:service',
-    name: 'OCRServiceWorkbench',
-    component: () => import('@/views/ocr/OCRServiceWorkbench.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'OCR服务工作台',
-    },
-  },
-  {
     path: '/formula-generation',
     name: 'FormulaGeneration',
     component: () => import('@/views/ai_service/FormulaGeneration.vue'),

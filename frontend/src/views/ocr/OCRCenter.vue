@@ -66,24 +66,19 @@
                 <th>OCR状态</th>
                 <th>核对状态</th>
                 <th>更新时间</th>
-                <th>操作</th>
+                <th>状态说明</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="row in fileRows" :key="row.id">
                 <td>{{ row.id }}</td>
                 <td class="filename">{{ row.filename || row.file_name || '-' }}</td>
-                <td>{{ row.document_type_code || '-' }}</td>
-                <td>{{ row.ocr_status || '-' }}</td>
-                <td>{{ row.review_status || '-' }}</td>
+                <td>{{ getDocumentTypeText(row.document_type_code) }}</td>
+                <td>{{ getOcrStatusText(row.ocr_status) }}</td>
+                <td>{{ getReviewStatusText(row.review_status) }}</td>
                 <td>{{ formatTime(row.updated_at || row.created_at) }}</td>
-                <td class="ops-cell">
-                  <div class="action-group">
-                    <button class="action-btn action-primary" @click="goRecognize(row.id, row.ocr_status)">
-                      {{ recognizeActionLabel(row.ocr_status) }}
-                    </button>
-                    <button class="action-btn" @click="goReview(row.id)">进入核对</button>
-                  </div>
+                <td>
+                  <span :class="['status-note', getStatusSummaryClass(row)]">{{ getStatusSummaryText(row) }}</span>
                 </td>
               </tr>
 
@@ -136,8 +131,61 @@ const reviewRate = computed(() => {
   return ((stats.value.reviewCompleted / stats.value.totalFiles) * 100).toFixed(1)
 })
 
-const recognizeActionLabel = (status) =>
-  String(status || '').toLowerCase() === 'completed' ? '重新识别' : '开始识别'
+const normalizeStatus = (value) => String(value || '').toLowerCase()
+
+const getDocumentTypeText = (code) => {
+  const normalized = normalizeStatus(code)
+  if (normalized === 'paper') return '论文'
+  if (normalized === 'commission') return '委托单'
+  return '-'
+}
+
+const getOcrStatusText = (status) => {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'completed') return '已识别'
+  if (normalized === 'pending') return '待识别'
+  if (normalized === 'processing') return '识别中'
+  if (normalized === 'failed') return '识别失败'
+  return '-'
+}
+
+const getReviewStatusText = (status) => {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'completed') return '已核对'
+  if (['unassigned', 'pending', 'assigned'].includes(normalized)) return '待核对'
+  if (['processing', 'in_progress'].includes(normalized)) return '核对中'
+  if (normalized === 'failed') return '核对失败'
+  return '-'
+}
+
+const getStatusSummaryText = (row) => {
+  const ocrStatus = String(row?.ocr_status || '').toLowerCase()
+  const reviewStatus = String(row?.review_status || '').toLowerCase()
+
+  if (ocrStatus === 'completed' && reviewStatus === 'completed') {
+    return '已识别并已核对'
+  }
+  if (ocrStatus === 'completed') {
+    return '已识别，待核对'
+  }
+  if (ocrStatus === 'pending') {
+    return '待识别'
+  }
+  if (ocrStatus === 'processing') {
+    return '识别处理中'
+  }
+  return '待处理'
+}
+
+const getStatusSummaryClass = (row) => {
+  const ocrStatus = String(row?.ocr_status || '').toLowerCase()
+  const reviewStatus = String(row?.review_status || '').toLowerCase()
+
+  if (ocrStatus === 'completed' && reviewStatus === 'completed') return 'done'
+  if (ocrStatus === 'completed') return 'ready-review'
+  if (ocrStatus === 'processing') return 'processing'
+  return 'pending'
+}
 
 const extractListData = (responseData) => {
   const queue = [responseData]
@@ -219,17 +267,6 @@ const checkGatewayHealth = async () => {
 
 const refreshDashboard = async () => {
   await Promise.all([loadStats(), loadFiles()])
-}
-
-const goRecognize = (fileId, ocrStatus) => {
-  if (!fileId) return
-  const action = String(ocrStatus || '').toLowerCase() === 'completed' ? 're-recognize' : 'recognize'
-  router.push({ path: '/ocr/files', query: { fileId: String(fileId), action } })
-}
-
-const goReview = (fileId) => {
-  if (!fileId) return
-  router.push({ path: '/ocr/checker/review', query: { fileId: String(fileId) } })
 }
 
 const formatTime = (value) => {
@@ -400,34 +437,39 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.ops-cell {
-  min-width: 190px;
+.status-note {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 9px;
+  border: 1px solid #dbeafe;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
-.action-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.status-note.done {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
 }
 
-.action-btn {
-  border: 1px solid #dbe4f0;
-  background: #fff;
-  color: #334155;
-  padding: 6px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  line-height: 1.2;
+.status-note.ready-review {
+  color: #7c2d12;
+  border-color: #fdba74;
+  background: #fff7ed;
 }
 
-.action-btn:hover {
-  background: #f8fafc;
+.status-note.processing {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
 }
 
-.action-primary {
-  border-color: #6366f1;
-  background: #eef2ff;
-  color: #4338ca;
+.status-note.pending {
+  color: #6b7280;
+  border-color: #d1d5db;
+  background: #f9fafb;
 }
 
 .empty {
