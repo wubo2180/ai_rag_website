@@ -22,7 +22,7 @@ echo 服务启动完成！
 echo ========================================
 echo.
 echo 后端地址: http://localhost:8000
-echo 前端地址: http://localhost:5173
+echo 前端地址: http://localhost:3000
 echo.
 echo 知识图谱API: http://localhost:8000/api/kg/
 echo 完整图谱数据: http://localhost:8000/api/kg/graph/full_graph/
