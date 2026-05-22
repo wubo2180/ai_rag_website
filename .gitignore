@@ -2,7 +2,8 @@ node_modules/
 frontend/node_modules/
 
 frontend/dist/
-
+# vscode文件
+.vscode/
 # Python 编译的字节码
 *.pyc
 *.pyo
