@@ -68,15 +68,6 @@
         >
       </li>
       <li>
-        <a href="#" @click.prevent="navigateToAgentTasks"
-          ><img
-            src="../assets/talk page/talk@3X_58.png"
-            class="menu-icon"
-          /><span class="menu-text"> 我的任务</span
-          ><span class="tooltip">我的任务</span></a
-        >
-      </li>
-      <li>
         <a href="#" @click.prevent="navigateToOCRCenter"
           ><img
             src="../assets/talk page/talk@3X_63.png"
@@ -207,10 +198,6 @@
         router.push('/profile')
       }
 
-      const navigateToAgentTasks = () => {
-        router.push('/agent-tasks')
-      }
-
       const navigateToOCRCenter = () => {
         router.push('/ocr-center')
       }
@@ -266,7 +253,7 @@
         isLoggedIn,
         username,
         isAdmin,
-  avatarStyle,
+        avatarStyle,
         toggleNav,
         toggleHistory,
         navigateToChat,
@@ -274,9 +261,8 @@
         goLogin,
         goRegister,
         navigateToSmartAgents,
-  navigateToProfile,
-        navigateToAgentTasks,
-    navigateToOCRCenter,
+        navigateToProfile,
+        navigateToOCRCenter,
         navigateToDocuments,
         navigateToKnowledgeBase,
         navigateToKnowledgeGraph,

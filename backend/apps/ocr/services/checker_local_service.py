@@ -9,6 +9,7 @@ import json
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import connection
+from django.db.models import Q
 from django.utils import timezone
 
 from ..models import File, OCRResult
@@ -192,6 +193,7 @@ class CheckerLocalService(CheckerOcrMixin):
             'document_type_code': file_obj.document_type_code,
             'mime_type': file_obj.mime_type,
             'md5_hash': file_obj.md5_hash,
+            'sha256_hash': file_obj.sha256_hash,
             'uploader_id': file_obj.uploader_id,
             'upload_batch_id': file_obj.upload_batch_id,
             'ocr_status': file_obj.ocr_status,
@@ -234,7 +236,7 @@ class CheckerLocalService(CheckerOcrMixin):
         with connection.cursor() as cursor:
             cursor.execute('SELECT COALESCE(MAX(id), 0) + 1 FROM files')
             row = cursor.fetchone()
-        return int(row[0] or 1)
+        return int((row[0] if row else 1) or 1)
 
     def _batch_upload(self, request):
         try:
@@ -267,7 +269,10 @@ class CheckerLocalService(CheckerOcrMixin):
 
             saved_files = []
             errors = []
+            duplicates = []
+            seen_hash_keys = {}
             next_file_id = self._next_file_id()
+
             for uploaded in uploads:
                 try:
                     current_file_id = next_file_id
@@ -278,12 +283,57 @@ class CheckerLocalService(CheckerOcrMixin):
                     disk_path = upload_dir / stored_filename
 
                     md5 = hashlib.md5()
+                    sha256 = hashlib.sha256()
                     size = 0
                     with disk_path.open('wb') as dest:
                         for chunk in uploaded.chunks():
                             md5.update(chunk)
+                            sha256.update(chunk)
                             size += len(chunk)
                             dest.write(chunk)
+
+                    md5_hex = md5.hexdigest()
+                    sha256_hex = sha256.hexdigest()
+                    dedupe_key = (sha256_hex, size)
+
+                    # 同一批次内去重：同样内容只保留第一份。
+                    if dedupe_key in seen_hash_keys:
+                        if disk_path.exists():
+                            disk_path.unlink(missing_ok=True)
+                        duplicates.append({
+                            'filename': original_name,
+                            'md5_hash': md5_hex,
+                            'sha256_hash': sha256_hex,
+                            'file_size': size,
+                            'reason': 'duplicate_in_batch',
+                            'existing_file_id': seen_hash_keys[dedupe_key],
+                        })
+                        continue
+
+                    # 历史文件去重：优先 sha256 + size；兼容历史仅 md5 的记录。
+                    existing = File.objects.filter(
+                        is_deleted=False,
+                        file_size=size,
+                    ).filter(
+                        Q(sha256_hash=sha256_hex)
+                        | Q(sha256_hash__isnull=True, md5_hash=md5_hex)
+                    ).only('id', 'filename', 'created_at').order_by('-created_at').first()
+
+                    if existing:
+                        if disk_path.exists():
+                            disk_path.unlink(missing_ok=True)
+                        duplicates.append({
+                            'filename': original_name,
+                            'md5_hash': md5_hex,
+                            'sha256_hash': sha256_hex,
+                            'file_size': size,
+                            'reason': 'duplicate_in_history',
+                            'existing_file_id': existing.pk,
+                            'existing_filename': existing.filename,
+                            'existing_created_at': self._serialize_datetime(existing.created_at),
+                        })
+                        seen_hash_keys[dedupe_key] = existing.pk
+                        continue
 
                     file_obj = File.objects.create(
                         id=current_file_id,
@@ -294,7 +344,8 @@ class CheckerLocalService(CheckerOcrMixin):
                         file_type=suffix or Path(original_name).suffix.lower() or '',
                         document_type_code=document_type,
                         mime_type=content_type,
-                        md5_hash=md5.hexdigest(),
+                        md5_hash=md5_hex,
+                        sha256_hash=sha256_hex,
                         uploader_id=self._default_uploader_id(),
                         upload_batch_id=batch_id,
                         ocr_status='pending',
@@ -302,7 +353,8 @@ class CheckerLocalService(CheckerOcrMixin):
                         description=description,
                         tags=tags,
                     )
-                    file_obj.id = current_file_id
+
+                    seen_hash_keys[dedupe_key] = current_file_id
                     next_file_id += 1
                     saved_files.append(self._serialize_file(file_obj))
                 except Exception as exc:
@@ -318,18 +370,30 @@ class CheckerLocalService(CheckerOcrMixin):
                         'success': False,
                         'message': '上传失败',
                         'errors': errors,
+                        'duplicates': duplicates,
                     },
                 }
+
+            if duplicates and saved_files and not errors:
+                message = '部分文件上传成功，重复文件已跳过'
+            elif duplicates and not saved_files and not errors:
+                message = '文件均已存在，未新增'
+            elif errors:
+                message = '部分文件上传成功'
+            else:
+                message = '上传成功'
 
             return {
                 'status_code': 200 if not errors else 207,
                 'body': {
                     'success': not errors,
-                    'message': '上传成功' if not errors else '部分文件上传成功',
+                    'message': message,
                     'data': {
                         'batch_id': batch_id,
                         'files': saved_files,
                         'total': len(saved_files),
+                        'duplicates': duplicates,
+                        'duplicate_count': len(duplicates),
                         'errors': errors,
                     },
                 },
@@ -362,6 +426,7 @@ class CheckerLocalService(CheckerOcrMixin):
                 'document_type_code',
                 'mime_type',
                 'md5_hash',
+                'sha256_hash',
                 'uploader_id',
                 'upload_batch_id',
                 'ocr_status',

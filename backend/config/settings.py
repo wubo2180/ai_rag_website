@@ -2,6 +2,16 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+# MySQL 驱动兼容：优先 mysqlclient(MySQLdb)，缺失时回退到 PyMySQL。
+try:
+    import MySQLdb  # type: ignore # noqa: F401
+except Exception:
+    try:
+        __import__('pymysql').install_as_MySQLdb()
+    except Exception:
+        # 保持延迟失败行为（后续真正使用 MySQL 时再报错）
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 加载 .env 文件

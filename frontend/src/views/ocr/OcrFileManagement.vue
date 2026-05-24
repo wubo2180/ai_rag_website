@@ -5,6 +5,33 @@
       <div class="toolbar">
         <h2>OCR 文件管理</h2>
         <div class="actions">
+          <div class="type-filters">
+            <button
+              class="btn filter-btn"
+              :class="{ active: selectedDocumentType === 'all' }"
+              :disabled="loading"
+              @click="switchDocumentType('all')"
+            >
+              全部
+            </button>
+            <button
+              class="btn filter-btn"
+              :class="{ active: selectedDocumentType === 'paper' }"
+              :disabled="loading"
+              @click="switchDocumentType('paper')"
+            >
+              论文
+            </button>
+            <button
+              class="btn filter-btn"
+              :class="{ active: selectedDocumentType === 'commission' }"
+              :disabled="loading"
+              @click="switchDocumentType('commission')"
+            >
+              委托单
+            </button>
+          </div>
+          <span class="filter-indicator">当前筛选：{{ selectedDocumentTypeLabel }}</span>
           <button class="btn" @click="router.push('/ocr-center')">返回OCR中心</button>
           <button class="btn" @click="fetchFiles(currentPage)">刷新</button>
           <label class="check-option">
@@ -158,6 +185,12 @@ const perPage = ref(50)
 const selectedIds = ref([])
 const batchRecognizing = ref(false)
 const onlyPendingForBatch = ref(true)
+const selectedDocumentType = ref('all')
+const selectedDocumentTypeLabel = computed(() => {
+  if (selectedDocumentType.value === 'paper') return '论文'
+  if (selectedDocumentType.value === 'commission') return '委托单'
+  return '全部'
+})
 
 const currentPageIds = computed(() => files.value.map((item) => Number(item?.id)).filter((id) => Number.isFinite(id)))
 const selectedCount = computed(() => selectedIds.value.length)
@@ -252,7 +285,16 @@ const getReviewStatusClass = (status) => {
 const fetchFiles = async (page = currentPage.value) => {
   loading.value = true
   try {
-    const data = await ocrCheckerApi.listFiles({ page, per_page: perPage.value, view_mode: 'my_files' })
+    const query = {
+      page,
+      per_page: perPage.value,
+      view_mode: 'my_files',
+    }
+    if (selectedDocumentType.value !== 'all') {
+      query.document_type = selectedDocumentType.value
+    }
+
+    const data = await ocrCheckerApi.listFiles(query)
     const payload = data?.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data
     const list = payload?.files || data?.files || data?.data || []
 
@@ -271,6 +313,15 @@ const fetchFiles = async (page = currentPage.value) => {
   } finally {
     loading.value = false
   }
+}
+
+const switchDocumentType = (documentType) => {
+  if (loading.value || selectedDocumentType.value === documentType) {
+    return
+  }
+  selectedDocumentType.value = documentType
+  selectedIds.value = []
+  fetchFiles(1)
 }
 
 const toggleSelectAllOnPage = (event) => {
@@ -367,7 +418,11 @@ onMounted(() => {
 .content { flex:1; padding:24px; }
 .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .toolbar h2 { margin:0; color:#1e293b; }
-.actions { display:flex; gap:8px; }
+.actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.type-filters { display:flex; gap:6px; }
+.filter-btn { padding:6px 10px; }
+.filter-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; font-weight:600; }
+.filter-indicator { display:flex; align-items:center; color:#64748b; font-size:13px; padding:0 4px; }
 .check-option { display:flex; align-items:center; gap:6px; color:#475569; font-size:13px; padding:0 4px; user-select:none; }
 .check-option input { margin:0; }
 .btn { border:1px solid #dce4f4; background:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; }
