@@ -2,6 +2,16 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+# MySQL 驱动兼容：优先 mysqlclient(MySQLdb)，缺失时回退到 PyMySQL。
+try:
+    import MySQLdb  # type: ignore # noqa: F401
+except Exception:
+    try:
+        __import__('pymysql').install_as_MySQLdb()
+    except Exception:
+        # 保持延迟失败行为（后续真正使用 MySQL 时再报错）
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 加载 .env 文件
@@ -273,3 +283,15 @@ OCR_COMMISSION_BASE_URL = os.environ.get('OCR_COMMISSION_BASE_URL', 'http://127.
 OCR_PAPER_BASE_URL = os.environ.get('OCR_PAPER_BASE_URL', 'http://127.0.0.1:6002')
 OCR_CHECKER_BASE_URL = os.environ.get('OCR_CHECKER_BASE_URL', 'http://127.0.0.1:5001')
 OCR_PROXY_TIMEOUT = float(os.environ.get('OCR_PROXY_TIMEOUT', '120'))
+
+# paper OCR：后端内部直连 Dify（默认开启），不依赖独立 6002 服务进程
+OCR_PAPER_DIRECT_DIFY_ENABLED = os.environ.get('OCR_PAPER_DIRECT_DIFY_ENABLED', 'true').lower() == 'true'
+OCR_PAPER_DIFY_BASE_URL = os.environ.get('OCR_PAPER_DIFY_BASE_URL', DIFY_API_URL)
+OCR_PAPER_DIFY_API_KEY = os.environ.get('OCR_PAPER_DIFY_API_KEY', DIFY_API_KEY)
+OCR_PAPER_DIFY_DEFAULT_USER = os.environ.get('OCR_PAPER_DIFY_DEFAULT_USER', 'ai-rag-django')
+OCR_PAPER_DIFY_UPLOAD_ENDPOINT = os.environ.get('OCR_PAPER_DIFY_UPLOAD_ENDPOINT', '/files/upload')
+OCR_PAPER_DIFY_WORKFLOW_ENDPOINT = os.environ.get('OCR_PAPER_DIFY_WORKFLOW_ENDPOINT', '/workflows/run')
+OCR_PAPER_DIFY_RESPONSE_MODE = os.environ.get('OCR_PAPER_DIFY_RESPONSE_MODE', 'blocking')
+OCR_PAPER_DIFY_TRANSFER_METHOD = os.environ.get('OCR_PAPER_DIFY_TRANSFER_METHOD', 'local_file')
+OCR_PAPER_DIFY_FILE_TYPE = os.environ.get('OCR_PAPER_DIFY_FILE_TYPE', 'document')
+OCR_PAPER_DIFY_TIMEOUT = float(os.environ.get('OCR_PAPER_DIFY_TIMEOUT', str(OCR_PROXY_TIMEOUT)))

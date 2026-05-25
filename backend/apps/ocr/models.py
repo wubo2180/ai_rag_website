@@ -72,6 +72,7 @@ class File(models.Model):
     document_type_code = models.CharField(max_length=50, blank=True, null=True)
     mime_type = models.CharField(max_length=100)
     md5_hash = models.CharField(max_length=32, blank=True, null=True)
+    sha256_hash = models.CharField(max_length=64, blank=True, null=True, db_index=True)
 
     uploader = models.ForeignKey(User, on_delete=models.PROTECT, related_name='uploaded_files', db_column='uploader_id')
     upload_batch_id = models.CharField(max_length=36, blank=True, null=True)
@@ -122,6 +123,7 @@ class File(models.Model):
             'document_type_code': self.document_type_code,
             'mime_type': self.mime_type,
             'md5_hash': self.md5_hash,
+            'sha256_hash': self.sha256_hash,
             'uploader_id': self.uploader_id,
             'upload_batch_id': self.upload_batch_id,
             'ocr_status': self.ocr_status,
