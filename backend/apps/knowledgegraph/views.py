@@ -323,22 +323,313 @@ class PerformanceViewSet(viewsets.ModelViewSet):
 class KnowledgeGraphViewSet(viewsets.ViewSet):
     """知识图谱综合查询API"""
     permission_classes = [IsAuthenticated]
+
+    ADHESIVE_SYSTEM_LABELS = {
+        'thermal': '导热胶',
+        'potting': '灌封胶',
+        'sealing': '密封胶',
+        'structural': '结构胶',
+        'peelable': '可剥胶',
+        'unknown': '未分类',
+    }
+
+    def _detect_adhesive_system(self, *texts):
+        """根据文本内容推断体系类型"""
+        source = ' '.join(str(t or '') for t in texts).lower()
+
+        rules = {
+            'thermal': ['导热胶', 'thermally conductive adhesive', 'thermal conductive', '导热'],
+            'potting': ['灌封胶', 'potting compound', 'potting adhesive', 'potting', '灌封'],
+            'sealing': ['密封胶', 'sealing adhesive', 'sealing', '密封'],
+            'structural': ['结构胶', 'structural adhesive', 'structural', '结构'],
+            'peelable': ['可剥胶', 'peelable adhesive', 'peelable', '可剥'],
+        }
+
+        for system, keywords in rules.items():
+            if any(keyword in source for keyword in keywords):
+                return system
+
+        return 'unknown'
+
+    def _collapse_systems(self, systems):
+        """将多个体系归一为单一标签"""
+        systems = {s for s in systems if s and s != 'unknown'}
+        if not systems:
+            return 'unknown'
+        if len(systems) == 1:
+            return next(iter(systems))
+        return 'mixed'
+
+    def _build_system_stats(self, nodes):
+        system_stats = {
+            'thermal': {'label': '导热胶', 'node_count': 0, 'formula_count': 0, 'performance_count': 0},
+            'potting': {'label': '灌封胶', 'node_count': 0, 'formula_count': 0, 'performance_count': 0},
+            'sealing': {'label': '密封胶', 'node_count': 0, 'formula_count': 0, 'performance_count': 0},
+            'structural': {'label': '结构胶', 'node_count': 0, 'formula_count': 0, 'performance_count': 0},
+            'peelable': {'label': '可剥胶', 'node_count': 0, 'formula_count': 0, 'performance_count': 0},
+        }
+
+        for node in nodes:
+            node_system = node.get('data', {}).get('adhesive_system')
+            if node_system in system_stats:
+                system_stats[node_system]['node_count'] += 1
+                if node.get('type') == 'formula':
+                    system_stats[node_system]['formula_count'] += 1
+                if node.get('type') == 'performance':
+                    system_stats[node_system]['performance_count'] += 1
+
+        return system_stats
+
+    def _build_demo_graph_data(self, include_systems=None, id_prefix='demo'):
+        """构建5种胶体系示例图谱数据"""
+        templates = [
+            {
+                'system': 'thermal',
+                'cn': '导热胶',
+                'en': 'Thermally Conductive Adhesive',
+                'raw': '氮化硼填料',
+                'intermediate': '导热浆料',
+                'formula': '导热胶配方-TC01',
+                'batch': 'TC-B001',
+                'supplier': '苏州导热材料厂',
+                'rating': 5,
+                'tensile': 4.8,
+            },
+            {
+                'system': 'potting',
+                'cn': '灌封胶',
+                'en': 'Potting Compound / Potting Adhesive',
+                'raw': '环氧树脂E51',
+                'intermediate': '低粘灌封预聚体',
+                'formula': '灌封胶配方-PT01',
+                'batch': 'PT-B002',
+                'supplier': '宁波树脂科技',
+                'rating': 4,
+                'tensile': 3.9,
+            },
+            {
+                'system': 'sealing',
+                'cn': '密封胶',
+                'en': 'Sealing Adhesive',
+                'raw': '硅氧烷基料',
+                'intermediate': '湿气固化中间胶',
+                'formula': '密封胶配方-SL01',
+                'batch': 'SL-B003',
+                'supplier': '广东密封材料',
+                'rating': 4,
+                'tensile': 2.8,
+            },
+            {
+                'system': 'structural',
+                'cn': '结构胶',
+                'en': 'Structural Adhesive',
+                'raw': '双酚A环氧',
+                'intermediate': '高强结构中间体',
+                'formula': '结构胶配方-ST01',
+                'batch': 'ST-B004',
+                'supplier': '上海结构材料',
+                'rating': 5,
+                'tensile': 6.3,
+            },
+            {
+                'system': 'peelable',
+                'cn': '可剥胶',
+                'en': 'Peelable Adhesive',
+                'raw': '可剥离改性树脂',
+                'intermediate': '可剥功能胶浆',
+                'formula': '可剥胶配方-PL01',
+                'batch': 'PL-B005',
+                'supplier': '深圳电子胶材',
+                'rating': 4,
+                'tensile': 1.9,
+            },
+        ]
+
+        if include_systems:
+            include_set = set(include_systems)
+            templates = [item for item in templates if item['system'] in include_set]
+
+        nodes = []
+        edges = []
+
+        for index, item in enumerate(templates, start=1):
+            rm_id = f"rm_{id_prefix}_{item['system']}_{index}"
+            int_id = f"int_{id_prefix}_{item['system']}_{index}"
+            formula_id = f"formula_{id_prefix}_{item['system']}_{index}"
+            perf_id = f"perf_{id_prefix}_{item['system']}_{index}"
+
+            system_label = self.ADHESIVE_SYSTEM_LABELS.get(item['system'], item['cn'])
+
+            nodes.extend([
+                {
+                    'id': rm_id,
+                    'name': item['raw'],
+                    'type': 'raw_material',
+                    'category': 0,
+                    'symbolSize': 30,
+                    'data': {
+                        'code': f'RM-D{index:03d}',
+                        'material_type': '填料/树脂',
+                        'supplier': item['supplier'],
+                        'adhesive_system': item['system'],
+                        'adhesive_system_label': system_label,
+                        'description': f"{item['cn']}示例原材料",
+                        'is_demo': True,
+                    }
+                },
+                {
+                    'id': int_id,
+                    'name': item['intermediate'],
+                    'type': 'intermediate',
+                    'category': 1,
+                    'symbolSize': 40,
+                    'data': {
+                        'code': f'INT-D{index:03d}',
+                        'intermediate_type': '功能中间体',
+                        'adhesive_system': item['system'],
+                        'adhesive_system_label': system_label,
+                        'description': f"{item['cn']}示例中间体",
+                        'is_demo': True,
+                    }
+                },
+                {
+                    'id': formula_id,
+                    'name': item['formula'],
+                    'type': 'formula',
+                    'category': 2,
+                    'symbolSize': 50,
+                    'data': {
+                        'code': f'F-D{index:03d}',
+                        'version': '1.0',
+                        'status': '已验证',
+                        'application_type': item['en'],
+                        'adhesive_system': item['system'],
+                        'adhesive_system_label': system_label,
+                        'description': f"{item['cn']}示例配方",
+                        'is_demo': True,
+                    }
+                },
+                {
+                    'id': perf_id,
+                    'name': f"性能-{item['batch']}",
+                    'type': 'performance',
+                    'category': 3,
+                    'symbolSize': 35,
+                    'data': {
+                        'test_date': '2026-03-15',
+                        'tensile_strength': item['tensile'],
+                        'elongation': 120 + index * 8,
+                        'hardness': 45 + index,
+                        'rating': item['rating'],
+                        'adhesive_system': item['system'],
+                        'adhesive_system_label': system_label,
+                        'description': f"{item['cn']}示例性能数据",
+                        'is_demo': True,
+                    }
+                }
+            ])
+
+            edges.extend([
+                {
+                    'source': rm_id,
+                    'target': int_id,
+                    'value': 100,
+                    'label': '100%',
+                    'relation': '原料组成',
+                },
+                {
+                    'source': int_id,
+                    'target': formula_id,
+                    'value': 100,
+                    'label': '100%',
+                    'relation': '中间体配方成分',
+                },
+                {
+                    'source': formula_id,
+                    'target': perf_id,
+                    'value': item['rating'],
+                    'label': f"评分{item['rating']}",
+                    'relation': '配方性能结果',
+                },
+            ])
+
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'categories': [
+                {'name': '原材料'},
+                {'name': '中间体'},
+                {'name': '配方'},
+                {'name': '性能'},
+            ],
+            'stats': {
+                'raw_materials_count': len([n for n in nodes if n['type'] == 'raw_material']),
+                'intermediates_count': len([n for n in nodes if n['type'] == 'intermediate']),
+                'formulas_count': len([n for n in nodes if n['type'] == 'formula']),
+                'performances_count': len([n for n in nodes if n['type'] == 'performance']),
+            },
+            'system_stats': self._build_system_stats(nodes),
+            'is_demo_data': True,
+        }
     
     @action(detail=False, methods=['get'])
     def full_graph(self, request):
         """获取完整知识图谱数据（用于可视化）"""
+        force_demo = request.query_params.get('demo', '').lower() in ['1', 'true', 'yes']
+        fill_demo = request.query_params.get('fill_demo', '1').lower() in ['1', 'true', 'yes']
+
         # 获取所有实体
         raw_materials = RawMaterial.objects.all()
         intermediates = Intermediate.objects.prefetch_related('raw_materials').all()
         formulas = Formula.objects.prefetch_related('intermediates').all()
         performances = Performance.objects.select_related('formula').all()
+
+        if force_demo or (not raw_materials.exists() and not intermediates.exists() and not formulas.exists() and not performances.exists()):
+            demo_result = self._build_demo_graph_data()
+            if force_demo:
+                demo_result['message'] = '已按请求返回示例图谱数据'
+            else:
+                demo_result['message'] = '当前数据库无图谱数据，已返回示例图谱数据'
+            return Response(demo_result)
         
         # 构建节点
         nodes = []
         edges = []
+
+        formula_system_map = {}
+        intermediate_system_map = {}
+        raw_system_map = {}
+
+        for formula in formulas:
+            system = self._detect_adhesive_system(
+                formula.name,
+                formula.description,
+                formula.get_application_type_display(),
+                formula.application_type,
+                formula.process_description,
+                formula.properties,
+            )
+            formula_system_map[formula.id] = system
+
+            for comp in formula.components.filter(component_type='intermediate').select_related('intermediate'):
+                if comp.intermediate_id:
+                    intermediate_system_map.setdefault(comp.intermediate_id, set()).add(system)
+
+            for comp in formula.components.filter(component_type='raw_material').select_related('raw_material'):
+                if comp.raw_material_id:
+                    raw_system_map.setdefault(comp.raw_material_id, set()).add(system)
+
+        for intermediate in intermediates:
+            intermediate_system = self._collapse_systems(
+                intermediate_system_map.get(intermediate.id, set())
+            )
+
+            for comp in intermediate.intermediatecomposition_set.all():
+                raw_system_map.setdefault(comp.raw_material_id, set()).add(intermediate_system)
         
         # 原材料节点
         for rm in raw_materials:
+            rm_system = self._collapse_systems(raw_system_map.get(rm.id, set()))
             nodes.append({
                 'id': f'rm_{rm.id}',
                 'name': rm.name,
@@ -349,11 +640,16 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                     'code': rm.code,
                     'material_type': rm.get_material_type_display(),
                     'supplier': rm.supplier,
+                    'adhesive_system': rm_system,
+                    'adhesive_system_label': self.ADHESIVE_SYSTEM_LABELS.get(rm_system, '复合体系'),
                 }
             })
         
         # 中间体节点和边
         for intermediate in intermediates:
+            int_system = self._collapse_systems(
+                intermediate_system_map.get(intermediate.id, set())
+            )
             nodes.append({
                 'id': f'int_{intermediate.id}',
                 'name': intermediate.name,
@@ -363,6 +659,8 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                 'data': {
                     'code': intermediate.code,
                     'intermediate_type': intermediate.get_intermediate_type_display(),
+                    'adhesive_system': int_system,
+                    'adhesive_system_label': self.ADHESIVE_SYSTEM_LABELS.get(int_system, '复合体系'),
                 }
             })
             
@@ -377,6 +675,7 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
         
         # 配方节点和边
         for formula in formulas:
+            formula_system = formula_system_map.get(formula.id, 'unknown')
             nodes.append({
                 'id': f'formula_{formula.id}',
                 'name': formula.name,
@@ -388,6 +687,8 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                     'version': formula.version,
                     'status': formula.get_status_display(),
                     'application_type': formula.get_application_type_display(),
+                    'adhesive_system': formula_system,
+                    'adhesive_system_label': self.ADHESIVE_SYSTEM_LABELS.get(formula_system, '复合体系'),
                 }
             })
             
@@ -403,6 +704,7 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
         
         # 性能节点和边
         for perf in performances:
+            perf_system = formula_system_map.get(perf.formula_id, 'unknown')
             nodes.append({
                 'id': f'perf_{perf.id}',
                 'name': f'性能-{perf.test_batch}',
@@ -415,6 +717,8 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                     'elongation': perf.elongation_at_break,
                     'hardness': perf.hardness,
                     'rating': perf.overall_rating,
+                    'adhesive_system': perf_system,
+                    'adhesive_system_label': self.ADHESIVE_SYSTEM_LABELS.get(perf_system, '复合体系'),
                 }
             })
             
@@ -426,6 +730,25 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                 'label': f'评分{perf.overall_rating or "N/A"}'
             })
         
+        system_stats = self._build_system_stats(nodes)
+
+        if fill_demo:
+            required_systems = ['thermal', 'potting', 'sealing', 'structural', 'peelable']
+            missing_systems = [
+                system for system in required_systems
+                if system_stats.get(system, {}).get('formula_count', 0) == 0
+                or system_stats.get(system, {}).get('performance_count', 0) == 0
+            ]
+
+            if missing_systems:
+                patch_demo = self._build_demo_graph_data(
+                    include_systems=missing_systems,
+                    id_prefix='patch',
+                )
+                nodes.extend(patch_demo['nodes'])
+                edges.extend(patch_demo['edges'])
+                system_stats = self._build_system_stats(nodes)
+
         result = {
             'nodes': nodes,
             'edges': edges,
@@ -436,11 +759,14 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
                 {'name': '性能'},
             ],
             'stats': {
-                'raw_materials_count': len(raw_materials),
-                'intermediates_count': len(intermediates),
-                'formulas_count': len(formulas),
-                'performances_count': len(performances),
-            }
+                'raw_materials_count': len([n for n in nodes if n.get('type') == 'raw_material']),
+                'intermediates_count': len([n for n in nodes if n.get('type') == 'intermediate']),
+                'formulas_count': len([n for n in nodes if n.get('type') == 'formula']),
+                'performances_count': len([n for n in nodes if n.get('type') == 'performance']),
+            },
+            'system_stats': system_stats,
+            'is_demo_data': any(n.get('data', {}).get('is_demo') for n in nodes),
+            'demo_patch_applied': fill_demo,
         }
         
         return Response(result)

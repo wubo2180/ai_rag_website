@@ -15,8 +15,8 @@
         />
       </button>
     </div>
-    <div class="user-profile">
-      <div class="avatar"></div>
+    <div class="user-profile" :class="{ clickable: isLoggedIn }" @click="navigateToProfile">
+      <div class="avatar" :style="avatarStyle"></div>
       <div class="user-details">
         <div v-if="isLoggedIn">
           <p class="username">{{ username }}</p>
@@ -68,12 +68,12 @@
         >
       </li>
       <li>
-        <a href="#" @click.prevent="navigateToAgentTasks"
+        <a href="#" @click.prevent="navigateToOCRCenter"
           ><img
-            src="../assets/talk page/talk@3X_58.png"
+            src="../assets/talk page/talk@3X_63.png"
             class="menu-icon"
-          /><span class="menu-text"> 我的任务</span
-          ><span class="tooltip">我的任务</span></a
+          /><span class="menu-text"> OCR中心</span
+          ><span class="tooltip">OCR中心</span></a
         >
       </li>
       <li v-if="isAdmin">
@@ -142,6 +142,15 @@
       const isLoggedIn = computed(() => userStore.isAuthenticated)
       const username = computed(() => userStore.user?.username || '')
       const isAdmin = computed(() => userStore.user?.profile?.role === 'ADMIN')
+      const avatarStyle = computed(() => {
+        const avatarUrl = userStore.user?.profile?.avatar_url
+        if (avatarUrl) {
+          return {
+            backgroundImage: `url(${avatarUrl})`,
+          }
+        }
+        return {}
+      })
 
       const toggleNav = () => {
         isCollapsed.value = !isCollapsed.value
@@ -184,8 +193,13 @@
         router.push('/smart-agents')
       }
 
-      const navigateToAgentTasks = () => {
-        router.push('/agent-tasks')
+      const navigateToProfile = () => {
+        if (!isLoggedIn.value) return
+        router.push('/profile')
+      }
+
+      const navigateToOCRCenter = () => {
+        router.push('/ocr-center')
       }
 
       const navigateToDocuments = () => {
@@ -239,6 +253,7 @@
         isLoggedIn,
         username,
         isAdmin,
+        avatarStyle,
         toggleNav,
         toggleHistory,
         navigateToChat,
@@ -246,7 +261,8 @@
         goLogin,
         goRegister,
         navigateToSmartAgents,
-        navigateToAgentTasks,
+        navigateToProfile,
+        navigateToOCRCenter,
         navigateToDocuments,
         navigateToKnowledgeBase,
         navigateToKnowledgeGraph,
@@ -315,6 +331,17 @@
     align-items: center;
     margin-bottom: 20px;
     min-height: 130px; /* Set a fixed min-height to prevent any movement */
+  }
+
+  .user-profile.clickable {
+    cursor: pointer;
+    border-radius: 12px;
+    padding: 8px 10px;
+    transition: all 0.2s ease;
+  }
+
+  .user-profile.clickable:hover {
+    background: rgba(59, 130, 246, 0.08);
   }
 
   .user-details {

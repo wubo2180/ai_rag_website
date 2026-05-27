@@ -215,8 +215,8 @@ python manage.py createsuperuser
 
 #### 2.7 启动后端服务
 ```bash
-# 开发环境
-python manage.py runserver
+# 开发环境 本地启动
+python manage.py runserver --settings=config.settings_local
 
 # 生产环境 (使用Uvicorn)
 uvicorn config.asgi:application --host 0.0.0.0 --port 8000
@@ -830,6 +830,44 @@ python manage.py migrate
 python manage.py loaddata data_backup.json
 ```
 
+### OCR 迁移基线与去重策略（2026-05 更新）
+
+本项目在 `ocr` 模块已完成迁移基线收敛与上传去重增强，建议按以下流程校验：
+
+1. **执行迁移**
+```bash
+python manage.py migrate
+```
+
+2. **确认关键迁移状态**
+```bash
+python manage.py showmigrations ocr ai_service
+```
+
+3. **确认模型与迁移一致**
+```bash
+python manage.py makemigrations --check --dry-run
+```
+
+4. **确认 `files.sha256_hash` 字段已落库（可选）**
+```bash
+python manage.py shell -c "from django.db import connection; cols=[c.name for c in connection.introspection.get_table_description(connection.cursor(),'files')]; print('sha256_hash' in cols)"
+```
+
+#### OCR 上传去重规则
+
+- 主要判定键：`sha256_hash + file_size`
+- 同批次内重复：自动跳过并标记 `duplicate_in_batch`
+- 历史数据兼容：当历史记录无 `sha256_hash` 时，回退 `md5_hash + file_size` 判定
+- 上传返回体新增：`duplicates`、`duplicate_count`
+
+#### 相关迁移文件
+
+- `backend/apps/ocr/migrations/0001_add_sha256_hash_to_files.py`
+- `backend/apps/ocr/migrations/0002_initial.py`
+- `backend/apps/ocr/migrations/0003_ensure_sha256_hash_column.py`
+- `backend/apps/ai_service/migrations/0002_rename_ai_service__user_id_313cb6_idx_ai_service__user_id_685b62_idx.py`
+
 ### 性能优化建议
 
 1. **MySQL配置优化**
@@ -866,6 +904,13 @@ DATABASES = {
 ```
 
 ## 版本更新日志
+
+### v2.1.0 (2026-05-25)
+- ✅ 完成 OCR 上传去重增强（`sha256_hash + file_size`）
+- ♻️ 兼容历史 `md5_hash` 数据，避免存量数据切换期误判
+- 🧩 修复 `makemigrations` 在 `ocr` 模块的迁移状态图异常
+- 🗂️ 收敛 `ocr` 迁移基线并补充 `sha256_hash` 安全落库迁移
+- 📌 新增 README 中 OCR 迁移校验与排障说明
 
 ### v2.0.0 (2025-11-05)
 - 🔄 数据库从PostgreSQL迁移到MySQL

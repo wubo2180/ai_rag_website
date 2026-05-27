@@ -2,10 +2,22 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+# MySQL 驱动兼容：优先 mysqlclient(MySQLdb)，缺失时回退到 PyMySQL。
+try:
+    import MySQLdb  # type: ignore # noqa: F401
+except Exception:
+    try:
+        __import__('pymysql').install_as_MySQLdb()
+    except Exception:
+        # 保持延迟失败行为（后续真正使用 MySQL 时再报错）
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 加载 .env 文件
-load_dotenv(BASE_DIR / '.env.dev')
+# load_dotenv(BASE_DIR / '.env.dev')
+load_dotenv(BASE_DIR / '.env')
+
 
 # 基础配置
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
@@ -30,6 +42,18 @@ if DATABASE_TYPE == 'mysql':
                 'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             },
         }
+        # 'ocr_db': {
+        #     'ENGINE': 'django.db.backends.mysql',
+        #     'NAME': os.environ.get('MYSQL_DB_OCR'),
+        #     'USER': os.environ.get('MYSQL_USER_OCR'),
+        #     'PASSWORD': os.environ.get('MYSQL_PASSWORD_OCR'),
+        #     'HOST': os.environ.get('MYSQL_HOST_OCR', 'localhost'),
+        #     'PORT': os.environ.get('MYSQL_PORT_OCR', '3306'),
+        #     'OPTIONS': {
+        #         'charset': 'utf8mb4',
+        #         'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        #     },
+        # }
         }
 else:
     # 默认使用SQLite
@@ -39,6 +63,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+# DATABASE_ROUTERS = ['db_router.DatabaseRouter']
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -51,6 +76,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'dj_rest_auth',
     
@@ -58,6 +84,7 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.chat',
     'apps.knowledgegraph',
+    'apps.ocr',
     'apps.ai_service',
     'apps.documents',
     'apps.knowledgebase',
@@ -249,3 +276,22 @@ AI_MODEL_TIMEOUTS = {
     'Kimi': 90,               # Kimi中等速度
     'default': 120             # 默认超时
 }
+
+# OCR 服务直连配置（Django 统一代理层）
+# 默认端口与 sources 下各服务启动脚本保持一致：commission=6001, paper=6002, checker=5001
+OCR_COMMISSION_BASE_URL = os.environ.get('OCR_COMMISSION_BASE_URL', 'http://127.0.0.1:6001')
+OCR_PAPER_BASE_URL = os.environ.get('OCR_PAPER_BASE_URL', 'http://127.0.0.1:6002')
+OCR_CHECKER_BASE_URL = os.environ.get('OCR_CHECKER_BASE_URL', 'http://127.0.0.1:5001')
+OCR_PROXY_TIMEOUT = float(os.environ.get('OCR_PROXY_TIMEOUT', '120'))
+
+# paper OCR：后端内部直连 Dify（默认开启），不依赖独立 6002 服务进程
+OCR_PAPER_DIRECT_DIFY_ENABLED = os.environ.get('OCR_PAPER_DIRECT_DIFY_ENABLED', 'true').lower() == 'true'
+OCR_PAPER_DIFY_BASE_URL = os.environ.get('OCR_PAPER_DIFY_BASE_URL', DIFY_API_URL)
+OCR_PAPER_DIFY_API_KEY = os.environ.get('OCR_PAPER_DIFY_API_KEY', DIFY_API_KEY)
+OCR_PAPER_DIFY_DEFAULT_USER = os.environ.get('OCR_PAPER_DIFY_DEFAULT_USER', 'ai-rag-django')
+OCR_PAPER_DIFY_UPLOAD_ENDPOINT = os.environ.get('OCR_PAPER_DIFY_UPLOAD_ENDPOINT', '/files/upload')
+OCR_PAPER_DIFY_WORKFLOW_ENDPOINT = os.environ.get('OCR_PAPER_DIFY_WORKFLOW_ENDPOINT', '/workflows/run')
+OCR_PAPER_DIFY_RESPONSE_MODE = os.environ.get('OCR_PAPER_DIFY_RESPONSE_MODE', 'blocking')
+OCR_PAPER_DIFY_TRANSFER_METHOD = os.environ.get('OCR_PAPER_DIFY_TRANSFER_METHOD', 'local_file')
+OCR_PAPER_DIFY_FILE_TYPE = os.environ.get('OCR_PAPER_DIFY_FILE_TYPE', 'document')
+OCR_PAPER_DIFY_TIMEOUT = float(os.environ.get('OCR_PAPER_DIFY_TIMEOUT', str(OCR_PROXY_TIMEOUT)))

@@ -25,7 +25,7 @@ def favicon_svg_view(request):
 </svg>'''
     return HttpResponse(svg_content, content_type='image/svg+xml')
 
-def serve_vue_app(request):
+def serve_vue_app(request, path=None):
     """服务Vue.js单页应用"""
     from django.http import FileResponse
     vue_index_path = os.path.join(settings.BASE_DIR.parent, 'frontend', 'dist', 'index.html')
@@ -56,6 +56,9 @@ urlpatterns = [
     
     # AI 服务 API
     path('api/ai-service/', include('apps.ai_service.urls')),
+
+    # OCR 统一代理 API（Django app）
+    path('api/ocr/', include('apps.ocr.urls')),
     
     # 文档管理 API
     path('api/documents/', include('apps.documents.urls')),
@@ -75,6 +78,17 @@ urlpatterns = [
     path('login/', serve_vue_app, name='login'),
     path('register/', serve_vue_app, name='register'),
     path('profile/', serve_vue_app, name='profile'),
+
+    # OCR 新前端页面路由（迁移后统一在 frontend）
+    path('ocr/', serve_vue_app, name='ocr_home'),
+    path('ocr/<path:path>', serve_vue_app, name='ocr_sub'),
+
+    # OCR 前端工作台路由（history 模式直达支持）
+    path('ocr-center/', serve_vue_app, name='ocr_center'),
+    path('ocr-center/<path:path>', serve_vue_app, name='ocr_center_sub'),
+
+    # Vue SPA 兜底路由（排除 api/admin/static/media）
+    re_path(r'^(?!api/|admin/|static/|media/).*$' , serve_vue_app, name='spa_fallback'),
 ]
 
 # 开发环境下提供静态文件和媒体文件服务

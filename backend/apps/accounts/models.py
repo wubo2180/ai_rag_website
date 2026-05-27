@@ -33,6 +33,7 @@ class UserProfile(models.Model):
         SUPERVISOR = 'SUPERVISOR', '部门主管'
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    avatar_url = models.URLField(blank=True, default='', verbose_name='头像URL')
     nickname = models.CharField(max_length=50, blank=True, verbose_name='昵称')
     bio = models.TextField(max_length=500, blank=True, verbose_name='个人简介')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')

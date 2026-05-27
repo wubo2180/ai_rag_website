@@ -1,10 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import Home from '../views/Home.vue'
-import Login from '../views/Login.vue'
-import Chat from '../views/Chat.vue'
-import Terms from '../views/Terms.vue'
-import Privacy from '../views/Privacy.vue'
+import Home from '../views/common/Home.vue'
+import Login from '../views/accounts/Login.vue'
+import Chat from '../views/chat/Chat.vue'
+import Terms from '../views/common/Terms.vue'
+import Privacy from '../views/common/Privacy.vue'
 
 const routes = [
   {
@@ -14,7 +14,7 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('@/views/Login.vue'),
+    component: () => import('@/views/accounts/Login.vue'),
     meta: { requiresAuth: false },
   },
   {
@@ -24,13 +24,13 @@ const routes = [
   {
     path: '/register',
     name: 'Register',
-    component: () => import('@/views/Register.vue'),
+    component: () => import('@/views/accounts/Register.vue'),
     meta: { requiresAuth: false },
   },
   {
     path: '/chat',
     name: 'Chat',
-    component: () => import('@/views/Chat.vue'),
+    component: () => import('@/views/chat/Chat.vue'),
     meta: { requiresAuth: false }, // 允许匿名访问聊天
   },
   // {
@@ -45,13 +45,13 @@ const routes = [
   {
     path: '/profile',
     name: 'Profile',
-    component: () => import('@/views/Profile.vue'),
+    component: () => import('@/views/accounts/Profile.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/sessions',
     name: 'ChatSessions',
-    component: () => import('@/views/ChatSessions.vue'),
+    component: () => import('@/views/chat/ChatSessions.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -68,16 +68,17 @@ const routes = [
     path: '/chat2',
     redirect: '/chat',
   },
+
   {
     path: '/documents',
     name: 'Documents',
-    component: () => import('@/views/Documents.vue'),
+    component: () => import('@/views/documents/Documents.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/knowledge-base',
     name: 'KnowledgeBase',
-    component: () => import('@/views/KnowledgeBase.vue'),
+    component: () => import('@/views/knowledgebase/KnowledgeBase.vue'),
     meta: {
       requiresAuth: false,
       title: '知识库管理',
@@ -86,7 +87,7 @@ const routes = [
   {
     path: '/knowledge-graph',
     name: 'KnowledgeGraph',
-    component: () => import('@/views/KnowledgeGraph.vue'),
+    component: () => import('@/views/knowledgegraph/KnowledgeGraph.vue'),
     meta: {
       requiresAuth: false,
       title: '材料知识图谱',
@@ -95,7 +96,7 @@ const routes = [
   {
     path: '/smart-agents',
     name: 'SmartAgents',
-    component: () => import('@/views/SmartAgents.vue'),
+    component: () => import('@/views/smart_agent/SmartAgents.vue'),
     meta: {
       requiresAuth: true,
       title: 'AI智能体',
@@ -104,7 +105,7 @@ const routes = [
   {
     path: '/agents/:id',
     name: 'AgentDetail',
-    component: () => import('@/views/AgentDetail.vue'),
+    component: () => import('@/views/smart_agent/AgentDetail.vue'),
     meta: {
       requiresAuth: true,
       title: '智能体详情',
@@ -113,7 +114,7 @@ const routes = [
   {
     path: '/agent-tasks',
     name: 'AgentTasks',
-    component: () => import('@/views/AgentTasks.vue'),
+    component: () => import('@/views/smart_agent/AgentTasks.vue'),
     meta: {
       requiresAuth: true,
       title: '我的任务',
@@ -122,16 +123,70 @@ const routes = [
   {
     path: '/knowledge-extraction',
     name: 'KnowledgeExtraction',
-    component: () => import('@/views/KnowledgeExtraction.vue'),
+    component: () => import('@/views/smart_agent/KnowledgeExtraction.vue'),
     meta: {
       requiresAuth: false,
       title: '知识抽取智能体',
     },
   },
   {
+    path: '/ocr/dashboard',
+    name: 'OcrDashboard',
+    component: () => import('@/views/ocr/OcrDashboard.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR仪表盘',
+    },
+  },
+  {
+    path: '/ocr/files',
+    name: 'OcrFileManagement',
+    component: () => import('@/views/ocr/OcrFileManagement.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件管理',
+    },
+  },
+  {
+    path: '/ocr/upload',
+    name: 'OcrFileUpload',
+    component: () => import('@/views/ocr/OcrFileUpload.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件上传',
+    },
+  },
+  {
+    path: '/ocr/recognize/:fileId',
+    name: 'OcrRecognize',
+    component: () => import('@/views/ocr/OcrRecognize.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件识别',
+    },
+  },
+  {
+    path: '/ocr/review/:fileId',
+    name: 'OcrReview',
+    component: () => import('@/views/ocr/OcrReview.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR文件核对',
+    },
+  },
+  {
+    path: '/ocr-center',
+    name: 'OCRCenter',
+    component: () => import('@/views/ocr/OCRCenter.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'OCR中心',
+    },
+  },
+  {
     path: '/formula-generation',
     name: 'FormulaGeneration',
-    component: () => import('@/views/FormulaGeneration.vue'),
+    component: () => import('@/views/ai_service/FormulaGeneration.vue'),
     meta: {
       requiresAuth: false,
       title: '配方生成',
@@ -140,16 +195,43 @@ const routes = [
   {
     path: '/process-optimization',
     name: 'ProcessOptimization',
-    component: () => import('@/views/ProcessOptimization.vue'),
+    component: () => import('@/views/ai_service/ProcessOptimization.vue'),
     meta: {
       requiresAuth: false,
       title: '工艺优化',
     },
   },
   {
+    path: '/data-analysis',
+    name: 'DataAnalysis',
+    component: () => import('@/views/ai_service/DataAnalysis.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '数据分析',
+    },
+  },
+  {
+    path: '/property-prediction',
+    name: 'PropertyPrediction',
+    component: () => import('@/views/ai_service/PropertyPrediction.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '性质预测',
+    },
+  },
+  {
+    path: '/decision-support',
+    name: 'DecisionSupport',
+    component: () => import('@/views/ai_service/DecisionSupport.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '决策支持',
+    },
+  },
+  {
     path: '/user-management',
     name: 'UserManagement',
-    component: () => import('@/views/UserManagement.vue'),
+    component: () => import('@/views/accounts/UserManagement.vue'),
     meta: {
       requiresAuth: true,
       title: '用户管理',

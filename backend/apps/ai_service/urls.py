@@ -7,6 +7,7 @@ app_name = 'ai_service_api'
 urlpatterns = [
     # 知识抽取API
     path('knowledge-extraction/', views.KnowledgeExtractionView.as_view(), name='knowledge_extraction'),
+    path('knowledge-extraction-history/', views.KnowledgeExtractionHistoryView.as_view(), name='knowledge_extraction_history'),
     
     # 服务健康检查
     path('health/', views.health_check, name='health_check'),

@@ -3,7 +3,7 @@
 处理工艺优化相关的业务逻辑，调用ai_service中的Dify API
 """
 
-from typing import Dict, Any, Generator
+from typing import Dict, Any, Generator, Optional
 from django.utils import timezone
 from apps.ai_service.formula_generation_service import process_optimization_dify_service
 from .models import SmartAgent, AgentTask, AgentExecution, TaskStatus
@@ -32,12 +32,35 @@ class ProcessOptimizationService:
         """
         errors = []
         
-        required_fields = [
+        required_formula_fields = [
+            'product_performance_requirements',
+            'target_application_scenario',
+            'cost_consideration',
+            'environmental_requirements'
+        ]
+        required_new_fields = [
+            'optimization_targets',
+            'process_parameters',
+            'material_product_data',
+            'knowledge_constraints',
+            'cost_consideration',
+            'environmental_requirements'
+        ]
+        required_legacy_fields = [
             'product_performance',
             'target_application_scenario',
             'cost_consideration',
             'environmental_requirements'
         ]
+
+        has_formula_payload = bool(inputs.get('product_performance_requirements'))
+        has_new_payload = any(bool(inputs.get(field)) for field in required_new_fields)
+        if has_formula_payload:
+            required_fields = required_formula_fields
+        elif has_new_payload:
+            required_fields = required_new_fields
+        else:
+            required_fields = required_legacy_fields
         
         for field in required_fields:
             if not inputs.get(field):
@@ -56,8 +79,9 @@ class ProcessOptimizationService:
         self,
         user,
         inputs: Dict[str, Any],
-        title: str = None,
-        description: str = None
+        agent_category: str = 'process_optimization',
+        title: Optional[str] = None,
+        description: Optional[str] = None
     ) -> AgentTask:
         """
         创建工艺优化任务
@@ -73,16 +97,16 @@ class ProcessOptimizationService:
         """
         # 获取工艺优化智能体
         agent = SmartAgent.objects.filter(
-            category='process_optimization'
+            category=agent_category
         ).first()
         
         if not agent:
             # 如果不存在，创建一个默认的
             agent = SmartAgent.objects.create(
-                name='process_optimization',
-                display_name='工艺优化',
-                description='优化工艺参数，提升生产效率',
-                category='process_optimization',
+                name=agent_category,
+                display_name='配方生成' if agent_category == 'formula_generation' else '工艺优化',
+                description='根据需求生成材料配方建议' if agent_category == 'formula_generation' else '优化工艺参数，提升生产效率',
+                category=agent_category,
                 status='active',
                 created_by=user
             )
@@ -90,8 +114,8 @@ class ProcessOptimizationService:
         # 创建任务
         task = AgentTask.objects.create(
             agent=agent,
-            title=title or f'工艺优化 - {inputs.get("target_application_scenario", "未命名")[:30]}',
-            description=description or '根据产品性能、应用场景、成本和环保要求生成材料配方建议',
+            title=title or f'工艺优化 - {(inputs.get("product_performance_requirements") or inputs.get("optimization_targets") or inputs.get("product_performance") or "未命名")[:30]}',
+            description=description or '根据优化目标、工艺参数与约束条件生成可执行工艺优化建议',
             input_data=inputs,
             created_by=user,
             status=TaskStatus.PENDING
@@ -123,7 +147,7 @@ class ProcessOptimizationService:
             # 创建执行记录
             execution = AgentExecution.objects.create(
                 task=task,
-                step_name='配方生成',
+                step_name='工艺优化',
                 step_order=1,
                 input_data=task.input_data,
                 status='running',
@@ -134,7 +158,7 @@ class ProcessOptimizationService:
             
             # 提取输入参数
             inputs = task.input_data
-            user_id = f"user-{task.created_by.id}"
+            user_id = f"user-{getattr(task.created_by, 'pk', 'anonymous')}"
             
             # 收集完整答案和元数据
             full_answer = ""
@@ -143,10 +167,7 @@ class ProcessOptimizationService:
             
             # 调用Dify服务（流式）
             for event_data in self.dify_service.call_agent_streaming(
-                product_performance=inputs['product_performance'],
-                target_application_scenario=inputs['target_application_scenario'],
-                cost_consideration=inputs['cost_consideration'],
-                environmental_requirements=inputs['environmental_requirements'],
+                inputs=inputs,
                 user_id=user_id,
                 conversation_id=''  # 每次都是新对话
             ):
@@ -281,7 +302,7 @@ class ProcessOptimizationService:
             # 创建执行记录
             execution = AgentExecution.objects.create(
                 task=task,
-                step_name='配方生成',
+                step_name='工艺优化',
                 step_order=1,
                 input_data=task.input_data,
                 status='running',
@@ -292,14 +313,11 @@ class ProcessOptimizationService:
             
             # 提取输入参数
             inputs = task.input_data
-            user_id = f"user-{task.created_by.id}"
+            user_id = f"user-{getattr(task.created_by, 'pk', 'anonymous')}"
             
             # 调用Dify服务（阻塞）
             result = self.dify_service.call_agent_blocking(
-                product_performance=inputs['product_performance'],
-                target_application_scenario=inputs['target_application_scenario'],
-                cost_consideration=inputs['cost_consideration'],
-                environmental_requirements=inputs['environmental_requirements'],
+                inputs=inputs,
                 user_id=user_id,
                 conversation_id=''  # 每次都是新对话
             )
@@ -392,8 +410,8 @@ class ProcessOptimizationService:
             agent=agent,
             created_by=user
         ).order_by('-created_at')[:limit]
-        
-        return tasks
+
+        return list(tasks)
 
 
 # 创建单例实例
