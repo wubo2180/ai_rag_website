@@ -29,6 +29,7 @@
         </h2>
 
         <form @submit.prevent="submitForm">
+          <div class="base-input-grid">
           <div class="form-group">
             <label for="optimization_targets">
               <i class="fas fa-chart-line"></i>
@@ -166,6 +167,7 @@
             ></textarea>
             <small class="field-hint">可选，用于量化对比推荐方案效果</small>
           </div>
+          </div>
 
           <div class="form-actions">
             <button
@@ -263,6 +265,19 @@
               <i class="fas fa-comment"></i>
               <span>会话 ID: {{ conversationId }}</span>
             </div>
+            <div class="meta-item validity-select-item" :class="{ disabled: !currentHistoryId }">
+              <i class="fas fa-clipboard-check"></i>
+              <label for="process-validity-status">是否有效配方</label>
+              <select
+                id="process-validity-status"
+                v-model="currentValidityStatus"
+                :disabled="!currentHistoryId"
+              >
+                <option value="pending">待确认</option>
+                <option value="valid">有效</option>
+                <option value="invalid">无效</option>
+              </select>
+            </div>
           </div>
 
           <div class="result-actions">
@@ -298,19 +313,59 @@
         <i class="fas fa-history"></i>
         历史记录
       </h2>
-      <div class="history-list">
-        <div
-          v-for="item in historyList"
-          :key="item.id"
-          class="history-item"
-          @click="loadHistory(item)"
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>配方简要</th>
+              <th>时间</th>
+              <th>任务状态</th>
+              <th>是否有效配方</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in paginatedHistoryList"
+              :key="item.id"
+              class="history-row"
+            >
+              <td class="history-id">{{ item.id }}</td>
+              <td class="history-brief">{{ item.brief }}</td>
+              <td>{{ formatDate(item.created_at) }}</td>
+              <td>
+                <span :class="['task-status-badge', `status-${getTaskStatus(item)}`]">
+                  {{ getTaskStatusLabel(item) }}
+                </span>
+              </td>
+              <td>
+                <span :class="['valid-badge', `status-${getValidityStatus(item)}`]">
+                  {{ getValidityLabel(item) }}
+                </span>
+              </td>
+              <td>
+                <button class="history-view-btn" type="button" @click="openHistoryDetail(item)">
+                  进入查看
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="totalHistoryPages > 1" class="history-pagination">
+        <button class="page-btn" :disabled="historyPage === 1" @click="goToHistoryPage(historyPage - 1)">上一页</button>
+        <button
+          v-for="page in historyPageNumbers"
+          :key="`history-page-${page}`"
+          :class="['page-btn', { active: page === historyPage }]"
+          @click="goToHistoryPage(page)"
         >
-          <div class="history-info">
-            <div class="history-title">{{ item.title }}</div>
-            <div class="history-date">{{ formatDate(item.created_at) }}</div>
-          </div>
-          <i class="fas fa-chevron-right"></i>
-        </div>
+          {{ page }}
+        </button>
+        <button class="page-btn" :disabled="historyPage === totalHistoryPages" @click="goToHistoryPage(historyPage + 1)">下一页</button>
+        <span class="page-summary">第 {{ historyPage }} / {{ totalHistoryPages }} 页</span>
       </div>
     </div>
     </div>
@@ -318,7 +373,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
@@ -348,6 +403,39 @@ const conversationId = ref('')
 const messageId = ref('')
 const resultTime = ref(null)
 const historyList = ref([])
+const historyPage = ref(1)
+const historyPageSize = 6
+const currentHistoryId = ref(null)
+const HISTORY_STORAGE_KEY = 'process_optimization_history'
+const LOCAL_TASK_STORAGE_KEY = 'smart_agent_local_tasks'
+
+const totalHistoryPages = computed(() => Math.max(1, Math.ceil(historyList.value.length / historyPageSize)))
+const paginatedHistoryList = computed(() => {
+  const start = (historyPage.value - 1) * historyPageSize
+  return historyList.value.slice(start, start + historyPageSize)
+})
+
+const historyPageNumbers = computed(() => {
+  const pages = []
+  for (let page = 1; page <= totalHistoryPages.value; page += 1) {
+    pages.push(page)
+  }
+  return pages
+})
+
+const currentHistoryRecord = computed(() => {
+  if (!currentHistoryId.value) return null
+  return historyList.value.find((item) => item?.id === currentHistoryId.value) || null
+})
+
+const currentValidityStatus = computed({
+  get() {
+    return currentHistoryRecord.value ? getValidityStatus(currentHistoryRecord.value) : 'pending'
+  },
+  set(nextStatus) {
+    updateHistoryValidity(currentHistoryId.value, nextStatus)
+  }
+})
 
 const optimizationSummary = ref([
   { label: '预计良率提升', value: '+6.8%', note: '建议窗口下的估算值' },
@@ -388,6 +476,7 @@ const loadDemoOptimization = () => {
   showResult.value = true
   streaming.value = false
   streamingAnswer.value = ''
+  currentHistoryId.value = null
   result.value = '### Demo 工艺优化建议\n\n建议采用“中温区稳态 + 缩短保温 + 升温速率分段控制”的方案，以兼顾良率、能耗与工艺稳定性。\n\n- 将核心温度窗口收敛到 **1430~1460℃**，避免晶粒粗化风险。\n- 保温时长建议控制在 **95~120 分钟**，优先验证 105 分钟工况。\n- 升温速率采用“低温慢升、高温缓升”分段策略，降低热冲击。\n\n建议先进行 3 批次小试并同步记录良率、能耗和缺陷率。'
   conversationId.value = 'demo-process-optimization'
   resultTime.value = new Date()
@@ -400,16 +489,42 @@ const clearAll = () => {
   result.value = ''
   conversationId.value = ''
   messageId.value = ''
+  currentHistoryId.value = null
   resultTime.value = null
 }
 
 // 提交表单
 const submitForm = async () => {
+  const inputSnapshot = { ...formData.value }
+  const taskId = `process-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const taskCreatedAt = new Date()
+  const createdHistory = saveToHistory({
+    inputsSnapshot: inputSnapshot,
+    taskId,
+    taskStatus: 'pending',
+    resultText: '任务已提交，正在分析工艺参数，请稍候...',
+    createdAt: taskCreatedAt
+  })
+
+  upsertLocalTask({
+    id: taskId,
+    agent_name: '工艺优化智能体',
+    title: `${(inputSnapshot.optimization_targets || '工艺优化任务').slice(0, 30)}...`,
+    status: 'pending',
+    category: 'process_optimization',
+    created_at: taskCreatedAt.toISOString(),
+    started_at: taskCreatedAt.toISOString(),
+    completed_at: null,
+    execution_time: 0
+  })
+
   loading.value = true
   showResult.value = true
   streaming.value = true
   streamingAnswer.value = ''
+  currentHistoryId.value = createdHistory?.id || null
   result.value = ''
+  resetForm()
 
   try {
     // 调用后端API（流式响应）
@@ -422,21 +537,31 @@ const submitForm = async () => {
           : {})
       },
       body: JSON.stringify({
-        optimization_targets: formData.value.optimization_targets,
-        process_parameters: formData.value.process_parameters,
-        material_product_data: formData.value.material_product_data,
-        knowledge_constraints: formData.value.knowledge_constraints,
-        cost_consideration: formData.value.cost_consideration,
-        environmental_requirements: formData.value.environmental_requirements,
-        environmental_real_time_data: formData.value.environmental_real_time_data,
-        historical_data: formData.value.historical_data,
-        expected_performance: formData.value.expected_performance
+        optimization_targets: inputSnapshot.optimization_targets,
+        process_parameters: inputSnapshot.process_parameters,
+        material_product_data: inputSnapshot.material_product_data,
+        knowledge_constraints: inputSnapshot.knowledge_constraints,
+        cost_consideration: inputSnapshot.cost_consideration,
+        environmental_requirements: inputSnapshot.environmental_requirements,
+        environmental_real_time_data: inputSnapshot.environmental_real_time_data,
+        historical_data: inputSnapshot.historical_data,
+        expected_performance: inputSnapshot.expected_performance
       })
     })
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
+
+    if (createdHistory?.id) {
+      updateHistoryTaskStatus(createdHistory.id, 'running')
+    }
+    upsertLocalTask({
+      id: taskId,
+      status: 'running',
+      category: 'process_optimization',
+      agent_name: '工艺优化智能体'
+    })
 
     // 处理流式响应
     const reader = response.body.getReader()
@@ -449,6 +574,25 @@ const submitForm = async () => {
         streaming.value = false
         result.value = streamingAnswer.value
         resultTime.value = new Date()
+
+        if (createdHistory?.id) {
+          const target = historyList.value.find((item) => item?.id === createdHistory.id)
+          if (target) {
+            target.result = streamingAnswer.value
+            target.conversation_id = conversationId.value
+            target.task_id = taskId
+          }
+          updateHistoryTaskStatus(createdHistory.id, 'completed')
+        }
+
+        upsertLocalTask({
+          id: taskId,
+          status: 'completed',
+          category: 'process_optimization',
+          agent_name: '工艺优化智能体',
+          completed_at: new Date().toISOString(),
+          execution_time: Math.max(1, Math.round((Date.now() - taskCreatedAt.getTime()) / 1000))
+        })
         break
       }
 
@@ -484,11 +628,20 @@ const submitForm = async () => {
       }
     }
 
-    // 保存到历史记录
-    saveToHistory()
-
   } catch (error) {
     console.error('请求失败:', error)
+    if (createdHistory?.id) {
+      updateHistoryTaskStatus(createdHistory.id, 'failed')
+    }
+
+    upsertLocalTask({
+      id: taskId,
+      status: 'failed',
+      category: 'process_optimization',
+      agent_name: '工艺优化智能体',
+      completed_at: new Date().toISOString(),
+      execution_time: Math.max(1, Math.round((Date.now() - taskCreatedAt.getTime()) / 1000))
+    })
     alert('请求失败: ' + error.message)
   } finally {
     loading.value = false
@@ -516,6 +669,7 @@ const newOptimization = () => {
   streamingAnswer.value = ''
   result.value = ''
   conversationId.value = ''
+  currentHistoryId.value = null
   resetForm()
 }
 
@@ -542,17 +696,33 @@ const downloadResult = () => {
 }
 
 // 保存到历史记录
-const saveToHistory = () => {
+const saveToHistory = ({
+  inputsSnapshot = null,
+  taskId = '',
+  taskStatus = 'pending',
+  resultText = '',
+  createdAt = new Date()
+} = {}) => {
+  const baseInputs = inputsSnapshot ? { ...inputsSnapshot } : { ...formData.value }
+  const brief = (baseInputs.optimization_targets || resultText || result.value || streamingAnswer.value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
   const historyItem = {
     id: Date.now(),
-    title: `${(formData.value.optimization_targets || '工艺优化').substring(0, 30)}...`,
-    inputs: { ...formData.value },
-    result: streamingAnswer.value,
+    title: `${(baseInputs.optimization_targets || '工艺优化').substring(0, 30)}...`,
+    brief: brief || '未提取到工艺优化简要',
+    inputs: baseInputs,
+    result: resultText || result.value || streamingAnswer.value,
     conversation_id: conversationId.value,
-    created_at: new Date()
+    created_at: createdAt,
+    task_id: taskId || `process-${Date.now()}`,
+    task_status: taskStatus,
+    validity_status: 'pending',
+    is_valid_formula: false,
   }
 
-  const history = JSON.parse(localStorage.getItem('optimization_history') || '[]')
+  const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]')
   history.unshift(historyItem)
 
   // 只保留最近20条
@@ -560,14 +730,131 @@ const saveToHistory = () => {
     history.pop()
   }
 
-  localStorage.setItem('optimization_history', JSON.stringify(history))
+  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history))
   loadHistoryList()
+  currentHistoryId.value = historyItem.id
+  return historyItem
+}
+
+const normalizeValidityStatus = (item, fallbackValid = false) => {
+  const rawStatus = String(item?.validity_status || '').trim().toLowerCase()
+  if (['pending', 'valid', 'invalid'].includes(rawStatus)) {
+    return rawStatus
+  }
+  if (typeof item?.is_valid_formula === 'boolean') {
+    return item.is_valid_formula ? 'valid' : 'pending'
+  }
+  return fallbackValid ? 'valid' : 'pending'
+}
+
+const getValidityStatus = (item) => normalizeValidityStatus(item)
+
+const getValidityLabel = (item) => {
+  const status = getValidityStatus(item)
+  if (status === 'valid') return '有效'
+  if (status === 'invalid') return '无效'
+  return '待确认'
+}
+
+const getTaskStatus = (item) => {
+  const raw = String(item?.task_status || '').trim().toLowerCase()
+  if (['pending', 'running', 'completed', 'failed'].includes(raw)) {
+    return raw
+  }
+  return 'pending'
+}
+
+const getTaskStatusLabel = (item) => {
+  const status = getTaskStatus(item)
+  if (status === 'running') return '执行中'
+  if (status === 'completed') return '已完成'
+  if (status === 'failed') return '失败'
+  return '等待中'
+}
+
+const readLocalTasks = () => {
+  const data = JSON.parse(localStorage.getItem(LOCAL_TASK_STORAGE_KEY) || '[]')
+  return Array.isArray(data) ? data : []
+}
+
+const writeLocalTasks = (list) => {
+  localStorage.setItem(LOCAL_TASK_STORAGE_KEY, JSON.stringify(Array.isArray(list) ? list : []))
+}
+
+const upsertLocalTask = (taskRecord) => {
+  if (!taskRecord?.id) return
+  const tasks = readLocalTasks()
+  const idx = tasks.findIndex((item) => item?.id === taskRecord.id)
+  if (idx >= 0) {
+    tasks[idx] = { ...tasks[idx], ...taskRecord }
+  } else {
+    tasks.unshift(taskRecord)
+  }
+  writeLocalTasks(tasks.slice(0, 500))
+}
+
+const persistHistoryList = () => {
+  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyList.value || []))
 }
 
 // 加载历史记录列表
 const loadHistoryList = () => {
-  const history = JSON.parse(localStorage.getItem('optimization_history') || '[]')
-  historyList.value = history
+  const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]')
+  const fallbackHistory = history.length
+    ? history
+    : JSON.parse(localStorage.getItem('optimization_history') || '[]').filter((item) => item?.inputs?.optimization_targets)
+
+  historyList.value = fallbackHistory.map((item) => {
+    const fallbackBrief = (item?.inputs?.optimization_targets || item?.title || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60)
+    const fallbackValid = Boolean(
+      item?.is_valid_formula
+      || String(item?.result || '').includes('建议')
+      || String(item?.result || '').includes('优化')
+    )
+    return {
+      ...item,
+      brief: item?.brief || fallbackBrief || '未提取到工艺优化简要',
+      task_status: getTaskStatus(item),
+      validity_status: normalizeValidityStatus(item, fallbackValid),
+      is_valid_formula: normalizeValidityStatus(item, fallbackValid) === 'valid',
+    }
+  })
+
+  if (historyPage.value > totalHistoryPages.value) {
+    historyPage.value = totalHistoryPages.value
+  }
+}
+
+const goToHistoryPage = (page) => {
+  if (page < 1 || page > totalHistoryPages.value) return
+  historyPage.value = page
+}
+
+const updateHistoryValidity = (targetId, nextStatus) => {
+  if (!targetId) return
+  if (!['pending', 'valid', 'invalid'].includes(nextStatus)) return
+  const target = historyList.value.find((record) => record?.id === targetId)
+  if (!target) return
+  target.validity_status = nextStatus
+  target.is_valid_formula = nextStatus === 'valid'
+  persistHistoryList()
+}
+
+const updateHistoryTaskStatus = (targetId, nextStatus) => {
+  if (!targetId || !['pending', 'running', 'completed', 'failed'].includes(nextStatus)) return
+  const target = historyList.value.find((record) => record?.id === targetId)
+  if (!target) return
+  target.task_status = nextStatus
+  persistHistoryList()
+}
+
+const openHistoryDetail = (item) => {
+  if (!item) return
+  currentHistoryId.value = item.id
+  loadHistory(item)
 }
 
 // 加载历史记录
@@ -578,6 +865,7 @@ const loadHistory = (item) => {
   resultTime.value = new Date(item.created_at)
   showResult.value = true
   streaming.value = false
+  currentHistoryId.value = item?.id || null
 }
 
 // Markdown 格式化
@@ -719,6 +1007,12 @@ onMounted(() => {
 
 .form-group {
   margin-bottom: 24px;
+}
+
+.base-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .form-group label {
@@ -894,6 +1188,28 @@ onMounted(() => {
   gap: 6px;
 }
 
+.validity-select-item {
+  gap: 8px;
+}
+
+.validity-select-item label {
+  color: #334155;
+  font-size: 13px;
+}
+
+.validity-select-item select {
+  border: 1px solid #d5deee;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #fff;
+  color: #1f2937;
+}
+
+.validity-select-item.disabled {
+  opacity: 0.65;
+}
+
 .result-actions {
   display: flex;
   gap: 12px;
@@ -1000,50 +1316,162 @@ onMounted(() => {
   gap: 8px;
 }
 
-.history-list {
-  display: grid;
-  gap: 12px;
+.history-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e8edf7;
+  border-radius: 10px;
+  background: #fff;
 }
 
-.history-item {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.history-item:hover {
-  transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.history-table th,
+.history-table td {
+  border: 1px solid #e8edf5;
+  padding: 10px;
+  text-align: left;
+  font-size: 13px;
+  vertical-align: middle;
 }
 
-.history-info {
-  flex: 1;
+.history-table th {
+  background: #f6f9ff;
+  color: #334155;
+  font-weight: 600;
 }
 
-.history-title {
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 4px;
+.history-row {
+  transition: background 0.2s;
 }
 
-.history-date {
+.history-row:hover {
+  background: #fff;
+}
+
+.history-id {
+  width: 120px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.history-brief {
+  max-width: 480px;
+  color: #0f172a;
+}
+
+.valid-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
   font-size: 12px;
-  color: #999;
+  font-weight: 600;
+  user-select: none;
 }
 
-.history-item i {
-  color: #ccc;
+.task-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.task-status-badge.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.task-status-badge.status-running {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.task-status-badge.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.task-status-badge.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.valid-badge.status-valid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.valid-badge.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.valid-badge.status-invalid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.history-view-btn {
+  border: 1px solid #c9d8f5;
+  background: #eef4ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.history-view-btn:hover {
+  background: #dbeafe;
+}
+
+.history-pagination {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-btn {
+  border: 1px solid #d5deee;
+  background: #fff;
+  color: #334155;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.page-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-summary {
+  margin-left: 8px;
+  color: #64748b;
+  font-size: 12px;
 }
 
 @media (max-width: 900px) {
   .summary-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .base-input-grid {
+    grid-template-columns: 1fr;
   }
 
   .insight-board {

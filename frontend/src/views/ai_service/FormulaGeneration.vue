@@ -29,55 +29,55 @@
         </h2>
         
         <form @submit.prevent="submitForm">
-          <div class="form-group">
-            <label for="product_performance_requirements">
-              <i class="fas fa-chart-line"></i>
-              产品性能要求
-              <span class="required">*</span>
-            </label>
-            <textarea
-              id="product_performance_requirements"
-              v-model="formData.product_performance_requirements"
-              placeholder="例如：高导电性、耐高温、循环寿命>1000次"
-              rows="3"
-              required
-            ></textarea>
-            <small class="field-hint">请描述产品的核心性能指标和要求</small>
-          </div>
+          <div class="base-input-grid">
+            <div class="form-group">
+              <label for="product_performance_requirements">
+                <i class="fas fa-chart-line"></i>
+                产品性能要求
+                <span class="required">*</span>
+              </label>
+              <textarea
+                id="product_performance_requirements"
+                v-model="formData.product_performance_requirements"
+                placeholder="例如：高导电性、耐高温、循环寿命>1000次"
+                rows="3"
+                required
+              ></textarea>
+              <small class="field-hint">请描述产品的核心性能指标和要求</small>
+            </div>
 
-          <div class="form-group">
-            <label for="target_application_scenario">
-              <i class="fas fa-bullseye"></i>
-              目标应用场景
-              <span class="required">*</span>
-            </label>
-            <textarea
-              id="target_application_scenario"
-              v-model="formData.target_application_scenario"
-              placeholder="例如：锂电池电解质材料，用于消费电子"
-              rows="3"
-              required
-            ></textarea>
-            <small class="field-hint">请说明产品的具体应用领域和使用场景</small>
-          </div>
+            <div class="form-group">
+              <label for="target_application_scenario">
+                <i class="fas fa-bullseye"></i>
+                目标应用场景
+                <span class="required">*</span>
+              </label>
+              <textarea
+                id="target_application_scenario"
+                v-model="formData.target_application_scenario"
+                placeholder="例如：锂电池电解质材料，用于消费电子"
+                rows="3"
+                required
+              ></textarea>
+              <small class="field-hint">请说明产品的具体应用领域和使用场景</small>
+            </div>
 
-          <div class="form-group">
-            <label for="cost_consideration">
-              <i class="fas fa-dollar-sign"></i>
-              成本考量
-              <span class="required">*</span>
-            </label>
-            <textarea
-              id="cost_consideration"
-              v-model="formData.cost_consideration"
-              placeholder="例如：单公斤成本控制在 200 元以内"
-              rows="2"
-              required
-            ></textarea>
-            <small class="field-hint">请明确成本预算和控制要求</small>
-          </div>
+            <div class="form-group">
+              <label for="cost_consideration">
+                <i class="fas fa-dollar-sign"></i>
+                成本考量
+                <span class="required">*</span>
+              </label>
+              <textarea
+                id="cost_consideration"
+                v-model="formData.cost_consideration"
+                placeholder="例如：单公斤成本控制在 200 元以内"
+                rows="2"
+                required
+              ></textarea>
+              <small class="field-hint">请明确成本预算和控制要求</small>
+            </div>
 
-          <div class="form-grid">
             <div class="form-group">
               <label for="material_system">
                 <i class="fas fa-layer-group"></i>
@@ -232,6 +232,19 @@
               <i class="fas fa-comment"></i>
               <span>会话 ID: {{ conversationId }}</span>
             </div>
+            <div class="meta-item validity-select-item" :class="{ disabled: !currentHistoryId }">
+              <i class="fas fa-clipboard-check"></i>
+              <label for="formula-validity-status">是否有效配方</label>
+              <select
+                id="formula-validity-status"
+                v-model="currentValidityStatus"
+                :disabled="!currentHistoryId"
+              >
+                <option value="pending">待确认</option>
+                <option value="valid">有效</option>
+                <option value="invalid">无效</option>
+              </select>
+            </div>
           </div>
 
           <div class="result-actions">
@@ -330,19 +343,61 @@
         <i class="fas fa-history"></i>
         历史记录
       </h2>
-      <div class="history-list">
-        <div 
-          v-for="item in historyList" 
-          :key="item.id"
-          class="history-item"
-          @click="loadHistory(item)"
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>配方简要</th>
+              <th>时间</th>
+              <th>任务状态</th>
+              <th>是否有效配方</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in paginatedHistoryList"
+              :key="item.id"
+              class="history-row"
+            >
+              <td class="history-id">{{ item.id }}</td>
+              <td class="history-brief">{{ item.brief }}</td>
+              <td>{{ formatDate(item.created_at) }}</td>
+              <td>
+                <span :class="['task-status-badge', `status-${getTaskStatus(item)}`]">
+                  {{ getTaskStatusLabel(item) }}
+                </span>
+              </td>
+              <td>
+                <span
+                  :class="['valid-badge', `status-${getValidityStatus(item)}`]"
+                >
+                  {{ getValidityLabel(item) }}
+                </span>
+              </td>
+              <td>
+                <button class="history-view-btn" type="button" @click="openHistoryDetail(item)">
+                  进入查看
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="totalHistoryPages > 1" class="history-pagination">
+        <button class="page-btn" :disabled="historyPage === 1" @click="goToHistoryPage(historyPage - 1)">上一页</button>
+        <button
+          v-for="page in historyPageNumbers"
+          :key="`history-page-${page}`"
+          :class="['page-btn', { active: page === historyPage }]"
+          @click="goToHistoryPage(page)"
         >
-          <div class="history-info">
-            <div class="history-title">{{ item.title }}</div>
-            <div class="history-date">{{ formatDate(item.created_at) }}</div>
-          </div>
-          <i class="fas fa-chevron-right"></i>
-        </div>
+          {{ page }}
+        </button>
+        <button class="page-btn" :disabled="historyPage === totalHistoryPages" @click="goToHistoryPage(historyPage + 1)">下一页</button>
+        <span class="page-summary">第 {{ historyPage }} / {{ totalHistoryPages }} 页</span>
       </div>
     </div>
     </div>
@@ -356,6 +411,8 @@ import { marked } from 'marked'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 const router = useRouter()
+const FORMULA_HISTORY_STORAGE_KEY = 'formula_generation_history'
+const LOCAL_TASK_STORAGE_KEY = 'smart_agent_local_tasks'
 
 const materialSystemOptions = [
   { value: 'lithium_battery_anode', label: '锂电负极体系' },
@@ -465,10 +522,40 @@ const conversationId = ref('')
 const messageId = ref('')
 const resultTime = ref(null)
 const historyList = ref([])
+const historyPage = ref(1)
+const historyPageSize = 6
+const currentHistoryId = ref(null)
 const formulaDetails = ref({
   materials: [],
   process: [],
   costs: []
+})
+
+const totalHistoryPages = computed(() => Math.max(1, Math.ceil(historyList.value.length / historyPageSize)))
+const paginatedHistoryList = computed(() => {
+  const start = (historyPage.value - 1) * historyPageSize
+  return historyList.value.slice(start, start + historyPageSize)
+})
+const historyPageNumbers = computed(() => {
+  const pages = []
+  for (let page = 1; page <= totalHistoryPages.value; page += 1) {
+    pages.push(page)
+  }
+  return pages
+})
+
+const currentHistoryRecord = computed(() => {
+  if (!currentHistoryId.value) return null
+  return historyList.value.find((item) => item?.id === currentHistoryId.value) || null
+})
+
+const currentValidityStatus = computed({
+  get() {
+    return currentHistoryRecord.value ? getValidityStatus(currentHistoryRecord.value) : 'pending'
+  },
+  set(nextStatus) {
+    updateHistoryValidity(currentHistoryId.value, nextStatus)
+  }
 })
 
 const formulaSummaryKpis = computed(() => {
@@ -631,6 +718,7 @@ const loadDemoFormula = () => {
   showResult.value = true
   streaming.value = false
   streamingAnswer.value = ''
+  currentHistoryId.value = null
   resultTime.value = new Date()
   conversationId.value = `demo-formula-${currentSystem}`
   applyFormulaResult(selectedDemo.result.answer, selectedDemo.result.details)
@@ -638,12 +726,41 @@ const loadDemoFormula = () => {
 
 // 提交表单
 const submitForm = async () => {
+  const inputSnapshot = {
+    ...formData.value,
+    system_specific_params: getSystemSpecificParams()
+  }
+  const taskId = `formula-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const taskCreatedAt = new Date()
+  const createdHistory = saveToHistory({
+    inputsSnapshot: inputSnapshot,
+    taskId,
+    taskStatus: 'pending',
+    resultText: '任务已提交，正在生成配方建议，请稍候...',
+    details: { materials: [], process: [], costs: [] },
+    createdAt: taskCreatedAt
+  })
+
+  upsertLocalTask({
+    id: taskId,
+    agent_name: '配方生成智能体',
+    title: `${(inputSnapshot.target_application_scenario || '配方生成任务').slice(0, 30)}...`,
+  status: 'pending',
+    category: 'formula_generation',
+    created_at: taskCreatedAt.toISOString(),
+    started_at: taskCreatedAt.toISOString(),
+    completed_at: null,
+    execution_time: 0
+  })
+
   loading.value = true
   showResult.value = true
   streaming.value = true
   streamingAnswer.value = ''
+  currentHistoryId.value = createdHistory?.id || null
   result.value = ''
   formulaDetails.value = { materials: [], process: [], costs: [] }
+  resetForm()
   
   try {
     // 调用后端API（流式响应）
@@ -655,21 +772,31 @@ const submitForm = async () => {
         // 'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
       body: JSON.stringify({
-        product_performance_requirements: formData.value.product_performance_requirements,
+        product_performance_requirements: inputSnapshot.product_performance_requirements,
         // 兼容旧字段
-        product_performance: formData.value.product_performance_requirements,
-        target_application_scenario: formData.value.target_application_scenario,
-        cost_consideration: formData.value.cost_consideration,
-        environmental_requirements: formData.value.environmental_requirements,
-        material_system: formData.value.material_system,
-        system_specific_params: getSystemSpecificParams(),
-        ...getSystemSpecificParams()
+        product_performance: inputSnapshot.product_performance_requirements,
+        target_application_scenario: inputSnapshot.target_application_scenario,
+        cost_consideration: inputSnapshot.cost_consideration,
+        environmental_requirements: inputSnapshot.environmental_requirements,
+        material_system: inputSnapshot.material_system,
+        system_specific_params: inputSnapshot.system_specific_params || {},
+        ...(inputSnapshot.system_specific_params || {})
       })
     })
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
+
+    if (createdHistory?.id) {
+      updateHistoryTaskStatus(createdHistory.id, 'running')
+    }
+    upsertLocalTask({
+      id: taskId,
+      status: 'running',
+      category: 'formula_generation',
+      agent_name: '配方生成智能体'
+    })
 
     // 处理流式响应
     const reader = response.body.getReader()
@@ -682,6 +809,26 @@ const submitForm = async () => {
         streaming.value = false
         applyFormulaResult(streamingAnswer.value, {})
         resultTime.value = new Date()
+
+        if (createdHistory?.id) {
+          const target = historyList.value.find((item) => item?.id === createdHistory.id)
+          if (target) {
+            target.result = streamingAnswer.value
+            target.details = { ...formulaDetails.value }
+            target.conversation_id = conversationId.value
+            target.task_id = taskId
+          }
+          updateHistoryTaskStatus(createdHistory.id, 'completed')
+        }
+
+        upsertLocalTask({
+          id: taskId,
+          status: 'completed',
+          category: 'formula_generation',
+          agent_name: '配方生成智能体',
+          completed_at: new Date().toISOString(),
+          execution_time: Math.max(1, Math.round((Date.now() - taskCreatedAt.getTime()) / 1000))
+        })
         break
       }
 
@@ -717,18 +864,28 @@ const submitForm = async () => {
       }
     }
 
-    // 保存到历史记录
-    saveToHistory()
-
   } catch (error) {
     console.error('请求失败:', error)
+    if (createdHistory?.id) {
+      updateHistoryTaskStatus(createdHistory.id, 'failed')
+    }
+
+    upsertLocalTask({
+      id: taskId,
+      status: 'failed',
+      category: 'formula_generation',
+      agent_name: '配方生成智能体',
+      completed_at: new Date().toISOString(),
+      execution_time: Math.max(1, Math.round((Date.now() - taskCreatedAt.getTime()) / 1000))
+    })
+
     alert('请求失败: ' + error.message + '，已为你载入 Demo 配方方案')
     streaming.value = false
     showResult.value = true
-    const selectedDemo = demoFormulaPayloads[formData.value.material_system] || demoFormulaPayloads.lithium_battery_anode
+    const selectedDemo = demoFormulaPayloads[inputSnapshot.material_system] || demoFormulaPayloads.lithium_battery_anode
     applyFormulaResult(selectedDemo.result.answer, selectedDemo.result.details)
     resultTime.value = new Date()
-    conversationId.value = `demo-formula-${formData.value.material_system || 'lithium_battery_anode'}`
+    conversationId.value = `demo-formula-${inputSnapshot.material_system || 'lithium_battery_anode'}`
   } finally {
     loading.value = false
   }
@@ -745,6 +902,7 @@ const newOptimization = () => {
   streamingAnswer.value = ''
   result.value = ''
   conversationId.value = ''
+  currentHistoryId.value = null
   formulaDetails.value = { materials: [], process: [], costs: [] }
   resetForm()
 }
@@ -756,6 +914,7 @@ const clearAll = () => {
   result.value = ''
   conversationId.value = ''
   messageId.value = ''
+  currentHistoryId.value = null
   resultTime.value = null
   formulaDetails.value = { materials: [], process: [], costs: [] }
 }
@@ -783,33 +942,171 @@ const downloadResult = () => {
 }
 
 // 保存到历史记录
-const saveToHistory = () => {
+const saveToHistory = ({
+  inputsSnapshot = null,
+  taskId = '',
+  taskStatus = 'pending',
+  resultText = '',
+  details = null,
+  createdAt = new Date()
+} = {}) => {
+  const baseInputs = inputsSnapshot ? { ...inputsSnapshot } : { ...formData.value }
+  const currentResultText = resultText || result.value || streamingAnswer.value
+  const brief = (baseInputs.product_performance_requirements || currentResultText || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
+
   const historyItem = {
     id: Date.now(),
-    title: `${formData.value.target_application_scenario.substring(0, 30)}...`,
-    inputs: { ...formData.value },
-  result: result.value || streamingAnswer.value,
-    details: { ...formulaDetails.value },
+    title: `${(baseInputs.target_application_scenario || '').substring(0, 30)}...`,
+    brief: brief || '未提取到配方简要',
+    inputs: baseInputs,
+    result: currentResultText,
+    details: details ? { ...details } : { ...formulaDetails.value },
     conversation_id: conversationId.value,
-    created_at: new Date()
+    created_at: createdAt,
+    task_id: taskId || `formula-${Date.now()}`,
+    task_status: taskStatus,
+    validity_status: 'pending',
+    is_valid_formula: false,
   }
-  
-  const history = JSON.parse(localStorage.getItem('optimization_history') || '[]')
+
+  const history = JSON.parse(localStorage.getItem(FORMULA_HISTORY_STORAGE_KEY) || '[]')
   history.unshift(historyItem)
-  
+
   // 只保留最近20条
   if (history.length > 20) {
     history.pop()
   }
-  
-  localStorage.setItem('optimization_history', JSON.stringify(history))
+
+  localStorage.setItem(FORMULA_HISTORY_STORAGE_KEY, JSON.stringify(history))
   loadHistoryList()
+  currentHistoryId.value = historyItem.id
+  return historyItem
+}
+
+const persistHistoryList = () => {
+  localStorage.setItem(FORMULA_HISTORY_STORAGE_KEY, JSON.stringify(historyList.value || []))
+}
+
+const readLocalTasks = () => {
+  const data = JSON.parse(localStorage.getItem(LOCAL_TASK_STORAGE_KEY) || '[]')
+  return Array.isArray(data) ? data : []
+}
+
+const writeLocalTasks = (list) => {
+  localStorage.setItem(LOCAL_TASK_STORAGE_KEY, JSON.stringify(Array.isArray(list) ? list : []))
+}
+
+const upsertLocalTask = (taskRecord) => {
+  if (!taskRecord?.id) return
+  const tasks = readLocalTasks()
+  const idx = tasks.findIndex((item) => item?.id === taskRecord.id)
+  if (idx >= 0) {
+    tasks[idx] = { ...tasks[idx], ...taskRecord }
+  } else {
+    tasks.unshift(taskRecord)
+  }
+  writeLocalTasks(tasks.slice(0, 500))
+}
+
+const getTaskStatus = (item) => {
+  const raw = String(item?.task_status || '').trim().toLowerCase()
+  if (['pending', 'running', 'completed', 'failed'].includes(raw)) {
+    return raw
+  }
+  return 'pending'
+}
+
+const getTaskStatusLabel = (item) => {
+  const status = getTaskStatus(item)
+  if (status === 'running') return '执行中'
+  if (status === 'completed') return '已完成'
+  if (status === 'failed') return '失败'
+  return '等待中'
+}
+
+const updateHistoryTaskStatus = (targetId, nextStatus) => {
+  if (!targetId) return
+  if (!['pending', 'running', 'completed', 'failed'].includes(nextStatus)) return
+  const target = historyList.value.find((record) => record?.id === targetId)
+  if (!target) return
+  target.task_status = nextStatus
+  persistHistoryList()
+}
+
+const normalizeValidityStatus = (item, fallbackValid = false) => {
+  const rawStatus = String(item?.validity_status || '').trim().toLowerCase()
+  if (['pending', 'valid', 'invalid'].includes(rawStatus)) {
+    return rawStatus
+  }
+  if (typeof item?.is_valid_formula === 'boolean') {
+    return item.is_valid_formula ? 'valid' : 'pending'
+  }
+  return fallbackValid ? 'valid' : 'pending'
+}
+
+const getValidityStatus = (item) => normalizeValidityStatus(item)
+
+const getValidityLabel = (item) => {
+  const status = getValidityStatus(item)
+  if (status === 'valid') return '有效'
+  if (status === 'invalid') return '无效'
+  return '待确认'
 }
 
 // 加载历史记录列表
 const loadHistoryList = () => {
-  const history = JSON.parse(localStorage.getItem('optimization_history') || '[]')
-  historyList.value = history
+  const history = JSON.parse(localStorage.getItem(FORMULA_HISTORY_STORAGE_KEY) || '[]')
+  const fallbackHistory = history.length
+    ? history
+    : JSON.parse(localStorage.getItem('optimization_history') || '[]').filter((item) => item?.inputs?.product_performance_requirements)
+
+  historyList.value = fallbackHistory.map((item) => {
+    const fallbackBrief = (item?.inputs?.product_performance_requirements || item?.title || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60)
+    const fallbackValid = Boolean(
+      item?.is_valid_formula
+      || (item?.details?.materials && item.details.materials.length > 0)
+      || String(item?.result || '').includes('建议')
+      || String(item?.result || '').includes('配方')
+    )
+    return {
+      ...item,
+      brief: item?.brief || fallbackBrief || '未提取到配方简要',
+      task_status: getTaskStatus(item),
+      validity_status: normalizeValidityStatus(item, fallbackValid),
+      is_valid_formula: normalizeValidityStatus(item, fallbackValid) === 'valid',
+    }
+  })
+
+  if (historyPage.value > totalHistoryPages.value) {
+    historyPage.value = totalHistoryPages.value
+  }
+}
+
+const goToHistoryPage = (page) => {
+  if (page < 1 || page > totalHistoryPages.value) return
+  historyPage.value = page
+}
+
+const updateHistoryValidity = (targetId, nextStatus) => {
+  if (!targetId) return
+  if (!['pending', 'valid', 'invalid'].includes(nextStatus)) return
+  const target = historyList.value.find((record) => record?.id === targetId)
+  if (!target) return
+  target.validity_status = nextStatus
+  target.is_valid_formula = nextStatus === 'valid'
+  persistHistoryList()
+}
+
+const openHistoryDetail = (item) => {
+  if (!item) return
+  currentHistoryId.value = item.id
+  loadHistory(item)
 }
 
 // 加载历史记录
@@ -822,6 +1119,7 @@ const loadHistory = (item) => {
   resultTime.value = new Date(item.created_at)
   showResult.value = true
   streaming.value = false
+  currentHistoryId.value = item?.id || null
 }
 
 watch(
@@ -1029,6 +1327,12 @@ onMounted(() => {
 }
 
 .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.base-input-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
@@ -1350,46 +1654,175 @@ th {
   gap: 8px;
 }
 
-.history-list {
-  display: grid;
-  gap: 12px;
-}
-
-.history-item {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+.history-table-wrap {
+  overflow-x: auto;
   border: 1px solid #e8edf7;
+  border-radius: 10px;
+  background: #fff;
 }
 
-.history-item:hover {
-  transform: translateX(4px);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.history-info {
-  flex: 1;
+.history-table th,
+.history-table td {
+  border: 1px solid #e8edf5;
+  padding: 10px;
+  text-align: left;
+  font-size: 13px;
+  vertical-align: middle;
 }
 
-.history-title {
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 4px;
+.history-table th {
+  background: #f6f9ff;
+  color: #334155;
+  font-weight: 600;
 }
 
-.history-date {
+.history-row {
+  transition: background 0.2s;
+}
+
+.history-row:hover {
+  background: #fff;
+}
+
+.history-id {
+  width: 120px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.history-brief {
+  max-width: 480px;
+  color: #0f172a;
+}
+
+.valid-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
   font-size: 12px;
-  color: #999;
+  font-weight: 600;
+  user-select: none;
 }
 
-.history-item i {
-  color: #ccc;
+.task-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.task-status-badge.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.task-status-badge.status-running {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.task-status-badge.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.task-status-badge.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.history-view-btn {
+  border: 1px solid #c9d8f5;
+  background: #eef4ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.history-view-btn:hover {
+  background: #dbeafe;
+}
+
+.validity-select-item {
+  gap: 8px;
+}
+
+.validity-select-item label {
+  color: #334155;
+  font-size: 13px;
+}
+
+.validity-select-item select {
+  border: 1px solid #d5deee;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #fff;
+  color: #1f2937;
+}
+
+.validity-select-item.disabled {
+  opacity: 0.65;
+}
+
+.valid-badge.status-valid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.valid-badge.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.valid-badge.status-invalid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.history-pagination {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-btn {
+  border: 1px solid #d5deee;
+  background: #fff;
+  color: #334155;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.page-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-summary {
+  margin-left: 8px;
+  color: #64748b;
+  font-size: 12px;
 }
 
 @media (max-width: 900px) {
@@ -1397,6 +1830,7 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .base-input-grid,
   .form-grid,
   .process-grid {
     grid-template-columns: 1fr;
