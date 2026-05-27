@@ -2,7 +2,7 @@
 import multiprocessing
 
 # 绑定地址和端口
-bind = "0.0.0.0:8003"
+bind = "0.0.0.0:8004"
 
 # 工作进程数
 workers = 4
@@ -29,10 +29,10 @@ max_requests = 1000
 max_requests_jitter = 50
 
 # 访问日志文件路径
-accesslog = "/www/wwwlogs/python/ai_rag_website_sse_v11/gunicorn_access.log"
+accesslog = "/www/wwwlogs/gunicorn_access.log"
 
 # 错误日志文件路径
-errorlog = "/www/wwwlogs/python/ai_rag_website_sse_v11/gunicorn_error.log"
+errorlog = "/www/wwwlogs/gunicorn_error.log"
 
 # 日志级别
 loglevel = "info"
@@ -42,7 +42,7 @@ loglevel = "info"
 enable_stdio_inheritance = True
 
 # 进程名称
-proc_name = "ai_rag_website_sse_v11"
+proc_name = "ai_rag_website"
 
 # 后台运行（设为 True 则后台运行，False 则前台运行）
 daemon = False

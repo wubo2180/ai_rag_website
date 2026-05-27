@@ -97,11 +97,89 @@
 					{{ visualization.summary || analysisText }}
 				</div>
 
+				<div v-if="visualization.statistics" class="table-card">
+					<h3>统计概览</h3>
+					<div class="stats-meta">
+						<div><strong>样本数：</strong>{{ visualization.statistics.sample_count ?? '-' }}</div>
+						<div><strong>字段：</strong>{{ (visualization.statistics.columns || []).join('、') || '-' }}</div>
+					</div>
+					<div class="table-wrap" v-if="visualization.statistics.numeric_stats">
+						<table>
+							<thead>
+								<tr>
+									<th>数值字段</th>
+									<th>min</th>
+									<th>max</th>
+									<th>mean</th>
+									<th>std</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(stats, key) in visualization.statistics.numeric_stats" :key="`stats-${key}`">
+									<td>{{ key }}</td>
+									<td>{{ stats?.min ?? '-' }}</td>
+									<td>{{ stats?.max ?? '-' }}</td>
+									<td>{{ stats?.mean ?? '-' }}</td>
+									<td>{{ stats?.std ?? '-' }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+
 				<div v-if="visualization.insights.length" class="insights-box">
 					<h3>关键洞察</h3>
 					<ol>
 						<li v-for="(item, idx) in visualization.insights" :key="`ins-${idx}`">{{ item }}</li>
 					</ol>
+				</div>
+
+				<div v-if="visualization.trends.length" class="table-card">
+					<h3>趋势分析</h3>
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>X 变量</th>
+									<th>Y 变量</th>
+									<th>趋势类型</th>
+									<th>相关系数</th>
+									<th>说明</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(item, idx) in visualization.trends" :key="`trend-${idx}`">
+									<td>{{ item?.x_variable ?? '-' }}</td>
+									<td>{{ item?.y_variable ?? '-' }}</td>
+									<td>{{ item?.trend_type ?? '-' }}</td>
+									<td>{{ item?.correlation ?? '-' }}</td>
+									<td>{{ item?.description ?? '-' }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+
+				<div v-if="visualization.recommendations.length" class="table-card">
+					<h3>推荐方案</h3>
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>材料</th>
+									<th>推荐原因</th>
+									<th>预期表现</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(item, idx) in visualization.recommendations" :key="`rec-${idx}`">
+									<td>{{ item?.material ?? '-' }}</td>
+									<td>{{ item?.reason ?? '-' }}</td>
+									<td>{{ item?.expected_performance ?? '-' }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</div>
 
 				<div v-if="visualization.charts.length" class="chart-grid">
@@ -155,10 +233,34 @@
 							</thead>
 							<tbody>
 								<tr v-for="(item, idx) in visualization.anomalies" :key="`ab-${idx}`">
-									<td>{{ item.name }}</td>
-									<td>{{ item.metric }}</td>
-									<td>{{ item.delta }}</td>
-									<td>{{ item.action }}</td>
+									<td>{{ item.name || (item.row !== undefined ? `第${item.row}行` : '-') }}</td>
+									<td>{{ item.metric || item.description || '-' }}</td>
+									<td>{{ item.delta || '-' }}</td>
+									<td>{{ item.action || '复核原始数据' }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+
+				<div v-if="visualization.visualization_suggestions.length" class="table-card">
+					<h3>可视化建议</h3>
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th>类型</th>
+									<th>标题</th>
+									<th>X轴</th>
+									<th>Y轴</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(item, idx) in visualization.visualization_suggestions" :key="`vs-${idx}`">
+									<td>{{ item?.type ?? '-' }}</td>
+									<td>{{ item?.title ?? '-' }}</td>
+									<td>{{ item?.x_axis ?? '-' }}</td>
+									<td>{{ Array.isArray(item?.y_axis) ? item.y_axis.join('、') : (item?.y_axis ?? '-') }}</td>
 								</tr>
 							</tbody>
 						</table>
@@ -174,9 +276,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
+import apiClient from '@/utils/api'
 
 const router = useRouter()
-const API_BASE = '/api/smart-agent'
+const API_BASE = '/smart-agent'
 
 const form = reactive({
 	data_content: '',
@@ -194,7 +297,12 @@ const visualization = reactive({
 	summary: '',
 	insights: [],
 	rankings: [],
-	anomalies: []
+	anomalies: [],
+	statistics: null,
+	key_findings: [],
+	trends: [],
+	recommendations: [],
+	visualization_suggestions: []
 })
 
 const checklist = [
@@ -214,7 +322,12 @@ const hasResult = computed(() => {
 		visualization.tables.length ||
 		visualization.insights.length ||
 		visualization.rankings.length ||
-		visualization.anomalies.length
+		visualization.anomalies.length ||
+		visualization.statistics ||
+		visualization.key_findings.length ||
+		visualization.trends.length ||
+		visualization.recommendations.length ||
+		visualization.visualization_suggestions.length
 	)
 })
 
@@ -407,9 +520,14 @@ const applyResult = async (result) => {
 	visualization.charts = vis.charts || []
 	visualization.tables = vis.tables || []
 	visualization.summary = vis.summary || ''
-	visualization.insights = vis.insights || []
+	visualization.insights = vis.insights || vis.key_findings || []
 	visualization.rankings = vis.rankings || []
 	visualization.anomalies = vis.anomalies || []
+	visualization.statistics = vis.statistics || null
+	visualization.key_findings = vis.key_findings || []
+	visualization.trends = vis.trends || []
+	visualization.recommendations = vis.recommendations || []
+	visualization.visualization_suggestions = vis.visualization_suggestions || []
 
 	kpis.value = [
 		{ label: '图表数量', value: `${visualization.charts.length}`, trend: '可视化覆盖', trendClass: 'neutral' },
@@ -438,6 +556,11 @@ const clearAll = () => {
 	visualization.insights = []
 	visualization.rankings = []
 	visualization.anomalies = []
+	visualization.statistics = null
+	visualization.key_findings = []
+	visualization.trends = []
+	visualization.recommendations = []
+	visualization.visualization_suggestions = []
 	kpis.value = []
 	clearChartInstances()
 }
@@ -448,20 +571,28 @@ const submitAnalysis = async () => {
 	clearAll()
 
 	try {
-		const response = await fetch(`${API_BASE}/data-analysis/submit/`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ...form })
-		})
-
-		const data = await response.json()
-		if (!response.ok || !data.success) {
+		const response = await apiClient.post(`${API_BASE}/data-analysis/submit/`, { ...form })
+		const data = response?.data || {}
+		if (!data.success) {
 			throw new Error(data.error || data.message || '分析失败')
 		}
 
 		await applyResult(data.result || {})
+
+		const createdTaskId = data.task_id || data.task?.id || ''
+		setTimeout(() => {
+			router.push({
+				name: 'SmartAgents',
+				query: {
+					source: 'data-analysis',
+					taskCreated: '1',
+					agentCategory: 'data_analysis',
+					taskId: String(createdTaskId || '')
+				}
+			})
+		}, 500)
 	} catch (e) {
-		error.value = `请求失败：${e.message}（已为你加载 Demo 数据）`
+		error.value = `请求失败：${e?.response?.data?.error || e?.response?.data?.message || e.message}（已为你加载 Demo 数据）`
 		await applyResult(demoPayload.result)
 	} finally {
 		loading.value = false
@@ -712,6 +843,15 @@ textarea, input, select {
 	border: 1px solid #eee;
 	border-radius: 10px;
 	padding: 10px;
+}
+
+.stats-meta {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 6px;
+	font-size: 13px;
+	color: #475569;
+	margin-bottom: 10px;
 }
 
 .ranking-list {

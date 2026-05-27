@@ -17,37 +17,20 @@
                 <i class="fas fa-search"></i>
                 <input v-model="searchQuery" type="text" placeholder="搜索智能体..." @input="handleSearch" />
               </div>
-
-              <button class="filter-btn-all" @click="selectCategory('')">全部分类</button>
             </div>
           </div>
 
           <div v-if="loadError" class="error-banner">
             {{ loadError }}（已切换到本地兜底数据）
           </div>
-
-          <div class="category-cards">
-            <div
-              v-for="category in categories"
-              :key="category.value"
-              :class="['category-card', { active: selectedCategory === category.value }]"
-              @click="selectCategory(category.value)">
-              <div class="card-icon">{{ category.icon || '🤖' }}</div>
-              <div class="card-content">
-                <div class="card-title">{{ category.label }}</div>
-                <div class="card-description">{{ category.description }}</div>
-                <div class="card-stats"><span class="agent-count">{{ getCategoryCount(category.value) }}</span></div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div class="tasks-dashboard-section">
+  <div ref="tasksDashboardSectionRef" class="tasks-dashboard-section">
           <div class="dashboard-kpis">
             <div class="kpi-card">
               <div class="kpi-label">任务总数</div>
               <div class="kpi-value">{{ dashboardStats.total }}</div>
-              <div class="kpi-sub">全部任务</div>
+              <div class="kpi-sub">全部智能体任务</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">运行中</div>
@@ -100,6 +83,22 @@
               </div>
             </div>
           </div>
+
+          <div class="dashboard-panel focused-agent-panel">
+            <h3><i class="fas fa-layer-group"></i> 智能体执行状态（数据分析/配方/工艺/抽取/预测/决策）</h3>
+            <div class="focused-agent-grid">
+              <div v-for="item in focusedAgentStats" :key="item.category" class="focused-agent-card">
+                <div class="focused-agent-title">{{ item.label }}</div>
+                <div class="focused-agent-metrics">
+                  <span class="metric-pill completed">已完成 {{ item.completed }}</span>
+                  <span class="metric-pill running">执行中 {{ item.running }}</span>
+                  <span class="metric-pill pending">等待中 {{ item.pending }}</span>
+                  <span class="metric-pill failed">失败 {{ item.failed }}</span>
+                </div>
+                <div class="focused-agent-total">总任务：{{ item.total }}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 智能体列表 -->
@@ -107,45 +106,50 @@
           <div class="loading-spinner">加载中...</div>
         </div>
 
-        <div v-else class="agents-grid">
-          <div v-if="filteredAgents.length === 0" class="empty-state">
+        <div v-else class="category-cards">
+          <div v-if="categoryAgentCards.length === 0" class="empty-state">
             <i class="fas fa-sitemap"></i>
             <h3>未找到匹配的智能体</h3>
-            <p>尝试调整搜索关键词或切换分类。</p>
+            <p>尝试调整搜索关键词。</p>
           </div>
 
-          <div v-for="agent in filteredAgents" :key="agent.id" class="agent-card">
+          <div
+            v-for="card in categoryAgentCards"
+            :key="card.value"
+            :class="['category-card', { active: selectedCategory === card.value, 'flash-highlight': isCategoryHighlighted(card.value), 'agent-flash-highlight': isAgentHighlighted(card.agent) }]"
+            @click="selectCategory(card.value)">
             <div class="agent-header">
               <div style="display:flex; gap:12px; align-items:center">
-                <div class="agent-avatar">
-                  <i :class="agent.iconClass || 'fas fa-robot'"></i>
+                <div class="card-icon">
+                  <span class="card-icon-emoji">{{ card.icon || '🤖' }}</span>
                 </div>
                 <div>
-                  <div class="agent-name">{{ agent.displayName }}</div>
-                  <div class="agent-description">{{ agent.description }}</div>
+                  <div class="agent-name">{{ card.agent.displayName }}</div>
                 </div>
               </div>
 
               <div class="agent-status">
-                <div :class="['status-badge', agent.active ? 'active' : 'inactive']">{{ agent.active ? '在线' : '离线' }}</div>
-                <div class="popularity-score">★ {{ agent.popularity }}</div>
+                <div :class="['status-badge', card.agent.active ? 'active' : 'inactive']">{{ card.agent.active ? '在线' : '离线' }}</div>
+                <div class="popularity-score">★ {{ card.agent.popularity }}</div>
               </div>
             </div>
 
             <div class="agent-info">
-              <div class="capabilities">
-                <span v-for="(c, idx) in agent.capabilities.slice(0,4)" :key="idx" class="capability-tag">{{ c }}</span>
-                <span v-if="agent.capabilities.length>4" class="more-capabilities">+{{ agent.capabilities.length - 4 }}</span>
+              <div class="card-description">{{ card.agent.description || card.description }}</div>
+
+              <div v-if="shouldShowCapabilities(card.agent)" class="capabilities">
+                <span v-for="(c, idx) in card.agent.capabilities.slice(0,4)" :key="idx" class="capability-tag">{{ c }}</span>
+                <span v-if="card.agent.capabilities.length>4" class="more-capabilities">+{{ card.agent.capabilities.length - 4 }}</span>
               </div>
 
               <div class="agent-stats">
-                <div class="stat-item"><i class="fas fa-clock"></i> 最近更新：{{ agent.lastUpdated }}</div>
-                <div class="stat-item"><i class="fas fa-users"></i> 使用次数：{{ agent.usage || 0 }}</div>
+                <div class="stat-item"><i class="fas fa-clock"></i> 最近更新：{{ card.agent.lastUpdated }}</div>
+                <div class="stat-item"><i class="fas fa-users"></i> 使用次数：{{ card.agent.usage || 0 }}</div>
               </div>
 
               <div class="agent-actions">
-                <button class="btn btn-primary" @click.stop="openAgent(agent)">启动</button>
-                <button class="btn btn-secondary" @click.stop="viewDetails(agent)">详情</button>
+                <button class="btn btn-primary" @click.stop="openAgent(card.agent)">启动</button>
+                <button class="btn btn-secondary" @click.stop="viewDetails(card.agent)">详情</button>
               </div>
             </div>
           </div>
@@ -157,12 +161,13 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import apiClient from '@/utils/api'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 const router = useRouter()
+const route = useRoute()
 const API_BASE = '/smart-agent'
 
 const searchQuery = ref('')
@@ -173,25 +178,36 @@ const agents = ref([])
 const tasks = ref([])
 const statusDonutChartRef = ref(null)
 const trendLineChartRef = ref(null)
+const tasksDashboardSectionRef = ref(null)
+const highlightedCategory = ref('')
+const highlightedAgentCategory = ref('')
 
 let statusDonutChart = null
 let trendLineChart = null
 
-const categories = ref([
-  { label: '全部', value: '', description: '所有智能体', icon: '✨' },
+const categories = [
   { label: '数据分析', value: 'data_analysis', description: '数据可视化与分析', icon: '📊' },
   { label: '配方生成', value: 'formula_generation', description: '材料配方建议', icon: '⚗️' },
   { label: '工艺优化', value: 'process_optimization', description: '工艺与流程优化', icon: '🛠️' },
   { label: '知识抽取', value: 'knowledge_extraction', description: '结构化提取与知识构建', icon: '🧠' },
   { label: '性质预测', value: 'property_prediction', description: '性质建模与预测', icon: '📈' },
   { label: '决策支持', value: 'decision_support', description: '实验决策与路线建议', icon: '🧭' },
-])
+]
+
+const focusedPanelCategories = [
+  'data_analysis',
+  'formula_generation',
+  'process_optimization',
+  'knowledge_extraction',
+  'property_prediction',
+  'decision_support'
+]
 
 const requiredDemoAgents = [
   {
     id: 'demo-formula',
     displayName: '配方生成智能体',
-    description: '用于材料配方建议与成本平衡设计。',
+    description: '根据性能目标与应用场景生成配方建议，提供组分配比、工艺参数与成本/环保平衡方案。',
     category: 'formula_generation',
     active: true,
     popularity: 4.8,
@@ -203,7 +219,7 @@ const requiredDemoAgents = [
   {
     id: 'demo-process',
     displayName: '工艺优化智能体',
-    description: '用于生产参数优化与工艺窗口推荐。',
+    description: '分析工艺变量与历史数据，给出参数调优建议、风险提示与可执行优化路径。',
     category: 'process_optimization',
     active: true,
     popularity: 4.6,
@@ -275,6 +291,37 @@ const ensureRequiredAgents = (list) => {
   return normalized
 }
 
+const categoryIconFallbackMap = {
+  data_analysis: 'fas fa-chart-line',
+  formula_generation: 'fas fa-flask',
+  process_optimization: 'fas fa-cogs',
+  knowledge_extraction: 'fas fa-brain',
+  property_prediction: 'fas fa-chart-area',
+  decision_support: 'fas fa-compass'
+}
+
+const normalizeIconClass = (icon, category) => {
+  const fallback = categoryIconFallbackMap[category] || 'fas fa-robot'
+  if (!icon || typeof icon !== 'string') return fallback
+
+  const val = icon.trim()
+  if (!val) return fallback
+  if (val.includes('fa-')) {
+    if (/\bfa[srbld]?\b/.test(val)) return val
+    return `fas ${val}`
+  }
+
+  return fallback
+}
+
+const normalizeAgentDisplayName = (name, category) => {
+  const baseName = (name || '').trim() || '未命名智能体'
+  if (['formula_generation', 'process_optimization'].includes(category) && !baseName.includes('智能体')) {
+    return `${baseName}智能体`
+  }
+  return baseName
+}
+
 const normalizeAgent = (raw) => {
   const cap = Array.isArray(raw?.capabilities)
     ? raw.capabilities
@@ -284,7 +331,7 @@ const normalizeAgent = (raw) => {
 
   return {
     id: raw.id,
-    displayName: raw.display_name || raw.name || '未命名智能体',
+    displayName: normalizeAgentDisplayName(raw.display_name || raw.name, raw.category),
     description: raw.description || '暂无描述',
     category: raw.category || 'other',
     active: (raw.status || '').toLowerCase() === 'active',
@@ -292,7 +339,7 @@ const normalizeAgent = (raw) => {
     capabilities: cap,
     lastUpdated: formatRelativeTime(raw.updated_at || raw.created_at),
     usage: raw.usage_count || 0,
-    iconClass: raw.icon || 'fas fa-robot'
+    iconClass: normalizeIconClass(raw.icon, raw.category)
   }
 }
 
@@ -302,17 +349,8 @@ async function fetchAgents() {
   try {
     const response = await apiClient.get(`${API_BASE}/agents/`)
     const list = response.data?.results || response.data || []
-  const normalized = list.map(normalizeAgent)
-  agents.value = ensureRequiredAgents(normalized)
-
-    // 追加后端返回但前端预设不存在的分类（避免“被删掉”的分类不显示）
-    const preset = new Set(categories.value.map((c) => c.value))
-    const dynamicCategories = [...new Set(agents.value.map((a) => a.category).filter(Boolean))]
-    dynamicCategories.forEach((key) => {
-      if (!preset.has(key)) {
-        categories.value.push({ label: key, value: key, description: '后端动态分类', icon: '🧩' })
-      }
-    })
+    const normalized = list.map(normalizeAgent)
+    agents.value = ensureRequiredAgents(normalized)
   } catch (error) {
     console.error('获取智能体列表失败:', error)
     loadError.value = '后端接口暂不可用'
@@ -327,13 +365,11 @@ function handleSearch() {
 }
 
 function selectCategory(val) {
-  selectedCategory.value = val
+  selectedCategory.value = selectedCategory.value === val ? '' : val
 }
 
-function getCategoryCount(val) {
-  if (!val) return agents.value.length
-  return agents.value.filter(a => a.category === val).length
-}
+const isCategoryHighlighted = (val) => highlightedCategory.value && highlightedCategory.value === val
+const isAgentHighlighted = (agent) => highlightedAgentCategory.value && agent?.category === highlightedAgentCategory.value
 
 function openAgent(agent) {
   const routeMap = {
@@ -356,6 +392,11 @@ function viewDetails(agent) {
   router.push(`/agents/${agent.id}`)
 }
 
+const shouldShowCapabilities = (agent) => {
+  const category = agent?.category || ''
+  return !['formula_generation', 'process_optimization'].includes(category)
+}
+
 function formatRelativeTime(dateValue) {
   if (!dateValue) return '未知'
   const date = new Date(dateValue)
@@ -371,20 +412,74 @@ function formatRelativeTime(dateValue) {
   return date.toLocaleDateString('zh-CN')
 }
 
-const filteredAgents = computed(() => {
+const categoryAgentCards = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  return agents.value.filter(a => {
-    const matchCategory = selectedCategory.value ? a.category === selectedCategory.value : true
-    const matchQuery = !q || a.displayName.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
+
+  return categories.map((category) => {
+    const byCategory = agents.value.filter((a) => a.category === category.value)
+    const fallback = requiredDemoAgents.find((a) => a.category === category.value)
+    const agent = byCategory[0] || fallback
+    return {
+      ...category,
+      agent
+    }
+  }).filter((card) => {
+    if (!card.agent) return false
+    const matchCategory = selectedCategory.value ? card.value === selectedCategory.value : true
+    const searchTarget = [
+      card.label,
+      card.description,
+      card.agent.displayName,
+      card.agent.description,
+      ...(card.agent.capabilities || [])
+    ].join(' ').toLowerCase()
+    const matchQuery = !q || searchTarget.includes(q)
     return matchCategory && matchQuery
   })
 })
 
+const categoryLabelMap = computed(() => {
+  const map = new Map()
+  categories.forEach((item) => map.set(item.value, item.label))
+  return map
+})
+
+const agentCategoryMap = computed(() => {
+  const map = new Map()
+  agents.value.forEach((agent) => {
+    if (agent?.id && agent?.category) {
+      map.set(String(agent.id), agent.category)
+    }
+  })
+  return map
+})
+
+const resolveTaskCategory = (task) => {
+  const byAgentId = task?.agent ? agentCategoryMap.value.get(String(task.agent)) : ''
+  if (byAgentId) return byAgentId
+
+  const text = `${task?.agent_name || ''} ${task?.title || ''}`.toLowerCase()
+  if (text.includes('配方')) return 'formula_generation'
+  if (text.includes('工艺')) return 'process_optimization'
+  if (text.includes('知识')) return 'knowledge_extraction'
+  if (text.includes('性质')) return 'property_prediction'
+  if (text.includes('决策')) return 'decision_support'
+  if (text.includes('数据分析')) return 'data_analysis'
+  return ''
+}
+
+const dashboardTasks = computed(() => {
+  return tasks.value.map((task) => ({
+    ...task,
+    _category: resolveTaskCategory(task)
+  }))
+})
+
 const dashboardStats = computed(() => {
-  const total = tasks.value.length
-  const running = tasks.value.filter((t) => t.status === 'running').length
-  const completed = tasks.value.filter((t) => t.status === 'completed').length
-  const withDuration = tasks.value.filter((t) => Number(t.execution_time) > 0)
+  const total = dashboardTasks.value.length
+  const running = dashboardTasks.value.filter((t) => t.status === 'running').length
+  const completed = dashboardTasks.value.filter((t) => t.status === 'completed').length
+  const withDuration = dashboardTasks.value.filter((t) => Number(t.execution_time) > 0)
   const avgSec = withDuration.length
     ? withDuration.reduce((sum, t) => sum + Number(t.execution_time || 0), 0) /
       withDuration.length
@@ -399,10 +494,10 @@ const dashboardStats = computed(() => {
 })
 
 const statusDistribution = computed(() => {
-  const total = tasks.value.length || 1
+  const total = dashboardTasks.value.length || 1
   const statuses = ['pending', 'running', 'completed', 'failed', 'cancelled']
   return statuses.map((status) => {
-    const count = tasks.value.filter((t) => t.status === status).length
+    const count = dashboardTasks.value.filter((t) => t.status === status).length
     return {
       status,
       count,
@@ -413,7 +508,7 @@ const statusDistribution = computed(() => {
 
 const topAgentUsage = computed(() => {
   const usageMap = new Map()
-  tasks.value.forEach((task) => {
+  dashboardTasks.value.forEach((task) => {
     const key = task.agent_name || '未知智能体'
     usageMap.set(key, (usageMap.get(key) || 0) + 1)
   })
@@ -421,6 +516,21 @@ const topAgentUsage = computed(() => {
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
+})
+
+const focusedAgentStats = computed(() => {
+  return focusedPanelCategories.map((category) => {
+    const items = dashboardTasks.value.filter((task) => task._category === category)
+    return {
+      category,
+      label: categoryLabelMap.value.get(category) || category,
+      total: items.length,
+      completed: items.filter((task) => task.status === 'completed').length,
+      running: items.filter((task) => task.status === 'running').length,
+      pending: items.filter((task) => task.status === 'pending').length,
+      failed: items.filter((task) => task.status === 'failed').length,
+    }
+  })
 })
 
 const recentDailyTrend = computed(() => {
@@ -434,7 +544,7 @@ const recentDailyTrend = computed(() => {
     const label = `${d.getMonth() + 1}/${d.getDate()}`
     const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
     const end = start + 24 * 60 * 60 * 1000
-    const count = tasks.value.filter((t) => {
+    const count = dashboardTasks.value.filter((t) => {
       const ts = new Date(t.created_at).getTime()
       return ts >= start && ts < end
     }).length
@@ -622,6 +732,14 @@ const resizeDashboardCharts = () => {
   trendLineChart?.resize()
 }
 
+const scrollToDashboardSection = () => {
+  if (!tasksDashboardSectionRef.value) return
+  tasksDashboardSectionRef.value.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+}
+
 async function fetchTasksOverview() {
   try {
     const response = await apiClient.get(`${API_BASE}/tasks/`)
@@ -635,6 +753,34 @@ async function fetchTasksOverview() {
 }
 
 onMounted(() => {
+  const source = String(route.query.source || '')
+  const taskCreated = String(route.query.taskCreated || '') === '1'
+  const agentCategory = String(route.query.agentCategory || '')
+
+  if (source === 'data-analysis' && taskCreated) {
+    if (agentCategory) {
+      highlightedCategory.value = agentCategory
+      highlightedAgentCategory.value = agentCategory
+    }
+
+    nextTick(() => {
+      setTimeout(() => {
+        scrollToDashboardSection()
+      }, 180)
+    })
+
+    setTimeout(() => {
+      highlightedCategory.value = ''
+      highlightedAgentCategory.value = ''
+      const nextQuery = { ...route.query }
+      delete nextQuery.source
+      delete nextQuery.taskCreated
+      delete nextQuery.agentCategory
+      delete nextQuery.taskId
+      router.replace({ query: nextQuery })
+    }, 4000)
+  }
+
   Promise.all([fetchAgents(), fetchTasksOverview()])
   window.addEventListener('resize', resizeDashboardCharts)
 })
@@ -830,6 +976,75 @@ watch([statusDistribution, recentDailyTrend], () => {
     font-size: 0.8rem;
   }
 
+  .focused-agent-panel {
+    margin-top: 0.9rem;
+  }
+
+  .focused-agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.65rem;
+  }
+
+  .focused-agent-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .focused-agent-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.45rem;
+  }
+
+  .focused-agent-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+  }
+
+  .metric-pill {
+    font-size: 0.72rem;
+    border-radius: 999px;
+    padding: 0.14rem 0.48rem;
+    border: 1px solid transparent;
+    font-weight: 600;
+  }
+
+  .metric-pill.completed {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #86efac;
+  }
+
+  .metric-pill.running {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #7dd3fc;
+  }
+
+  .metric-pill.pending {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fcd34d;
+  }
+
+  .metric-pill.failed {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+  }
+
+  .focused-agent-total {
+    margin-top: 0.45rem;
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+
   .page-header {
     background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,255,0.98));
     border-radius: 12px;
@@ -867,30 +1082,88 @@ watch([statusDistribution, recentDailyTrend], () => {
   .search-box i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8 }
   .search-box input { width:100%; padding:10px 12px 10px 36px; border:1px solid #e6eef9; border-radius:999px; background:#fff; box-sizing:border-box }
 
-  .category-cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:12px; width:100% }
-  .category-card { background:#fff; border-radius:12px; padding:12px; cursor:pointer; display:flex; gap:12px; border:1px solid #f1f5f9; box-shadow:0 6px 20px rgba(15,23,42,0.04); transition:transform .22s ease, box-shadow .22s ease }
+  .category-cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:12px; width:100% }
+  .category-card { background:#fff; border-radius:12px; padding:12px; cursor:pointer; display:flex; flex-direction:column; gap:10px; border:1px solid #f1f5f9; box-shadow:0 6px 20px rgba(15,23,42,0.04); transition:transform .22s ease, box-shadow .22s ease }
   .category-card:hover { transform:translateY(-6px) }
   .category-card.active { background:linear-gradient(90deg,#eef2ff,#f8faff); border-color:#e0e7ff }
-  .card-icon { width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; background:#fbfdff }
-  .card-title { font-size:1rem; font-weight:700; margin:0 }
+  .category-card.flash-highlight {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), 0 12px 28px rgba(79, 70, 229, 0.2);
+    animation: flashPulse 1.2s ease-in-out 0s 3;
+  }
+  .card-icon { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; background:#f8fbff; border:1px solid #e5edf9; box-shadow: inset 0 1px 0 rgba(255,255,255,0.9) }
+  .card-icon-emoji { font-size: 1.28rem; line-height: 1 }
   .card-description { font-size:0.85rem; color:#64748b; margin-top:4px }
 
-  .agents-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-top:18px; width:100% }
-  .agent-card { background:#fff; border-radius:12px; padding:14px; border:1px solid #eef3fb; box-shadow:0 6px 24px rgba(15,23,42,0.04); transition:transform .18s ease }
-  .agent-card:hover { transform:translateY(-6px); box-shadow:0 14px 36px rgba(15,23,42,0.08) }
+  .category-card.agent-flash-highlight {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16), 0 14px 32px rgba(79, 70, 229, 0.18);
+    animation: flashPulse 1.2s ease-in-out 0s 3;
+  }
   .agent-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start }
-  .agent-avatar { width:52px; height:52px; border-radius:12px; background:#fbfdff; display:flex; align-items:center; justify-content:center; font-size:1.25rem }
-  .agent-avatar i { color:#4f46e5 }
-  .agent-name { font-size:1.05rem; font-weight:700; margin-bottom:6px }
-  .agent-description { color:#64748b; font-size:0.95rem; line-height:1.4; margin-bottom:10px; max-height:3.2em; overflow:hidden }
+  .agent-status { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .status-badge { font-size:0.74rem; font-weight:700; border-radius:999px; padding:2px 10px; border:1px solid transparent; }
+  .status-badge.active { color:#15803d; background:#dcfce7; border-color:#86efac; }
+  .status-badge.inactive { color:#b91c1c; background:#fee2e2; border-color:#fca5a5; }
+  .popularity-score { font-size:0.8rem; color:#475569; font-weight:600; }
+  .agent-name { font-size:1.05rem; font-weight:700; margin-bottom:0 }
+  .agent-info {
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    min-height: 120px;
+  }
   .capabilities { display:flex; flex-wrap:wrap; gap:6px }
   .capability-tag { background:#eef6ff; color:#2563eb; padding:4px 8px; border-radius:999px; font-size:0.78rem }
   .more-capabilities { background:#f8f9fa; color:#6c757d; padding:4px 8px; border-radius:999px }
   .agent-stats { display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:#64748b; font-size:0.82rem }
-  .agent-actions { display:flex; gap:8px; margin-top:12px }
-  .btn { padding:8px 12px; border-radius:8px; font-weight:700; cursor:pointer; border:none }
-  .btn-primary { background:#4f46e5; color:#fff }
-  .btn-secondary { background:#fff; color:#334155; border:1px solid #e6eef9 }
+  .stat-item { display:flex; align-items:center; gap:6px; }
+  .agent-actions {
+    display:flex;
+    gap:10px;
+    margin-top:auto;
+    padding-top:12px;
+  }
+  .btn {
+    min-width: 78px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.86rem;
+    cursor: pointer;
+    border: 1px solid #cfe0ff;
+    background: #eaf3ff;
+    color: #1d4ed8;
+    transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  .btn-primary {
+    background: #dbeafe;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+  }
+  .btn-primary:hover {
+    background: #cfe3ff;
+    border-color: #93c5fd;
+  }
+
+  .btn-secondary {
+    background: #eff6ff;
+    border-color: #cfe0ff;
+    color: #334155;
+  }
+  .btn-secondary:hover {
+    background: #e2eeff;
+    border-color: #bfdbfe;
+    color: #1e293b;
+  }
 
   .empty-state { text-align:center; color:#64748b; padding:2rem 1rem }
 
@@ -906,6 +1179,15 @@ watch([statusDistribution, recentDailyTrend], () => {
     font-weight: 600;
   }
 
+  @keyframes flashPulse {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+
   @media (max-width: 980px) {
     .smart-agents-container { padding:16px }
     .header-content { flex-direction:column; align-items:flex-start }
@@ -919,7 +1201,6 @@ watch([statusDistribution, recentDailyTrend], () => {
     .smart-agents-container { padding: 12px; }
     .search-box { width:100% }
     .category-cards { grid-template-columns: 1fr }
-    .agents-grid { grid-template-columns: 1fr }
     .agent-actions { flex-direction: column; }
   }
 </style>

@@ -466,6 +466,11 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         except Exception:
             pass
 
+        try:
+            self._persist_structured_document(file_obj, structured_data)
+        except Exception:
+            pass
+
     @staticmethod
     def _extract_scalar_value(value):
         if isinstance(value, dict):
@@ -525,8 +530,8 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             '数据复核人': 'data_reviewer',
             '复核日期': 'review_date',
             '送样人签名': 'delivery_person_signature',
-            '样品是否完好': 'sample_condition',
-            '业务受理人签字': 'business_handler_signature',
+            '样品是否完好': 'sample_condition_ok',
+            '业务受理人签字': 'business_receiver_signature',
             '申请单是否填写完整': 'form_complete',
             '样品实物信息是否一致': 'sample_info_consistent',
         }

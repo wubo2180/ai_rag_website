@@ -4,21 +4,26 @@
     <div class="process-optimization-container">
       <!-- 页面头部 -->
       <div class="page-header">
-        <div class="header-main">
-          <button @click="goBack" class="back-btn">
-            <i class="fas fa-arrow-left"></i>
-            返回
-          </button>
-          <div>
-            <h1>配方生成智能体</h1>
-            <p>根据输入参数生成材料配方建议</p>
-          </div>
+      <div class="back-navigation">
+        <button @click="goBack" class="back-btn">
+          <i class="fas fa-arrow-left"></i>
+          返回
+        </button>
+      </div>
+      
+      <div class="header-content">
+        <div class="agent-icon">
+          <i class="fas fa-cogs"></i>
+        </div>
+        <div class="header-info">
+          <h1>配方生成</h1>
+          <p>根据输入参数生成材料配方建议</p>
         </div>
         <div class="header-actions">
-          <button type="button" class="action-btn secondary" @click="loadDemoFormula">载入 Demo 看板</button>
-          <button type="button" class="action-btn ghost" @click="clearAll">清空结果</button>
+          <button type="button" class="btn btn-outline" @click="loadDemoFormula">载入 Demo 方案</button>
         </div>
       </div>
+    </div>
 
     <!-- 输入表单 -->
     <div class="form-section">
@@ -30,13 +35,13 @@
         
         <form @submit.prevent="submitForm">
           <div class="form-group">
-            <label for="product_performance_requirements">
+            <label for="product_performance">
               <i class="fas fa-chart-line"></i>
               产品性能要求
               <span class="required">*</span>
             </label>
             <textarea
-              id="product_performance_requirements"
+              id="product_performance"
               v-model="formData.product_performance_requirements"
               placeholder="例如：高导电性、耐高温、循环寿命>1000次"
               rows="3"
@@ -647,20 +652,20 @@ const submitForm = async () => {
   
   try {
     // 调用后端API（流式响应）
-  const response = await fetch(`${API_BASE}/formula-generation/stream/`, {
+    const token = localStorage.getItem('token')
+    const response = await fetch(`${API_BASE}/formula-generation/stream/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // 如果需要认证，添加token
-        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
       body: JSON.stringify({
         product_performance_requirements: formData.value.product_performance_requirements,
-        // 兼容旧字段
-        product_performance: formData.value.product_performance_requirements,
         target_application_scenario: formData.value.target_application_scenario,
         cost_consideration: formData.value.cost_consideration,
         environmental_requirements: formData.value.environmental_requirements,
+        // 兼容旧版后端字段
+        product_performance: formData.value.product_performance_requirements,
         material_system: formData.value.material_system,
         system_specific_params: getSystemSpecificParams(),
         ...getSystemSpecificParams()
@@ -747,17 +752,6 @@ const newOptimization = () => {
   conversationId.value = ''
   formulaDetails.value = { materials: [], process: [], costs: [] }
   resetForm()
-}
-
-const clearAll = () => {
-  showResult.value = false
-  streaming.value = false
-  streamingAnswer.value = ''
-  result.value = ''
-  conversationId.value = ''
-  messageId.value = ''
-  resultTime.value = null
-  formulaDetails.value = { materials: [], process: [], costs: [] }
 }
 
 // 复制结果
@@ -863,90 +857,91 @@ onMounted(() => {
 <style scoped>
 .formula-generation-page-wrapper {
   display: flex;
-  min-height: 100dvh;
-  background: #f4f7fb;
+  min-height: 100vh;
+  height: auto;
+  background:
+    radial-gradient(circle at 10% 8%, rgba(99, 102, 241, 0.08), transparent 36%),
+    radial-gradient(circle at 85% 12%, rgba(59, 130, 246, 0.08), transparent 34%),
+    #f5f7fb;
 }
 
 .process-optimization-container {
   flex: 1;
   width: 100%;
-  max-width: none;
+  min-width: 0;
+  overflow: visible;
   margin: 0;
-  padding: clamp(12px, 2vw, 24px);
+  padding: 24px 28px 40px;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
 .page-header {
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  margin-bottom: 22px;
 }
 
-.header-main {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex: 1;
-  min-width: 280px;
-  justify-content: flex-start;
-}
-
-.header-main > div {
-  text-align: left;
+.back-navigation {
+  margin-bottom: 14px;
 }
 
 .back-btn {
-  border: none;
-  background: #f3f4f6;
-  padding: 8px 12px;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e6eaf5;
+  color: #475569;
+  font-size: 14px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: all 0.3s;
+  backdrop-filter: blur(4px);
 }
 
 .back-btn:hover {
-  background: #e5e7eb;
+  background: #fff;
+  color: #1e293b;
+  border-color: #cfd8ea;
+  transform: translateY(-1px);
 }
 
-.page-header h1 {
-  margin: 0 0 6px;
-}
-
-.page-header p {
-  margin: 0;
-  color: #667085;
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: linear-gradient(135deg, #5b74e8 0%, #655bd9 48%, #7a4ccd 100%);
+  padding: 28px 30px;
+  border-radius: 16px;
+  color: white;
+  box-shadow: 0 14px 30px rgba(93, 97, 211, 0.24);
 }
 
 .header-actions {
-  display: flex;
-  gap: 8px;
   margin-left: auto;
+}
+
+.agent-icon {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
-.action-btn {
-  border: none;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
+.header-info h1 {
+  margin: 0 0 8px 0;
+  font-size: 32px;
+  font-weight: 600;
 }
 
-.action-btn.secondary {
-  background: linear-gradient(135deg, #409eff, #5f8bff);
-  color: #fff;
-}
-
-.action-btn.ghost {
-  background: #eef2ff;
-  color: #475569;
+.header-info p {
+  margin: 0;
+  opacity: 0.96;
+  font-size: 16px;
 }
 
 .form-section,
@@ -1393,6 +1388,10 @@ th {
 }
 
 @media (max-width: 900px) {
+  .process-optimization-container {
+    padding: 18px 14px 28px;
+  }
+
   .summary-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1402,12 +1401,13 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .header-main {
-    min-width: 100%;
+  .header-content {
+    flex-wrap: wrap;
   }
 
   .header-actions {
     margin-left: 0;
+    width: 100%;
   }
 }
 </style>

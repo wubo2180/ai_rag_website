@@ -53,10 +53,10 @@ urlpatterns = [
     path('data-analysis/task/<uuid:task_id>/', data_analysis_task_detail, name='data-analysis-task-detail'),
     path('data-analysis/types/', data_analysis_types, name='data-analysis-types'),
     
-    # # 工艺优化智能体专用接口
-    # path('process-optimization/submit/', process_optimization_submit, name='process-optimization-submit'),
-    # path('process-optimization/stream/', process_optimization_stream, name='process-optimization-stream'),
-    # path('process-optimization/tasks/', process_optimization_task_list, name='process-optimization-task-list'),
-    # path('process-optimization/task/<uuid:task_id>/', process_optimization_task_detail, name='process-optimization-task-detail'),
+    # 工艺优化智能体专用接口
+    path('process-optimization/submit/', formula_generation_submit, name='process-optimization-submit'),
+    path('process-optimization/stream/', formula_generation_stream, name='process-optimization-stream'),
+    path('process-optimization/history/', formula_generation_history, name='process-optimization-history'),
+    path('process-optimization/task/<uuid:task_id>/', formula_generation_task_detail, name='process-optimization-task-detail'),
 ]
 

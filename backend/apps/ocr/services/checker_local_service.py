@@ -591,6 +591,22 @@ class CheckerLocalService(CheckerOcrMixin):
                     self._document_data_cache[file_id] = data
                 else:
                     data = self._default_document_payload(document_type, file_obj)
+            elif document_type == 'commission':
+                cached_commission = cached if isinstance(cached, dict) else None
+                persisted_commission = persisted if isinstance(persisted, dict) else None
+                business_commission = self._load_commission_document_from_business_tables(
+                    file_obj,
+                    persisted_payload=persisted_commission,
+                    cached_payload=cached_commission,
+                )
+
+                data = self._select_richer_commission_payload(cached_commission, persisted_commission)
+                data = self._select_richer_commission_payload(data, business_commission)
+
+                if self._is_meaningful_document_payload(document_type, data):
+                    self._document_data_cache[file_id] = data
+                else:
+                    data = self._default_document_payload(document_type, file_obj)
             elif isinstance(cached, dict) and self._is_meaningful_document_payload(document_type, cached):
                 data = cached
             elif isinstance(persisted, dict) and self._is_meaningful_document_payload(document_type, persisted):

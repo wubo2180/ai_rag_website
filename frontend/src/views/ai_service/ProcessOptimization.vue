@@ -4,21 +4,19 @@
     <div class="process-optimization-container">
     <!-- 页面头部 -->
     <div class="page-header">
-      <div class="back-navigation">
+      <div class="header-main">
         <button @click="goBack" class="back-btn">
           <i class="fas fa-arrow-left"></i>
           返回
         </button>
-      </div>
-
-      <div class="header-content">
-        <div class="agent-icon">
-          <i class="fas fa-cogs"></i>
-        </div>
-        <div class="header-info">
-          <h1>工艺优化</h1>
+        <div>
+          <h1>工艺优化智能体</h1>
           <p>优化工艺参数，提升生产效率</p>
         </div>
+      </div>
+      <div class="header-actions">
+  <button type="button" class="action-btn secondary" @click="loadDemoOptimization">载入 Demo 看板</button>
+        <button type="button" class="action-btn ghost" @click="clearAll">清空结果</button>
       </div>
     </div>
 
@@ -32,35 +30,67 @@
 
         <form @submit.prevent="submitForm">
           <div class="form-group">
-            <label for="product_performance">
+            <label for="optimization_targets">
               <i class="fas fa-chart-line"></i>
-              产品性能要求
+              优化目标
               <span class="required">*</span>
             </label>
             <textarea
-              id="product_performance"
-              v-model="formData.product_performance"
-              placeholder="例如：高导电性、耐高温、循环寿命>1000次"
+              id="optimization_targets"
+              v-model="formData.optimization_targets"
+              placeholder="例如：将致密度提升至3.5 g/cm³以上，同时能耗下降10%"
               rows="3"
               required
             ></textarea>
-            <small class="field-hint">请描述产品的核心性能指标和要求</small>
+            <small class="field-hint">请描述需要优化或提升的关键性能指标</small>
           </div>
 
           <div class="form-group">
-            <label for="target_application_scenario">
-              <i class="fas fa-bullseye"></i>
-              目标应用场景
+            <label for="material_product_data">
+              <i class="fas fa-cubes"></i>
+              材料与产品规格
               <span class="required">*</span>
             </label>
             <textarea
-              id="target_application_scenario"
-              v-model="formData.target_application_scenario"
-              placeholder="例如：锂电池电解质材料，用于消费电子"
+              id="material_product_data"
+              v-model="formData.material_product_data"
+              placeholder="例如：氧化铝陶瓷生坯，初始密度2.6 g/cm³，平均粒径0.5μm"
               rows="3"
               required
             ></textarea>
-            <small class="field-hint">请说明产品的具体应用领域和使用场景</small>
+            <small class="field-hint">填写材料体系、初始状态与产品规格信息</small>
+          </div>
+
+          <div class="form-group">
+            <label for="process_parameters">
+              <i class="fas fa-sliders-h"></i>
+              可调工艺参数
+              <span class="required">*</span>
+            </label>
+            <textarea
+              id="process_parameters"
+              v-model="formData.process_parameters"
+              placeholder="例如：烧结温度1400~1600°C，保温60~180分钟，升温速率2~10°C/分钟"
+              rows="3"
+              required
+            ></textarea>
+            <small class="field-hint">请列出可调参数及其允许范围</small>
+          </div>
+
+          <div class="form-group">
+            <label for="knowledge_constraints">
+              <i class="fas fa-book"></i>
+              知识与约束
+              <span class="required">*</span>
+            </label>
+            <textarea
+              id="knowledge_constraints"
+              v-model="formData.knowledge_constraints"
+              placeholder="例如：温度超过1550°C可能导致晶粒异常长大"
+              rows="3"
+              required
+            ></textarea>
+            <small class="field-hint">填写工艺、物化机制与生产限制条件</small>
           </div>
 
           <div class="form-group">
@@ -93,6 +123,48 @@
               required
             ></textarea>
             <small class="field-hint">请说明环保标准和合规要求</small>
+          </div>
+
+          <div class="form-group">
+            <label for="environmental_real_time_data">
+              <i class="fas fa-cloud-sun"></i>
+              环境与实时数据
+            </label>
+            <textarea
+              id="environmental_real_time_data"
+              v-model="formData.environmental_real_time_data"
+              placeholder="可选：温湿度、设备状态、实时偏差等"
+              rows="2"
+            ></textarea>
+            <small class="field-hint">可选，用于结合在线工况做优化</small>
+          </div>
+
+          <div class="form-group">
+            <label for="historical_data">
+              <i class="fas fa-history"></i>
+              历史数据
+            </label>
+            <textarea
+              id="historical_data"
+              v-model="formData.historical_data"
+              placeholder="可选：上一批次参数与结果、历史实验记录"
+              rows="2"
+            ></textarea>
+            <small class="field-hint">可选，建议填写历史参数-结果映射</small>
+          </div>
+
+          <div class="form-group">
+            <label for="expected_performance">
+              <i class="fas fa-flag-checkered"></i>
+              预期性能
+            </label>
+            <textarea
+              id="expected_performance"
+              v-model="formData.expected_performance"
+              placeholder="可选：期望密度、良率、能耗、成本等目标值"
+              rows="2"
+            ></textarea>
+            <small class="field-hint">可选，用于量化对比推荐方案效果</small>
           </div>
 
           <div class="form-actions">
@@ -248,7 +320,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
 import { marked } from 'marked'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
@@ -256,10 +327,15 @@ const router = useRouter()
 
 // 表单数据
 const formData = ref({
-  product_performance: '',
-  target_application_scenario: '',
+  optimization_targets: '',
+  process_parameters: '',
+  material_product_data: '',
+  knowledge_constraints: '',
   cost_consideration: '',
-  environmental_requirements: ''
+  environmental_requirements: '',
+  environmental_real_time_data: '',
+  historical_data: '',
+  expected_performance: ''
 })
 
 // 状态管理
@@ -297,6 +373,36 @@ const riskChecklist = ref([
 // Dify API 配置 - 现在改用后端API
 const API_BASE = '/api/smart-agent'
 
+const loadDemoOptimization = () => {
+  formData.value = {
+    optimization_targets: '将良率提升至 96% 以上，并降低单位能耗 8% 以上',
+    process_parameters: '烧结温度 1380~1500℃；保温 80~160 分钟；升温速率 2~8 ℃/min',
+    material_product_data: '氧化铝陶瓷基材，初始密度 2.7 g/cm³，平均粒径 0.8 μm',
+    knowledge_constraints: '温度高于 1480℃ 易引发晶粒粗化；保温过长导致能耗显著上升',
+    cost_consideration: '总制造成本控制在当前基线的 95% 以内',
+    environmental_requirements: '满足 RoHS 与 REACH，降低碳排放强度',
+    environmental_real_time_data: '环境温度 24℃，湿度 52%，设备温控偏差 ±3℃',
+    historical_data: '近 12 批次良率均值 91.8%，异常批次主要出现在高温高湿时段',
+    expected_performance: '目标良率 ≥ 96%，单位能耗 ≤ 1.1 kWh/kg，质量波动降低 20%'
+  }
+  showResult.value = true
+  streaming.value = false
+  streamingAnswer.value = ''
+  result.value = '### Demo 工艺优化建议\n\n建议采用“中温区稳态 + 缩短保温 + 升温速率分段控制”的方案，以兼顾良率、能耗与工艺稳定性。\n\n- 将核心温度窗口收敛到 **1430~1460℃**，避免晶粒粗化风险。\n- 保温时长建议控制在 **95~120 分钟**，优先验证 105 分钟工况。\n- 升温速率采用“低温慢升、高温缓升”分段策略，降低热冲击。\n\n建议先进行 3 批次小试并同步记录良率、能耗和缺陷率。'
+  conversationId.value = 'demo-process-optimization'
+  resultTime.value = new Date()
+}
+
+const clearAll = () => {
+  showResult.value = false
+  streaming.value = false
+  streamingAnswer.value = ''
+  result.value = ''
+  conversationId.value = ''
+  messageId.value = ''
+  resultTime.value = null
+}
+
 // 提交表单
 const submitForm = async () => {
   loading.value = true
@@ -311,14 +417,20 @@ const submitForm = async () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // 如果需要认证，添加token
-        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+        ...(localStorage.getItem('token')
+          ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          : {})
       },
       body: JSON.stringify({
-        product_performance: formData.value.product_performance,
-        target_application_scenario: formData.value.target_application_scenario,
+        optimization_targets: formData.value.optimization_targets,
+        process_parameters: formData.value.process_parameters,
+        material_product_data: formData.value.material_product_data,
+        knowledge_constraints: formData.value.knowledge_constraints,
         cost_consideration: formData.value.cost_consideration,
-        environmental_requirements: formData.value.environmental_requirements
+        environmental_requirements: formData.value.environmental_requirements,
+        environmental_real_time_data: formData.value.environmental_real_time_data,
+        historical_data: formData.value.historical_data,
+        expected_performance: formData.value.expected_performance
       })
     })
 
@@ -386,10 +498,15 @@ const submitForm = async () => {
 // 重置表单
 const resetForm = () => {
   formData.value = {
-    product_performance: '',
-    target_application_scenario: '',
+    optimization_targets: '',
+    process_parameters: '',
+    material_product_data: '',
+    knowledge_constraints: '',
     cost_consideration: '',
-    environmental_requirements: ''
+    environmental_requirements: '',
+    environmental_real_time_data: '',
+    historical_data: '',
+    expected_performance: ''
   }
 }
 
@@ -428,7 +545,7 @@ const downloadResult = () => {
 const saveToHistory = () => {
   const historyItem = {
     id: Date.now(),
-    title: `${formData.value.target_application_scenario.substring(0, 30)}...`,
+    title: `${(formData.value.optimization_targets || '工艺优化').substring(0, 30)}...`,
     inputs: { ...formData.value },
     result: streamingAnswer.value,
     conversation_id: conversationId.value,
@@ -505,63 +622,74 @@ onMounted(() => {
 }
 
 .page-header {
-  margin-bottom: 30px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,255,0.98));
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 8px 20px rgba(30,41,59,0.06);
+  border: 1px solid #eef3fb;
 }
 
-.back-navigation {
-  margin-bottom: 20px;
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
 .back-btn {
-  background: none;
-  border: none;
-  color: #666;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
   font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 4px;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   transition: all 0.3s;
 }
 
 .back-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: #eef2ff;
+  border-color: #c7d2fe;
 }
 
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 30px;
-  border-radius: 12px;
-  color: white;
+.page-header h1 {
+  margin: 0 0 6px;
+  color: #0f172a;
 }
 
-.agent-icon {
-  width: 80px;
-  height: 80px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-}
-
-.header-info h1 {
-  margin: 0 0 8px 0;
-  font-size: 32px;
-  font-weight: 600;
-}
-
-.header-info p {
+.page-header p {
   margin: 0;
-  opacity: 0.9;
-  font-size: 16px;
+  color: #667085;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.action-btn {
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-btn.secondary {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+.action-btn.ghost {
+  background: #f8fafc;
 }
 
 .form-section,
