@@ -169,6 +169,7 @@ import NavigationSidebar from '@/components/NavigationSidebar.vue'
 const router = useRouter()
 const route = useRoute()
 const API_BASE = '/smart-agent'
+const LOCAL_TASK_STORAGE_KEY = 'smart_agent_local_tasks'
 
 const searchQuery = ref('')
 const selectedCategory = ref('')
@@ -455,6 +456,9 @@ const agentCategoryMap = computed(() => {
 })
 
 const resolveTaskCategory = (task) => {
+  if (task?.category && focusedPanelCategories.includes(task.category)) {
+    return task.category
+  }
   const byAgentId = task?.agent ? agentCategoryMap.value.get(String(task.agent)) : ''
   if (byAgentId) return byAgentId
 
@@ -740,13 +744,41 @@ const scrollToDashboardSection = () => {
   })
 }
 
+const getLocalTasks = () => {
+  const raw = JSON.parse(localStorage.getItem(LOCAL_TASK_STORAGE_KEY) || '[]')
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item) => item?.id)
+    .map((item) => ({
+      ...item,
+      id: String(item.id),
+      status: String(item.status || 'pending').toLowerCase(),
+      created_at: item.created_at || new Date().toISOString(),
+      agent_name: item.agent_name || '未知智能体',
+      category: item.category || ''
+    }))
+}
+
+const mergeTasks = (remoteTasks, localTasks) => {
+  const merged = [...(Array.isArray(remoteTasks) ? remoteTasks : [])]
+  const knownIds = new Set(merged.map((task) => String(task?.id || '')))
+  localTasks.forEach((task) => {
+    const taskId = String(task?.id || '')
+    if (!taskId || knownIds.has(taskId)) return
+    merged.push(task)
+    knownIds.add(taskId)
+  })
+  return merged
+}
+
 async function fetchTasksOverview() {
   try {
     const response = await apiClient.get(`${API_BASE}/tasks/`)
-    tasks.value = response.data?.results || response.data || []
+    const remoteTasks = response.data?.results || response.data || []
+    tasks.value = mergeTasks(remoteTasks, getLocalTasks())
   } catch (error) {
     console.error('获取任务统计数据失败:', error)
-    tasks.value = []
+    tasks.value = getLocalTasks()
   } finally {
     await renderDashboardCharts()
   }
