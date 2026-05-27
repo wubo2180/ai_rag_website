@@ -20,27 +20,60 @@ class ProcessOptimizationDifyService:
         """初始化服务"""
         # 从环境变量或settings获取配置
         self.api_base = os.environ.get('DIFY_API_URL')
-        self.api_key = os.environ.get('DIFY_AGENT_RECIPE_GENERATION_API_KEY')
+        self.api_key = (
+            os.environ.get('DIFY_AGENT_ProcessOptimization_API_KEY')
+            or os.environ.get('DIFY_AGENT_RECIPE_GENERATION_API_KEY')
+        )
         
         logger.info(f"初始化工艺优化Dify服务: {self.api_base}")
     
+    def _build_inputs(self, inputs: Dict[str, Any]) -> Dict[str, str]:
+        """构建并兼容新旧变量名。"""
+
+        def _text(key: str, default: str = "") -> str:
+            value = inputs.get(key, default)
+            if value is None:
+                return default
+            return str(value)
+
+        product_performance_requirements = (
+            _text('product_performance_requirements')
+            or _text('product_performance')
+            or _text('optimization_targets')
+        )
+        optimization_targets = _text('optimization_targets') or product_performance_requirements
+        material_product_data = _text('material_product_data') or _text('target_application_scenario')
+
+        mapped = {
+            # 最新配方生成变量
+            'product_performance_requirements': product_performance_requirements,
+            'target_application_scenario': _text('target_application_scenario') or material_product_data,
+            'cost_consideration': _text('cost_consideration'),
+            'environmental_requirements': _text('environmental_requirements'),
+            # 新版变量（与Dify提示词对齐）
+            'optimization_targets': optimization_targets,
+            'process_parameters': _text('process_parameters'),
+            'material_product_data': material_product_data,
+            'environmental_real_time_data': _text('environmental_real_time_data'),
+            'knowledge_constraints': _text('knowledge_constraints'),
+            'historical_data': _text('historical_data'),
+            'expected_performance': _text('expected_performance'),
+            # 兼容旧版变量
+            'product_performance': product_performance_requirements,
+        }
+        return mapped
+
     def call_agent_streaming(
         self,
-        product_performance: str,
-        target_application_scenario: str,
-        cost_consideration: str,
-        environmental_requirements: str,
-        user_id: str = None,
+        inputs: Dict[str, Any],
+        user_id: Optional[str] = None,
         conversation_id: str = ""
     ) -> Generator[Dict[str, Any], None, None]:
         """
         调用Dify工艺优化智能体（流式响应）
         
         Args:
-            product_performance: 产品性能要求
-            target_application_scenario: 目标应用场景
-            cost_consideration: 成本考量
-            environmental_requirements: 环保要求
+            inputs: 输入参数（新旧变量名均可）
             user_id: 用户ID
             conversation_id: 会话ID（用于多轮对话）
             
@@ -55,13 +88,8 @@ class ProcessOptimizationDifyService:
         }
         
         payload = {
-            "inputs": {
-                "product_performance": product_performance,
-                "target_application_scenario": target_application_scenario,
-                "cost_consideration": cost_consideration,
-                "environmental_requirements": environmental_requirements
-            },
-            "query": "请根据上述要求，生成材料配方建议",
+            "inputs": self._build_inputs(inputs),
+            "query": "请根据产品性能要求、目标应用场景、成本与环保约束，给出可执行的配方设计方案，并按纯文本结构输出。",
             "response_mode": "streaming",
             "conversation_id": conversation_id,
             "user": user_id or f"user-{id(self)}"
@@ -129,21 +157,15 @@ class ProcessOptimizationDifyService:
     
     def call_agent_blocking(
         self,
-        product_performance: str,
-        target_application_scenario: str,
-        cost_consideration: str,
-        environmental_requirements: str,
-        user_id: str = None,
+        inputs: Dict[str, Any],
+        user_id: Optional[str] = None,
         conversation_id: str = ""
     ) -> Dict[str, Any]:
         """
         调用Dify工艺优化智能体（阻塞响应）
         
         Args:
-            product_performance: 产品性能要求
-            target_application_scenario: 目标应用场景
-            cost_consideration: 成本考量
-            environmental_requirements: 环保要求
+            inputs: 输入参数（新旧变量名均可）
             user_id: 用户ID
             conversation_id: 会话ID
             
@@ -158,13 +180,8 @@ class ProcessOptimizationDifyService:
         }
         
         payload = {
-            "inputs": {
-                "product_performance": product_performance,
-                "target_application_scenario": target_application_scenario,
-                "cost_consideration": cost_consideration,
-                "environmental_requirements": environmental_requirements
-            },
-            "query": "请根据上述要求，生成材料配方建议",
+            "inputs": self._build_inputs(inputs),
+            "query": "请根据产品性能要求、目标应用场景、成本与环保约束，给出可执行的配方设计方案，并按纯文本结构输出。",
             "response_mode": "blocking",
             "conversation_id": conversation_id,
             "user": user_id or f"user-{id(self)}"
@@ -215,7 +232,7 @@ class ProcessOptimizationDifyService:
     def get_conversation_history(
         self,
         conversation_id: str,
-        user_id: str = None
+        user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         获取会话历史

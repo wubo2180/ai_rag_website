@@ -1,13 +1,310 @@
 from pathlib import Path
 import os
 import importlib
+from datetime import datetime
 
 from django.db import connection
+from django.utils.dateparse import parse_date, parse_datetime
 
-from ..models import File, OCRResult
+from ..models import CommissionBasic, File, OCRResult, SpecialTest, TestItem
 
 
 class CheckerStorageMixin:
+    @staticmethod
+    def _format_date_output(value):
+        if not value:
+            return ''
+        try:
+            return value.strftime('%Y-%m-%d')
+        except Exception:
+            return str(value)
+
+    @staticmethod
+    def _format_datetime_output(value):
+        if not value:
+            return ''
+        try:
+            return value.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            return str(value)
+
+    @staticmethod
+    def _commission_payload_score(payload):
+        if not isinstance(payload, dict):
+            return -1
+
+        score = 0
+        basic_info = payload.get('basic_info') if isinstance(payload.get('basic_info'), dict) else {}
+        score += sum(1 for value in basic_info.values() if CheckerStorageMixin._safe_text(value))
+
+        test_items = payload.get('test_items') if isinstance(payload.get('test_items'), list) else []
+        special_tests = payload.get('special_tests') if isinstance(payload.get('special_tests'), list) else []
+        score += len(test_items) * 5
+        score += len(special_tests) * 5
+        return score
+
+    @classmethod
+    def _select_richer_commission_payload(cls, primary_payload, secondary_payload):
+        primary_score = cls._commission_payload_score(primary_payload)
+        secondary_score = cls._commission_payload_score(secondary_payload)
+
+        if secondary_score >= primary_score and secondary_score >= 0:
+            return secondary_payload
+        if primary_score >= 0:
+            return primary_payload
+        return secondary_payload if isinstance(secondary_payload, dict) else primary_payload
+
+    @staticmethod
+    def _safe_text(value):
+        if value is None:
+            return ''
+        if isinstance(value, (dict, list)):
+            return ''
+        return str(value).strip()
+
+    @staticmethod
+    def _safe_date(value):
+        text = CheckerStorageMixin._safe_text(value)
+        if not text:
+            return None
+
+        parsed = parse_date(text)
+        if parsed:
+            return parsed
+
+        normalized = text.replace('年', '-').replace('月', '-').replace('日', '').replace('/', '-').strip()
+        parsed = parse_date(normalized)
+        if parsed:
+            return parsed
+
+        if len(normalized) >= 10:
+            parsed = parse_date(normalized[:10])
+            if parsed:
+                return parsed
+
+        return None
+
+    @staticmethod
+    def _safe_datetime(value):
+        text = CheckerStorageMixin._safe_text(value)
+        if not text:
+            return None
+
+        parsed_dt = parse_datetime(text)
+        if parsed_dt:
+            return parsed_dt
+
+        normalized = text.replace('年', '-').replace('月', '-').replace('日', ' ').replace('/', '-').strip()
+        parsed_dt = parse_datetime(normalized)
+        if parsed_dt:
+            return parsed_dt
+
+        parsed_date = CheckerStorageMixin._safe_date(text)
+        if parsed_date:
+            return datetime.combine(parsed_date, datetime.min.time())
+
+        return None
+
+    def _persist_structured_document(self, file_obj: File, structured_data):
+        document_type = str(file_obj.document_type_code or 'commission').strip().lower()
+        if document_type != 'commission' or not isinstance(structured_data, dict):
+            return
+
+        basic_info_raw = structured_data.get('basic_info')
+        test_items_raw = structured_data.get('test_items')
+        special_tests_raw = structured_data.get('special_tests')
+
+        basic_info = basic_info_raw if isinstance(basic_info_raw, dict) else {}
+        test_items = test_items_raw if isinstance(test_items_raw, list) else []
+        special_tests = special_tests_raw if isinstance(special_tests_raw, list) else []
+
+        commission_number = self._safe_text(basic_info.get('commission_number')) or str(file_obj.pk)
+        form_number = self._safe_text(basic_info.get('form_number')) or commission_number
+
+        defaults = {
+            'form_number': form_number,
+            'service_type': self._safe_text(basic_info.get('service_type')),
+            'need_report': self._safe_text(basic_info.get('need_report')),
+            'commission_department': self._safe_text(basic_info.get('commission_department')),
+            'commissioner': self._safe_text(basic_info.get('commissioner')),
+            'commission_date': self._safe_date(basic_info.get('commission_date')),
+            'commission_address': self._safe_text(basic_info.get('commission_address')),
+            'sample_name': self._safe_text(basic_info.get('sample_name')),
+            'sample_quantity': self._safe_text(basic_info.get('sample_quantity')),
+            'sample_code': self._safe_text(basic_info.get('sample_code')),
+            'sample_batch': self._safe_text(basic_info.get('sample_batch')),
+            'product_number': self._safe_text(basic_info.get('product_number')),
+            'sample_weight': self._safe_text(basic_info.get('sample_weight')),
+            'delivery_time': self._safe_datetime(basic_info.get('delivery_time')),
+            'required_time': self._safe_date(basic_info.get('required_time')),
+            'sample_disposal': self._safe_text(basic_info.get('sample_disposal')),
+            'storage_method': self._safe_text(basic_info.get('storage_method')),
+            'project_number': self._safe_text(basic_info.get('project_number')),
+            'material_number': self._safe_text(basic_info.get('material_number')),
+            'test_nature': self._safe_text(basic_info.get('test_nature')),
+            'test_description': self._safe_text(basic_info.get('test_description')),
+            'special_condition_flag': self._safe_text(basic_info.get('special_condition_flag')),
+            'special_condition_detail': self._safe_text(basic_info.get('special_condition_detail')),
+            'product_quantity': self._safe_text(basic_info.get('product_quantity')),
+            'tester': self._safe_text(basic_info.get('tester')),
+            'data_reviewer': self._safe_text(basic_info.get('data_reviewer')),
+            'review_date': self._safe_date(basic_info.get('review_date')),
+            'form_complete': self._safe_text(basic_info.get('form_complete')),
+            'sample_info_consistent': self._safe_text(basic_info.get('sample_info_consistent')),
+            'sample_condition_ok': self._safe_text(basic_info.get('sample_condition_ok') or basic_info.get('sample_condition')),
+            'other_notes': self._safe_text(basic_info.get('other_notes')),
+            'delivery_person_signature': self._safe_text(basic_info.get('delivery_person_signature')),
+            'business_receiver_signature': self._safe_text(
+                basic_info.get('business_receiver_signature') or basic_info.get('business_handler_signature')
+            ),
+        }
+
+        commission_obj, _ = CommissionBasic.objects.update_or_create(
+            commission_number=commission_number,
+            defaults=defaults,
+        )
+
+        TestItem.objects.filter(commission=commission_obj).delete()
+        test_records = []
+        for index, item in enumerate(test_items):
+            if not isinstance(item, dict):
+                continue
+            test_name = self._safe_text(item.get('test_item')) or f'测试项目{index + 1}'
+            test_records.append(
+                TestItem(
+                    commission=commission_obj,
+                    test_item=test_name,
+                    test_equipment=self._safe_text(item.get('test_equipment')),
+                    test_standard=self._safe_text(item.get('test_standard')),
+                    test_condition=self._safe_text(item.get('test_condition')),
+                    product_standard=self._safe_text(item.get('product_standard')),
+                    unit=self._safe_text(item.get('unit')),
+                    test_result=self._safe_text(item.get('test_result')),
+                    tester=self._safe_text(item.get('tester')),
+                    remark=self._safe_text(item.get('remark')),
+                    sort_order=index,
+                )
+            )
+        if test_records:
+            TestItem.objects.bulk_create(test_records)
+
+        SpecialTest.objects.filter(commission=commission_obj).delete()
+        special_records = []
+        for index, item in enumerate(special_tests):
+            if not isinstance(item, dict):
+                continue
+            test_type = self._safe_text(item.get('test_type')) or '特殊测试'
+            element_name = self._safe_text(item.get('element_name')) or f'元素{index + 1}'
+            special_records.append(
+                SpecialTest(
+                    commission=commission_obj,
+                    test_type=test_type,
+                    element_name=element_name,
+                    standard_value=self._safe_text(item.get('standard_value')),
+                    measured_value=self._safe_text(item.get('measured_value')),
+                    remark=self._safe_text(item.get('remark')),
+                    sort_order=index,
+                )
+            )
+        if special_records:
+            SpecialTest.objects.bulk_create(special_records)
+
+    def _load_commission_document_from_business_tables(self, file_obj: File, persisted_payload=None, cached_payload=None):
+        default_payload = self._default_document_payload('commission', file_obj)
+
+        commission_candidates = []
+        for source in (cached_payload, persisted_payload):
+            if not isinstance(source, dict):
+                continue
+            basic_info = source.get('basic_info') if isinstance(source.get('basic_info'), dict) else {}
+            number = self._safe_text(basic_info.get('commission_number'))
+            if number and number not in commission_candidates:
+                commission_candidates.append(number)
+
+        fallback_number = str(file_obj.pk)
+        if fallback_number and fallback_number not in commission_candidates:
+            commission_candidates.append(fallback_number)
+
+        commission_obj = None
+        for number in commission_candidates:
+            commission_obj = CommissionBasic.objects.filter(commission_number=number).first()
+            if commission_obj:
+                break
+
+        if not commission_obj:
+            return default_payload
+
+        basic_info = {
+            'form_number': self._safe_text(commission_obj.form_number),
+            'commission_number': self._safe_text(commission_obj.commission_number),
+            'service_type': self._safe_text(commission_obj.service_type),
+            'need_report': self._safe_text(commission_obj.need_report),
+            'commission_department': self._safe_text(commission_obj.commission_department),
+            'commissioner': self._safe_text(commission_obj.commissioner),
+            'commission_date': self._format_date_output(commission_obj.commission_date),
+            'commission_address': self._safe_text(commission_obj.commission_address),
+            'sample_name': self._safe_text(commission_obj.sample_name),
+            'sample_quantity': self._safe_text(commission_obj.sample_quantity),
+            'sample_code': self._safe_text(commission_obj.sample_code),
+            'sample_batch': self._safe_text(commission_obj.sample_batch),
+            'product_number': self._safe_text(commission_obj.product_number),
+            'sample_weight': self._safe_text(commission_obj.sample_weight),
+            'delivery_time': self._format_datetime_output(commission_obj.delivery_time),
+            'required_time': self._format_date_output(commission_obj.required_time),
+            'sample_disposal': self._safe_text(commission_obj.sample_disposal),
+            'storage_method': self._safe_text(commission_obj.storage_method),
+            'project_number': self._safe_text(commission_obj.project_number),
+            'material_number': self._safe_text(commission_obj.material_number),
+            'test_nature': self._safe_text(commission_obj.test_nature),
+            'test_description': self._safe_text(commission_obj.test_description),
+            'special_condition_flag': self._safe_text(commission_obj.special_condition_flag),
+            'special_condition_detail': self._safe_text(commission_obj.special_condition_detail),
+            'product_quantity': self._safe_text(commission_obj.product_quantity),
+            'tester': self._safe_text(commission_obj.tester),
+            'data_reviewer': self._safe_text(commission_obj.data_reviewer),
+            'review_date': self._format_date_output(commission_obj.review_date),
+            'form_complete': self._safe_text(commission_obj.form_complete),
+            'sample_info_consistent': self._safe_text(commission_obj.sample_info_consistent),
+            'sample_condition_ok': self._safe_text(commission_obj.sample_condition_ok),
+            'other_notes': self._safe_text(commission_obj.other_notes),
+            'delivery_person_signature': self._safe_text(commission_obj.delivery_person_signature),
+            'business_receiver_signature': self._safe_text(commission_obj.business_receiver_signature),
+        }
+
+        test_items = [
+            {
+                'test_item': self._safe_text(item.test_item),
+                'test_equipment': self._safe_text(item.test_equipment),
+                'test_standard': self._safe_text(item.test_standard),
+                'test_condition': self._safe_text(item.test_condition),
+                'product_standard': self._safe_text(item.product_standard),
+                'unit': self._safe_text(item.unit),
+                'test_result': self._safe_text(item.test_result),
+                'tester': self._safe_text(item.tester),
+                'remark': self._safe_text(item.remark),
+                'sort_order': item.sort_order,
+            }
+            for item in TestItem.objects.filter(commission=commission_obj).order_by('sort_order', 'id')
+        ]
+
+        special_tests = [
+            {
+                'test_type': self._safe_text(item.test_type),
+                'element_name': self._safe_text(item.element_name),
+                'standard_value': self._safe_text(item.standard_value),
+                'measured_value': self._safe_text(item.measured_value),
+                'remark': self._safe_text(item.remark),
+                'sort_order': item.sort_order,
+            }
+            for item in SpecialTest.objects.filter(commission=commission_obj).order_by('sort_order', 'id')
+        ]
+
+        return {
+            'basic_info': basic_info,
+            'test_items': test_items,
+            'special_tests': special_tests,
+        }
+
     def _load_latest_ocr_payload(self, file_id: int):
         try:
             result = OCRResult.objects.filter(file_id=file_id).order_by('-updated_at', '-id').first()
@@ -201,7 +498,7 @@ class CheckerStorageMixin:
         }
         file_values = CheckerStorageMixin._read_env_values(
             [
-                Path(__file__).resolve().parents[4] / 'backend' / '.env.dev',
+                # Path(__file__).resolve().parents[4] / 'backend' / '.env.dev',
                 Path(__file__).resolve().parents[4] / 'backend' / '.env',
             ],
             target_keys,
@@ -294,7 +591,7 @@ class CheckerStorageMixin:
     def _candidate_env_files():
         workspace_root = Path(__file__).resolve().parents[4]
         return [
-            workspace_root / 'backend' / '.env.dev',
+            # workspace_root / 'backend' / '.env.dev',
             workspace_root / 'backend' / '.env',
         ]
 
