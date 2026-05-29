@@ -373,7 +373,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
@@ -408,6 +408,10 @@ const historyPageSize = 6
 const currentHistoryId = ref(null)
 const HISTORY_STORAGE_KEY = 'process_optimization_history'
 const LOCAL_TASK_STORAGE_KEY = 'smart_agent_local_tasks'
+const RUNNING_STATUS_SYNC_INTERVAL_MS = 10000
+let runningStatusSyncTimer = null
+
+const getAuthToken = () => localStorage.getItem('access_token') || localStorage.getItem('token') || ''
 
 const totalHistoryPages = computed(() => Math.max(1, Math.ceil(historyList.value.length / historyPageSize)))
 const paginatedHistoryList = computed(() => {
@@ -527,15 +531,17 @@ const submitForm = async () => {
   resetForm()
 
   try {
+  const token = getAuthToken()
     // 调用后端API（流式响应）
     const response = await fetch(`${API_BASE}/process-optimization/stream/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(localStorage.getItem('token')
-          ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        ...(token
+          ? { Authorization: `Bearer ${token}` }
           : {})
       },
+      credentials: 'include',
       body: JSON.stringify({
         optimization_targets: inputSnapshot.optimization_targets,
         process_parameters: inputSnapshot.process_parameters,
@@ -545,7 +551,8 @@ const submitForm = async () => {
         environmental_requirements: inputSnapshot.environmental_requirements,
         environmental_real_time_data: inputSnapshot.environmental_real_time_data,
         historical_data: inputSnapshot.historical_data,
-        expected_performance: inputSnapshot.expected_performance
+        expected_performance: inputSnapshot.expected_performance,
+        client_task_id: taskId
       })
     })
 
@@ -606,6 +613,21 @@ const submitForm = async () => {
 
             if (data.event === 'task_created') {
               console.log('任务已创建:', data.task_id)
+              const backendTaskId = String(data.task_id || '')
+              if (backendTaskId && createdHistory?.id) {
+                const target = historyList.value.find((item) => item?.id === createdHistory.id)
+                if (target) {
+                  target.backend_task_id = backendTaskId
+                  target.task_id = taskId
+                  persistHistoryList()
+                }
+                upsertLocalTask({
+                  id: taskId,
+                  backend_task_id: backendTaskId,
+                  category: 'process_optimization',
+                  agent_name: '工艺优化智能体'
+                })
+              }
             } else if (data.event === 'message' || data.event === 'agent_message') {
               if (data.answer) {
                 streamingAnswer.value += data.answer
@@ -756,6 +778,32 @@ const getValidityLabel = (item) => {
   return '待确认'
 }
 
+const normalizeBackendHistoryItem = (task) => {
+  const inputData = task?.input_data || {}
+  const outputData = task?.output_data || {}
+  const answerText = outputData?.answer || ''
+  const fallbackBrief = (inputData?.optimization_targets || task?.title || answerText || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
+
+  return {
+    id: String(task?.id || `history-${Date.now()}`),
+    title: task?.title || '工艺优化任务',
+    brief: task?.brief_summary || fallbackBrief || '未提取到工艺优化简要',
+    inputs: inputData,
+    result: answerText,
+    conversation_id: outputData?.conversation_id || '',
+    created_at: task?.created_at || new Date().toISOString(),
+    task_id: String(inputData?.client_task_id || task?.id || ''),
+    backend_task_id: String(task?.id || ''),
+    task_status: getTaskStatus({ task_status: task?.status }),
+    validity_status: normalizeValidityStatus({ validity_status: task?.validity_status }),
+    is_valid_formula: normalizeValidityStatus({ validity_status: task?.validity_status }) === 'valid',
+    created_by_name: task?.created_by_name || ''
+  }
+}
+
 const getTaskStatus = (item) => {
   const raw = String(item?.task_status || '').trim().toLowerCase()
   if (['pending', 'running', 'completed', 'failed'].includes(raw)) {
@@ -798,30 +846,34 @@ const persistHistoryList = () => {
 }
 
 // 加载历史记录列表
-const loadHistoryList = () => {
-  const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]')
-  const fallbackHistory = history.length
-    ? history
-    : JSON.parse(localStorage.getItem('optimization_history') || '[]').filter((item) => item?.inputs?.optimization_targets)
+const loadHistoryList = async () => {
+  const token = getAuthToken()
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
 
-  historyList.value = fallbackHistory.map((item) => {
-    const fallbackBrief = (item?.inputs?.optimization_targets || item?.title || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 60)
-    const fallbackValid = Boolean(
-      item?.is_valid_formula
-      || String(item?.result || '').includes('建议')
-      || String(item?.result || '').includes('优化')
-    )
-    return {
-      ...item,
-      brief: item?.brief || fallbackBrief || '未提取到工艺优化简要',
-      task_status: getTaskStatus(item),
-      validity_status: normalizeValidityStatus(item, fallbackValid),
-      is_valid_formula: normalizeValidityStatus(item, fallbackValid) === 'valid',
+  try {
+    const response = await fetch(`${API_BASE}/process-optimization/history/?limit=100`, {
+      method: 'GET',
+      headers: authHeaders,
+      credentials: 'include'
+    })
+
+    if (response.ok) {
+      const payload = await response.json()
+      const remoteTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
+      historyList.value = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
+      persistHistoryList()
+      if (historyPage.value > totalHistoryPages.value) {
+        historyPage.value = totalHistoryPages.value
+      }
+      return
     }
-  })
+  } catch (error) {
+    console.warn('加载后端工艺历史失败:', error)
+  }
+  historyList.value = []
 
   if (historyPage.value > totalHistoryPages.value) {
     historyPage.value = totalHistoryPages.value
@@ -841,6 +893,24 @@ const updateHistoryValidity = (targetId, nextStatus) => {
   target.validity_status = nextStatus
   target.is_valid_formula = nextStatus === 'valid'
   persistHistoryList()
+
+  const backendTaskId = String(target?.backend_task_id || target?.id || '').trim()
+  if (!backendTaskId) return
+
+  const token = getAuthToken()
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
+
+  fetch(`${API_BASE}/tasks/${backendTaskId}/`, {
+    method: 'PATCH',
+    headers: authHeaders,
+    credentials: 'include',
+    body: JSON.stringify({ validity_status: nextStatus })
+  }).catch((error) => {
+    console.warn('回写有效性到后端失败:', error)
+  })
 }
 
 const updateHistoryTaskStatus = (targetId, nextStatus) => {
@@ -886,9 +956,26 @@ const goBack = () => {
   router.go(-1)
 }
 
+const syncRunningHistoryStatus = async () => {
+  const runningHistory = historyList.value.filter((item) => ['pending', 'running'].includes(getTaskStatus(item)))
+  if (!runningHistory.length) return
+  await loadHistoryList()
+}
+
 // 组件挂载时加载历史记录
-onMounted(() => {
-  loadHistoryList()
+onMounted(async () => {
+  await loadHistoryList()
+  await syncRunningHistoryStatus()
+  runningStatusSyncTimer = setInterval(() => {
+    syncRunningHistoryStatus()
+  }, RUNNING_STATUS_SYNC_INTERVAL_MS)
+})
+
+onUnmounted(() => {
+  if (runningStatusSyncTimer) {
+    clearInterval(runningStatusSyncTimer)
+    runningStatusSyncTimer = null
+  }
 })
 </script>
 
