@@ -166,7 +166,13 @@ const normalizeCommissionData = (rawData) => ({
 
 const normalizeData = (rawData, dt = docType.value) => {
   const normalizedType = String(dt || '').toLowerCase()
-  if (normalizedType === 'paper' || hasPaperShape(rawData)) {
+  if (normalizedType === 'paper') {
+    return normalizePaperData(rawData, fallbackTitle.value)
+  }
+  if (normalizedType === 'commission') {
+    return normalizeCommissionData(rawData)
+  }
+  if (hasPaperShape(rawData)) {
     return normalizePaperData(rawData, fallbackTitle.value)
   }
   return normalizeCommissionData(rawData)

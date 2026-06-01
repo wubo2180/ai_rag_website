@@ -174,14 +174,25 @@ const normalizeCommissionData = (rawData) => ({
 
 const normalizeData = (rawData, dt = docType.value) => {
   const normalizedType = String(dt || '').toLowerCase()
-  if (normalizedType === 'paper' || hasPaperShape(rawData)) {
+  if (normalizedType === 'paper') {
+    return normalizePaperData(rawData, fallbackTitle.value)
+  }
+  if (normalizedType === 'commission') {
+    return normalizeCommissionData(rawData)
+  }
+  if (hasPaperShape(rawData)) {
     return normalizePaperData(rawData, fallbackTitle.value)
   }
   return normalizeCommissionData(rawData)
 }
 
 const updateHasData = (payload, dt = docType.value) => {
-  if (String(dt || '').toLowerCase() === 'paper' || hasPaperShape(payload)) {
+  const normalizedType = String(dt || '').toLowerCase()
+  if (normalizedType === 'paper') {
+    hasData.value = hasMeaningfulPaperData(payload, fallbackTitle.value)
+    return
+  }
+  if (normalizedType !== 'commission' && hasPaperShape(payload)) {
     hasData.value = hasMeaningfulPaperData(payload, fallbackTitle.value)
     return
   }

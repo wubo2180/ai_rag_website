@@ -10,12 +10,53 @@ import requests
 import json
 
 
+REQUEST_TIMEOUT = (3, 10)
+
+
+def _dataset_page(data=None, total=0, page=1, limit=20):
+    return {
+        'data': data or [],
+        'total': total,
+        'page': page,
+        'limit': limit,
+    }
+
+
+def _dify_unavailable_response(message, page=1, limit=20):
+    return Response({
+        'success': True,
+        'data': _dataset_page(page=page, limit=limit),
+        'message': 'Dify知识库服务暂不可达，已返回空列表',
+        'warning': message,
+    })
+
+
+def _get_dataset_url(dataset_id=None, suffix=''):
+    base_url = getattr(settings, 'DIFY_DATASET_BASE_URL', '') or ''
+    base_url = base_url.rstrip('/')
+    if not base_url:
+        raise ValueError('未配置 DIFY_DATASET_BASE_URL')
+
+    if base_url.endswith('/datasets'):
+        url = base_url
+    else:
+        url = f"{base_url}/datasets"
+
+    if dataset_id:
+        url = f"{url}/{dataset_id}"
+    if suffix:
+        url = f"{url}/{suffix.lstrip('/')}"
+    return url
+
+
 class DifyDatasetListAPIView(APIView):
     """获取Dify知识库列表"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """获取知识库列表"""
+        page = 1
+        limit = 20
         try:
             # 获取查询参数
             keyword = request.GET.get('keyword', '')
@@ -24,14 +65,10 @@ class DifyDatasetListAPIView(APIView):
             tag_ids = request.GET.getlist('tag_ids')
 
             # 构建API请求 - 使用正确的Dify API配置
-            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
             api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
             
             # 确保base_url正确：如果已经包含datasets路径，直接使用；否则拼接
-            if base_url.endswith('/datasets'):
-                url = base_url
-            else:
-                url = f"{base_url}/datasets"
+            url = _get_dataset_url()
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
@@ -51,7 +88,7 @@ class DifyDatasetListAPIView(APIView):
             print(f"📋 查询参数: {querystring}")
 
             # 发送请求
-            response = requests.get(url, headers=headers, params=querystring, timeout=30)
+            response = requests.get(url, headers=headers, params=querystring, timeout=REQUEST_TIMEOUT)
             
             print(f"📡 Dify API响应状态: {response.status_code}")
 
@@ -93,17 +130,17 @@ class DifyDatasetListAPIView(APIView):
                 return Response({
                     'success': False,
                     'error': error_msg,
-                    'data': {'data': [], 'total': 0, 'page': page, 'limit': limit}
+                    'data': _dataset_page(page=page, limit=limit)
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         except requests.exceptions.Timeout:
-            error_msg = "请求超时，请检查网络连接"
+            error_msg = "Dify知识库服务请求超时，请检查 172.20.46.18:8088 网络连通性"
             print(f"⏰ {error_msg}")
-            return Response({
-                'success': False,
-                'error': error_msg,
-                'data': {'data': [], 'total': 0, 'page': 1, 'limit': 20}
-            }, status=status.HTTP_408_REQUEST_TIMEOUT)
+            return _dify_unavailable_response(error_msg, page, limit)
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Dify知识库服务不可达: {str(e)}"
+            print(f"🌐 {error_msg}")
+            return _dify_unavailable_response(error_msg, page, limit)
             
         except Exception as e:
             error_msg = f"获取知识库列表失败: {str(e)}"
@@ -111,7 +148,7 @@ class DifyDatasetListAPIView(APIView):
             return Response({
                 'success': False,
                 'error': error_msg,
-                'data': {'data': [], 'total': 0, 'page': 1, 'limit': 20}
+                'data': _dataset_page(page=page, limit=limit)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -122,21 +159,17 @@ class DifyDatasetDetailAPIView(APIView):
     def get(self, request, dataset_id):
         """获取指定知识库的详情"""
         try:
-            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
             api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
 
             # 确保URL正确拼接
-            if base_url.endswith('/datasets'):
-                url = f"{base_url}/{dataset_id}"
-            else:
-                url = f"{base_url}/datasets/{dataset_id}"
+            url = _get_dataset_url(dataset_id)
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
 
             print(f"🔍 请求知识库详情: {url}")
 
-            response = requests.get(url, headers=headers, timeout=30)
+            response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
             
             print(f"📡 Dify API响应状态: {response.status_code}")
 
@@ -164,6 +197,13 @@ class DifyDatasetDetailAPIView(APIView):
                     'error': error_msg
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Dify知识库服务不可达: {str(e)}"
+            print(f"🌐 {error_msg}")
+            return Response({
+                'success': False,
+                'error': error_msg
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
             error_msg = f"获取知识库详情失败: {str(e)}"
             print(f"💥 {error_msg}")
@@ -179,20 +219,18 @@ class DifyDatasetDocumentsAPIView(APIView):
 
     def get(self, request, dataset_id):
         """获取指定知识库的文档列表"""
+        page = 1
+        limit = 20
         try:
             # 获取查询参数
             keyword = request.GET.get('keyword', '')
             page = int(request.GET.get('page', 1))
             limit = int(request.GET.get('limit', 20))
 
-            base_url = getattr(settings, 'DIFY_DATASET_BASE_URL')
             api_key = getattr(settings, 'DIFY_DATASET_API_KEY')
 
             # 确保URL正确拼接
-            if base_url.endswith('/datasets'):
-                url = f"{base_url}/{dataset_id}/documents"
-            else:
-                url = f"{base_url}/datasets/{dataset_id}/documents"
+            url = _get_dataset_url(dataset_id, 'documents')
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
@@ -209,7 +247,7 @@ class DifyDatasetDocumentsAPIView(APIView):
             print(f"🔍 请求知识库文档列表: {url}")
             print(f"📋 查询参数: {querystring}")
 
-            response = requests.get(url, headers=headers, params=querystring, timeout=30)
+            response = requests.get(url, headers=headers, params=querystring, timeout=REQUEST_TIMEOUT)
             
             print(f"📡 Dify API响应状态: {response.status_code}")
 
@@ -236,14 +274,23 @@ class DifyDatasetDocumentsAPIView(APIView):
                 return Response({
                     'success': False,
                     'error': error_msg,
-                    'data': {'data': [], 'total': 0, 'page': page, 'limit': limit}
+                    'data': _dataset_page(page=page, limit=limit)
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Dify知识库服务不可达: {str(e)}"
+            print(f"🌐 {error_msg}")
+            return Response({
+                'success': True,
+                'data': _dataset_page(page=page, limit=limit),
+                'message': 'Dify知识库文档服务暂不可达，已返回空列表',
+                'warning': error_msg,
+            })
         except Exception as e:
             error_msg = f"获取文档列表失败: {str(e)}"
             print(f"💥 {error_msg}")
             return Response({
                 'success': False,
                 'error': error_msg,
-                'data': {'data': [], 'total': 0, 'page': 1, 'limit': 20}
+                'data': _dataset_page(page=page, limit=limit)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
