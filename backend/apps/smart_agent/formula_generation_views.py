@@ -69,7 +69,9 @@ def process_optimization_submit(request):
             'environmental_requirements': request.data.get('environmental_requirements', ''),
             # 兼容旧版字段
             'product_performance': request.data.get('product_performance', ''),
-            'target_application_scenario': request.data.get('target_application_scenario', '')
+            'target_application_scenario': request.data.get('target_application_scenario', ''),
+            # 前端任务对账ID（用于刷新后恢复状态）
+            'client_task_id': request.data.get('client_task_id', '')
         }
         
         # 验证输入
@@ -152,7 +154,9 @@ def process_optimization_stream(request):
             'environmental_requirements': request.data.get('environmental_requirements', ''),
             # 兼容旧版字段
             'product_performance': request.data.get('product_performance', ''),
-            'target_application_scenario': request.data.get('target_application_scenario', '')
+            'target_application_scenario': request.data.get('target_application_scenario', ''),
+            # 前端任务对账ID（用于刷新后恢复状态）
+            'client_task_id': request.data.get('client_task_id', '')
         }
         
         # 验证输入
@@ -249,7 +253,8 @@ def process_optimization_history(request):
         
         tasks = process_optimization_service.get_task_history(
             user=request.user,
-            limit=limit
+            limit=limit,
+            agent_category=_resolve_agent_category_from_path(request.path)
         )
         
         return Response({

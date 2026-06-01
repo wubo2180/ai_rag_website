@@ -37,6 +37,13 @@ class TaskStatus(models.TextChoices):
     CANCELLED = 'cancelled', '已取消'
 
 
+class FormulaValidityStatus(models.TextChoices):
+    """配方有效性状态"""
+    PENDING = 'pending', '待确认'
+    VALID = 'valid', '有效'
+    INVALID = 'invalid', '无效'
+
+
 class SmartAgent(models.Model):
     """智能体模型"""
     
@@ -134,6 +141,7 @@ class AgentTask(models.Model):
     # 任务信息
     title = models.CharField(max_length=200, verbose_name='任务标题')
     description = models.TextField(blank=True, verbose_name='任务描述')
+    brief_summary = models.CharField(max_length=255, blank=True, default='', verbose_name='配方简要')
     
     # 输入输出
     input_data = models.JSONField(verbose_name='输入数据')
@@ -145,6 +153,12 @@ class AgentTask(models.Model):
         choices=TaskStatus.choices,
         default=TaskStatus.PENDING,
         verbose_name='状态'
+    )
+    validity_status = models.CharField(
+        max_length=20,
+        choices=FormulaValidityStatus.choices,
+        default=FormulaValidityStatus.PENDING,
+        verbose_name='是否有效配方'
     )
     progress = models.FloatField(
         default=0.0,
