@@ -34,6 +34,17 @@ You can also call the controller directly:
 
 Dify is treated as an external dependency and is not started by this project script. The controller reads `DIFY_API_URL` from `backend/.env` and checks the Dify setup endpoint during `status`.
 
+## OCR Runtime
+
+The standalone OCR service source directories are not kept in this repository. The controller starts them from a deployment-local runtime directory outside the repo by default:
+
+```bash
+/home/xjlab/zhy/all-anbos/ocr_runtime/commission
+/home/xjlab/zhy/all-anbos/ocr_runtime/paper
+```
+
+Override `OCR_RUNTIME_ROOT`, `COMMISSION_SERVICE_DIR`, or `PAPER_SERVICE_DIR` when deploying to a different location. Paper OCR Dify credentials are read from `backend/.env` and passed as environment variables, so runtime `config.yaml` does not need to contain secrets.
+
 ## Overrides
 
 The script supports environment overrides when needed:

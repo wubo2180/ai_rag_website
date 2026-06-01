@@ -2,6 +2,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OCR_RUNTIME_ROOT="${OCR_RUNTIME_ROOT:-$(cd "${ROOT_DIR}/.." && pwd)/ocr_runtime}"
+COMMISSION_SERVICE_DIR="${COMMISSION_SERVICE_DIR:-${OCR_RUNTIME_ROOT}/commission}"
+PAPER_SERVICE_DIR="${PAPER_SERVICE_DIR:-${OCR_RUNTIME_ROOT}/paper}"
 LOG_DIR="${ROOT_DIR}/logs"
 PID_DIR="${LOG_DIR}/pids"
 mkdir -p "${LOG_DIR}" "${PID_DIR}"
@@ -16,7 +19,8 @@ PAPER_HOST="${PAPER_HOST:-0.0.0.0}"
 PAPER_PORT="${PAPER_PORT:-6002}"
 
 PYTHON_BIN="${PYTHON_BIN:-/home/xjlab/miniconda3/bin/python}"
-COMMISSION_PYTHON="${COMMISSION_PYTHON:-${ROOT_DIR}/IBoxTech-ocr-commission/venv/bin/python}"
+COMMISSION_PYTHON="${COMMISSION_PYTHON:-${COMMISSION_SERVICE_DIR}/venv/bin/python}"
+PAPER_PYTHON="${PAPER_PYTHON:-${PYTHON_BIN}}"
 NPM_BIN="${NPM_BIN:-$(command -v npm || true)}"
 WAIT_SECONDS="${WAIT_SECONDS:-45}"
 
@@ -39,10 +43,20 @@ read_env_value() {
     | tr -d '\r'
 }
 
-DIFY_API_URL="${DIFY_API_URL:-$(read_env_value DIFY_API_URL "${ROOT_DIR}/backend/.env")}" 
+DIFY_API_URL="${DIFY_API_URL:-$(read_env_value DIFY_API_URL "${ROOT_DIR}/backend/.env")}"
 DIFY_HEALTH_URL="${DIFY_HEALTH_URL:-}"
 if [ -z "${DIFY_HEALTH_URL}" ] && [ -n "${DIFY_API_URL}" ]; then
   DIFY_HEALTH_URL="${DIFY_API_URL%/v1}/console/api/setup"
+fi
+
+OCR_PAPER_DIFY_BASE_URL="${OCR_PAPER_DIFY_BASE_URL:-$(read_env_value OCR_PAPER_DIFY_BASE_URL "${ROOT_DIR}/backend/.env")}"
+OCR_PAPER_DIFY_API_KEY="${OCR_PAPER_DIFY_API_KEY:-$(read_env_value OCR_PAPER_DIFY_API_KEY "${ROOT_DIR}/backend/.env")}"
+OCR_PAPER_DIFY_DEFAULT_USER="${OCR_PAPER_DIFY_DEFAULT_USER:-$(read_env_value OCR_PAPER_DIFY_DEFAULT_USER "${ROOT_DIR}/backend/.env")}"
+if [ -z "${OCR_PAPER_DIFY_BASE_URL}" ]; then
+  OCR_PAPER_DIFY_BASE_URL="${DIFY_API_URL}"
+fi
+if [ -z "${OCR_PAPER_DIFY_DEFAULT_USER}" ]; then
+  OCR_PAPER_DIFY_DEFAULT_USER="ai-rag-paper-ocr"
 fi
 
 check_url() {
@@ -211,6 +225,15 @@ status_service() {
   else
     health="down"
   fi
+  if [ "${pids}" != "-" ]; then
+    local pid cwd
+    for pid in ${pids//,/ }; do
+      cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
+      if [[ "${cwd}" == *"(deleted)"* ]]; then
+        health="stale"
+      fi
+    done
+  fi
   printf '%-16s port=%-5s health=%-5s pid=%-16s log=%s\n' "${name}" "${port}" "${health}" "${pids}" "${logfile}"
 }
 
@@ -219,17 +242,24 @@ start_all() {
     log "ERROR: PYTHON_BIN not executable: ${PYTHON_BIN}"
     exit 1
   fi
+  for service_dir in "${COMMISSION_SERVICE_DIR}" "${PAPER_SERVICE_DIR}"; do
+    if [ ! -f "${service_dir}/api_server.py" ]; then
+      log "ERROR: OCR runtime service is missing: ${service_dir}/api_server.py"
+      log "Create the runtime directory outside the repository, or set COMMISSION_SERVICE_DIR/PAPER_SERVICE_DIR."
+      exit 1
+    fi
+  done
   if [ ! -x "${COMMISSION_PYTHON}" ]; then
-    log "WARN: commission venv python not found, fallback to ${PYTHON_BIN}"
-    COMMISSION_PYTHON="${PYTHON_BIN}"
+    log "ERROR: commission runtime python not executable: ${COMMISSION_PYTHON}"
+    exit 1
   fi
   if [ -z "${NPM_BIN}" ]; then
     log "ERROR: npm not found. Set NPM_BIN=/path/to/npm and retry."
     exit 1
   fi
 
-  local commission_pythonpath="${ROOT_DIR}/IBoxTech-ocr-commission"
-  local paper_pythonpath="${ROOT_DIR}/IBoxTech-ocr-paper"
+  local commission_pythonpath="${COMMISSION_SERVICE_DIR}"
+  local paper_pythonpath="${PAPER_SERVICE_DIR}"
   if [ -n "${PYTHONPATH:-}" ]; then
     commission_pythonpath="${commission_pythonpath}:${PYTHONPATH}"
     paper_pythonpath="${paper_pythonpath}:${PYTHONPATH}"
@@ -237,7 +267,7 @@ start_all() {
 
   start_service \
     "ocr-commission" \
-    "${ROOT_DIR}/IBoxTech-ocr-commission" \
+    "${COMMISSION_SERVICE_DIR}" \
     "${PID_DIR}/ocr-commission.pid" \
     "${LOG_DIR}/ocr-commission.log" \
     "${COMMISSION_PORT}" \
@@ -246,12 +276,16 @@ start_all() {
 
   start_service \
     "ocr-paper" \
-    "${ROOT_DIR}/IBoxTech-ocr-paper" \
+    "${PAPER_SERVICE_DIR}" \
     "${PID_DIR}/ocr-paper.pid" \
     "${LOG_DIR}/ocr-paper.log" \
     "${PAPER_PORT}" \
     "${PAPER_HEALTH}" \
-    env PYTHONPATH="${paper_pythonpath}" "${PYTHON_BIN}" -m uvicorn api_server:app --host "${PAPER_HOST}" --port "${PAPER_PORT}"
+    env PYTHONPATH="${paper_pythonpath}" \
+      DIFY_BASE_URL="${OCR_PAPER_DIFY_BASE_URL}" \
+      DIFY_API_KEY="${OCR_PAPER_DIFY_API_KEY}" \
+      DIFY_DEFAULT_USER="${OCR_PAPER_DIFY_DEFAULT_USER}" \
+      "${PAPER_PYTHON}" -m uvicorn api_server:app --host "${PAPER_HOST}" --port "${PAPER_PORT}"
 
   start_service \
     "backend" \
