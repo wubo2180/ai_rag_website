@@ -376,6 +376,8 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import NavigationSidebar from '@/components/NavigationSidebar.vue'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 const router = useRouter()
@@ -410,6 +412,7 @@ const HISTORY_STORAGE_KEY = 'process_optimization_history'
 const LOCAL_TASK_STORAGE_KEY = 'smart_agent_local_tasks'
 const RUNNING_STATUS_SYNC_INTERVAL_MS = 10000
 let runningStatusSyncTimer = null
+let isSyncing = false
 
 const getAuthToken = () => localStorage.getItem('access_token') || localStorage.getItem('token') || ''
 
@@ -569,15 +572,62 @@ const submitForm = async () => {
       category: 'process_optimization',
       agent_name: '工艺优化智能体'
     })
-
     // 处理流式响应
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
+    let buffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
 
       if (done) {
+        // 处理缓冲区中剩余的完整行
+        buffer += ''
+        let lines = buffer.split('\n')
+        buffer = '' // 清空缓冲区
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+
+              if (data.event === 'task_created') {
+                console.log('任务已创建:', data.task_id)
+                const backendTaskId = String(data.task_id || '')
+                if (backendTaskId && createdHistory?.id) {
+                  const target = historyList.value.find((item) => item?.id === createdHistory.id)
+                  if (target) {
+                    target.backend_task_id = backendTaskId
+                    target.task_id = taskId
+                    persistHistoryList()
+                  }
+                  upsertLocalTask({
+                    id: taskId,
+                    backend_task_id: backendTaskId,
+                    category: 'process_optimization',
+                    agent_name: '工艺优化智能体'
+                  })
+                }
+              } else if (data.event === 'message' || data.event === 'agent_message') {
+                if (data.answer) {
+                  streamingAnswer.value += data.answer
+                }
+              } else if (data.event === 'message_end' || data.event === 'agent_message_end') {
+                conversationId.value = data.conversation_id || ''
+                messageId.value = data.id || ''
+              } else if (data.event === 'agent_thought') {
+                console.log('Agent 思考:', data.thought)
+              } else if (data.event === 'error') {
+                console.error('错误:', data.message)
+                alert('处理失败: ' + (data.message || data.errors?.join(', ') || '未知错误'))
+              } else if (data.event === 'done') {
+                console.log('流式响应完成')
+              }
+            } catch (e) {
+              console.error('解析JSON失败:', e)
+            }
+          }
+        }
+
         streaming.value = false
         result.value = streamingAnswer.value
         resultTime.value = new Date()
@@ -604,8 +654,10 @@ const submitForm = async () => {
       }
 
       const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
-
+      buffer += chunk
+      let lines = buffer.split('\n')
+      // 保留最后一行（可能是不完整的）
+      buffer = lines.pop() ?? ''
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           try {
@@ -644,10 +696,14 @@ const submitForm = async () => {
               console.log('流式响应完成')
             }
           } catch (e) {
-            console.error('解析JSON失败:', e)
+            // 只在不是空行时打印错误，避免因半包导致的误报
+            if (line.trim() !== '') {
+              console.error('解析JSON失败:', e, line)
+            }
           }
         }
       }
+    }
     }
 
   } catch (error) {
@@ -853,6 +909,21 @@ const loadHistoryList = async () => {
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   }
 
+  // 读取本地缓存
+  const localHistory = (() => {
+    try {
+      const arr = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]')
+      return Array.isArray(arr) ? arr : []
+    } catch {
+      return []
+    }
+  })()
+
+  // 读取本地 pending/running 任务
+  const localPendingRunning = localHistory.filter(
+    (item) => ['pending', 'running'].includes(getTaskStatus(item))
+  )
+
   try {
     const response = await fetch(`${API_BASE}/process-optimization/history/?limit=100`, {
       method: 'GET',
@@ -863,7 +934,26 @@ const loadHistoryList = async () => {
     if (response.ok) {
       const payload = await response.json()
       const remoteTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
-      historyList.value = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
+      let backendList = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
+
+      // 用 client_task_id 或 task_id 对账，合并本地 pending/running 记录
+      const backendClientTaskIds = new Set(
+        backendList.map((item) => String(item.inputs?.client_task_id || item.task_id || item.id))
+      )
+const formatMarkdown = (text) => {
+  if (!text) return ''
+  // 禁用 HTML 标签，防止 XSS
+  const html = marked.parse(text, { mangle: false, headerIds: false, breaks: true, gfm: true, sanitize: false })
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+}
+  const html = marked.parse(text, { mangle: false, headerIds: false })
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+}
+            )
+        ),
+        ...backendList
+      ]
+      historyList.value = mergedList
       persistHistoryList()
       if (historyPage.value > totalHistoryPages.value) {
         historyPage.value = totalHistoryPages.value
@@ -872,8 +962,79 @@ const loadHistoryList = async () => {
     }
   } catch (error) {
     console.warn('加载后端工艺历史失败:', error)
+    // 回退到本地缓存
+    historyList.value = localHistory
+    if (historyPage.value > totalHistoryPages.value) {
+      historyPage.value = totalHistoryPages.value
+    }
+    return
   }
-  historyList.value = []
+  // 如果完全失败，保留本地缓存
+  historyList.value = localHistory
+  if (historyPage.value > totalHistoryPages.value) {
+    historyPage.value = totalHistoryPages.value
+  }
+}
+          !backendClientIds.has(String(item.inputs?.client_task_id || item.task_id || item.id))
+      )
+      // 合并并去重
+      const mergedList = [...localPending, ...backendList]
+      historyList.value = mergedList
+      persistHistoryList()
+      if (historyPage.value > totalHistoryPages.value) {
+        historyPage.value = totalHistoryPages.value
+      }
+      return
+    }
+  } catch (error) {
+    console.warn('加载后端工艺历史失败:', error)
+    // 回退到本地缓存
+    historyList.value = localHistory
+    if (historyPage.value > totalHistoryPages.value) {
+      historyPage.value = totalHistoryPages.value
+    }
+    return
+  }
+  // 若未命中 try/catch，回退到本地缓存
+  historyList.value = localHistory
+  if (historyPage.value > totalHistoryPages.value) {
+    historyPage.value = totalHistoryPages.value
+  }
+}
+  try {
+    const response = await fetch(`${API_BASE}/process-optimization/history/?limit=100`, {
+      method: 'GET',
+      headers: authHeaders,
+      credentials: 'include'
+    })
+
+    if (response.ok) {
+      const payload = await response.json()
+      const remoteTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
+      remoteMapped = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
+    }
+  } catch (error) {
+    console.warn('加载后端工艺历史失败，回退本地历史:', error)
+  }
+const syncRunningHistoryStatus = async () => {
+  if (isSyncing) return
+  isSyncing = true
+  try {
+    const runningHistory = historyList.value.filter((item) => ['pending', 'running'].includes(getTaskStatus(item)))
+    if (!runningHistory.length) return
+    await loadHistoryList()
+  } finally {
+    isSyncing = false
+  }
+}
+    const key = String(item?.backend_task_id || item?.id || item?.task_id || '')
+    return key && !remoteKeySet.has(key)
+  })
+
+  historyList.value = [...remoteMapped, ...localOnly].sort((a, b) => {
+    return new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
+  })
+  persistHistoryList()
 
   if (historyPage.value > totalHistoryPages.value) {
     historyPage.value = totalHistoryPages.value

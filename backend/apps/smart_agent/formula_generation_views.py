@@ -28,7 +28,7 @@ def _resolve_agent_category_from_path(path: str) -> str:
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # 可以根据需要改为 IsAuthenticated
+@permission_classes([IsAuthenticated])  # 仅允许认证用户提交任务，防止匿名滥用
 def process_optimization_submit(request):
     """
     提交工艺优化任务（阻塞模式）
@@ -83,11 +83,7 @@ def process_optimization_submit(request):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # 获取用户（如果未认证，使用匿名用户）
-        user = request.user if request.user.is_authenticated else None
-        if not user:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            user, _ = User.objects.get_or_create(username='anonymous')
+        user = request.user  # 已经通过 IsAuthenticated 权限保证用户已认证
         
         # 创建任务
         agent_category = _resolve_agent_category_from_path(request.path)
@@ -127,7 +123,7 @@ def process_optimization_submit(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 @csrf_exempt
 def process_optimization_stream(request):
     """
