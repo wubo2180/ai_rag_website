@@ -112,10 +112,17 @@ class ProcessOptimizationService:
             )
         
         # 创建任务
+        brief_summary = (
+            (inputs.get("product_performance_requirements") or inputs.get("optimization_targets") or inputs.get("product_performance") or "")
+            .replace('\n', ' ')
+            .strip()[:120]
+        )
+
         task = AgentTask.objects.create(
             agent=agent,
             title=title or f'工艺优化 - {(inputs.get("product_performance_requirements") or inputs.get("optimization_targets") or inputs.get("product_performance") or "未命名")[:30]}',
             description=description or '根据优化目标、工艺参数与约束条件生成可执行工艺优化建议',
+            brief_summary=brief_summary,
             input_data=inputs,
             created_by=user,
             status=TaskStatus.PENDING
@@ -347,26 +354,56 @@ class ProcessOptimizationService:
                     'task_id': task.id,
                     'result': data
                 }
-            else:
-                # 失败
-                error_msg = result.get('error', '未知错误')
-                
-                task.status = TaskStatus.FAILED
-                task.completed_at = timezone.now()
-                task.save(update_fields=['status', 'completed_at'])
-                
-                execution.status = 'failed'
-                execution.completed_at = timezone.now()
-                execution.logs = f"错误: {error_msg}"
-                execution.save(update_fields=['status', 'completed_at', 'logs'])
-                
-                logger.error(f"工艺优化任务失败: {task.id}, 错误: {error_msg}")
-                
-                return {
-                    'success': False,
-                    'task_id': task.id,
-                    'error': error_msg
-                }
+
+            # blocking 模式失败时，降级使用服务端流式聚合，避免前端直接 500
+            logger.warning(f"阻塞模式失败，尝试流式聚合兜底: {task.id}, 原因: {result.get('error')}")
+            full_answer = ""
+            conversation_id = ""
+            message_id = ""
+
+            for event_data in self.dify_service.call_agent_streaming(
+                inputs=inputs,
+                user_id=user_id,
+                conversation_id=''
+            ):
+                event_type = event_data.get('event', '')
+                if event_type in ['message', 'agent_message']:
+                    full_answer += event_data.get('answer', '') or ''
+                elif event_type in ['message_end', 'agent_message_end']:
+                    conversation_id = event_data.get('conversation_id', '') or conversation_id
+                    message_id = event_data.get('id', '') or message_id
+                elif event_type == 'error':
+                    raise RuntimeError(event_data.get('message', '流式兜底执行失败'))
+
+            if not full_answer.strip():
+                raise RuntimeError('流式兜底未返回有效结果')
+
+            fallback_data = {
+                'answer': full_answer,
+                'conversation_id': conversation_id,
+                'message_id': message_id
+            }
+
+            task.status = TaskStatus.COMPLETED
+            task.completed_at = timezone.now()
+            task.output_data = fallback_data
+            task.save(update_fields=['status', 'completed_at', 'output_data'])
+
+            execution.status = 'completed'
+            execution.completed_at = timezone.now()
+            execution.output_data = fallback_data
+            execution.save(update_fields=['status', 'completed_at', 'output_data'])
+
+            task.agent.usage_count += 1
+            task.agent.save(update_fields=['usage_count'])
+
+            logger.info(f"工艺优化任务完成（流式兜底）: {task.id}")
+
+            return {
+                'success': True,
+                'task_id': task.id,
+                'result': fallback_data
+            }
         
         except Exception as e:
             error_msg = f"执行工艺优化任务时出错: {str(e)}"
@@ -390,24 +427,20 @@ class ProcessOptimizationService:
                 'error': error_msg
             }
     
-    def get_task_history(self, user, limit: int = 20) -> list:
+    def get_task_history(self, user, limit: int = 20, agent_category: str = 'process_optimization') -> list:
         """
         获取用户的工艺优化任务历史
         
         Args:
             user: 用户对象
             limit: 返回数量限制
+            agent_category: 智能体分类
             
         Returns:
             list: 任务列表
         """
-        agent = SmartAgent.objects.filter(category='process_optimization').first()
-        
-        if not agent:
-            return []
-        
         tasks = AgentTask.objects.filter(
-            agent=agent,
+            agent__category=agent_category,
             created_by=user
         ).order_by('-created_at')[:limit]
 
