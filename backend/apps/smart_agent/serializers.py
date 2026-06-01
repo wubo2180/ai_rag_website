@@ -48,7 +48,9 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         model = AgentTask
         fields = [
             'id', 'agent', 'agent_name', 'title', 'description',
+            'brief_summary',
             'input_data', 'output_data', 'status', 'progress',
+            'validity_status',
             'started_at', 'completed_at', 'execution_time',
             'error_message', 'error_traceback',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
@@ -134,6 +136,6 @@ class AgentTaskListSerializer(serializers.ModelSerializer):
     class Meta:
         model = AgentTask
         fields = [
-            'id', 'agent_name', 'title', 'status', 'progress',
+            'id', 'agent_name', 'title', 'brief_summary', 'status', 'validity_status', 'progress',
             'started_at', 'completed_at', 'created_by_name', 'created_at'
         ]
