@@ -160,15 +160,22 @@ const buildLegacyPropertyTable = (legacyRows) => {
 
 export const hasPaperShape = (payload) => {
   if (!payload || typeof payload !== 'object') return false
+  const basic = payload.basic_info && typeof payload.basic_info === 'object' ? payload.basic_info : null
   return Boolean(
-    payload.basic_info
+    payload.template_type === 'paper_material_v2'
     || Array.isArray(payload.materials)
     || Array.isArray(payload.intermediates)
     || payload.properties
     || payload.article_id
     || payload.article_name
     || Array.isArray(payload.hierarchical_data)
-    || Array.isArray(payload.material_intermediates),
+    || Array.isArray(payload.material_intermediates)
+    || (basic && (
+      basic.article_id
+      || basic.article_name
+      || basic.article_doi
+      || basic.publish_year
+    )),
   )
 }
 

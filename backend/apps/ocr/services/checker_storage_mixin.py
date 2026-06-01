@@ -33,6 +33,7 @@ class CheckerStorageMixin:
         if not isinstance(payload, dict):
             return -1
 
+        payload = CheckerStorageMixin._normalize_commission_payload(payload)
         score = 0
         basic_info = payload.get('basic_info') if isinstance(payload.get('basic_info'), dict) else {}
         score += sum(1 for value in basic_info.values() if CheckerStorageMixin._safe_text(value))
@@ -45,14 +46,24 @@ class CheckerStorageMixin:
 
     @classmethod
     def _select_richer_commission_payload(cls, primary_payload, secondary_payload):
-        primary_score = cls._commission_payload_score(primary_payload)
-        secondary_score = cls._commission_payload_score(secondary_payload)
+        primary_normalized = (
+            cls._normalize_commission_payload(primary_payload)
+            if isinstance(primary_payload, dict)
+            else primary_payload
+        )
+        secondary_normalized = (
+            cls._normalize_commission_payload(secondary_payload)
+            if isinstance(secondary_payload, dict)
+            else secondary_payload
+        )
+        primary_score = cls._commission_payload_score(primary_normalized)
+        secondary_score = cls._commission_payload_score(secondary_normalized)
 
         if secondary_score >= primary_score and secondary_score >= 0:
-            return secondary_payload
+            return secondary_normalized
         if primary_score >= 0:
-            return primary_payload
-        return secondary_payload if isinstance(secondary_payload, dict) else primary_payload
+            return primary_normalized
+        return secondary_normalized if isinstance(secondary_normalized, dict) else primary_normalized
 
     @staticmethod
     def _safe_text(value):
@@ -61,6 +72,109 @@ class CheckerStorageMixin:
         if isinstance(value, (dict, list)):
             return ''
         return str(value).strip()
+
+
+    @classmethod
+    def _first_text(cls, *values):
+        for value in values:
+            text = cls._safe_text(value)
+            if text:
+                return text
+        return ''
+
+    @classmethod
+    def _normalize_commission_payload(cls, payload):
+        if not isinstance(payload, dict):
+            return payload
+
+        normalized = dict(payload)
+        raw_basic = normalized.get('basic_info')
+        basic_info = dict(raw_basic) if isinstance(raw_basic, dict) else {}
+
+        def fill_basic(target, *aliases):
+            if cls._safe_text(basic_info.get(target)):
+                return
+            value = cls._first_text(*(basic_info.get(alias) for alias in aliases))
+            if value:
+                basic_info[target] = value
+
+        fill_basic('other_notes', '\u5176\u4ed6\u68c0\u67e5\u9879', '\u5176\u4ed6')
+        fill_basic(
+            'sample_condition_ok',
+            'sample_condition',
+            '\u6837\u54c1\u662f\u5426\u5b8c\u597d',
+            '\u6837\u54c1\u662f\u5426\u5b8c\u597d\u5e76\u65e0\u591a\u4f59\u9644\u5e26\u7269\uff0c\u662f\u5426\u6ee1\u8db3\u6d4b\u8bd5\u6761\u4ef6\uff1f',
+        )
+        fill_basic(
+            'business_receiver_signature',
+            'business_handler_signature',
+            '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u5b57',
+            '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u5b57/\u65e5\u671f',
+            '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u540d/\u65e5\u671f',
+            '\u4e1a\u52a1\u53d7\u8fce\u4eba\u91dc\u5b57/\u65e5\u671f',
+        )
+        fill_basic(
+            'delivery_person_signature',
+            '\u9001\u6837\u4eba\u7b7e\u540d',
+            '\u9001\u6837\u4eba\u7b7e\u540d/\u65e5\u671f',
+        )
+
+        test_item_aliases = {
+            '\u6d4b\u8bd5\u9879\u76ee': 'test_item',
+            'test_item': 'test_item',
+            '\u6d4b\u8bd5\u8bbe\u5907': 'test_equipment',
+            'test_equipment': 'test_equipment',
+            '\u6d4b\u8bd5\u6807\u51c6': 'test_standard',
+            'test_standard': 'test_standard',
+            '\u6d4b\u8bd5\u6761\u4ef6': 'test_condition',
+            'test_condition': 'test_condition',
+            '\u4ea7\u54c1\u6807\u51c6': 'product_standard',
+            '\u5224\u5b9a\u6807\u51c6': 'product_standard',
+            'product_standard': 'product_standard',
+            '\u5355\u4f4d': 'unit',
+            'unit': 'unit',
+            '\u6d4b\u8bd5\u7ed3\u679c': 'test_result',
+            'test_result': 'test_result',
+            '\u6d4b\u8bd5\u5458': 'tester',
+            '\u5219\u8bd5\u5458': 'tester',
+            'tester': 'tester',
+            '\u5907\u6ce8': 'remark',
+            'remark': 'remark',
+        }
+        special_test_aliases = {
+            '\u6d4b\u8bd5\u7c7b\u578b': 'test_type',
+            'test_type': 'test_type',
+            '\u5143\u7d20\u540d\u79f0': 'element_name',
+            'element_name': 'element_name',
+            '\u6807\u51c6\u503c': 'standard_value',
+            '\u6807\u51c6': 'standard_value',
+            'standard_value': 'standard_value',
+            '\u5b9e\u6d4b\u503c': 'measured_value',
+            '\u5b9e\u6d4b': 'measured_value',
+            '\u6d4b\u8bd5\u503c': 'measured_value',
+            'measured_value': 'measured_value',
+            '\u5907\u6ce8': 'remark',
+            'remark': 'remark',
+        }
+
+        def normalize_rows(rows, aliases):
+            normalized_rows = []
+            if not isinstance(rows, list):
+                return normalized_rows
+            for item in rows:
+                if not isinstance(item, dict):
+                    continue
+                row = dict(item)
+                for source_key, target_key in aliases.items():
+                    if source_key in row and not cls._safe_text(row.get(target_key)):
+                        row[target_key] = row.get(source_key)
+                normalized_rows.append(row)
+            return normalized_rows
+
+        normalized['basic_info'] = basic_info
+        normalized['test_items'] = normalize_rows(normalized.get('test_items'), test_item_aliases)
+        normalized['special_tests'] = normalize_rows(normalized.get('special_tests'), special_test_aliases)
+        return normalized
 
     @staticmethod
     def _safe_date(value):
@@ -110,6 +224,7 @@ class CheckerStorageMixin:
         if document_type != 'commission' or not isinstance(structured_data, dict):
             return
 
+        structured_data = self._normalize_commission_payload(structured_data)
         basic_info_raw = structured_data.get('basic_info')
         test_items_raw = structured_data.get('test_items')
         special_tests_raw = structured_data.get('special_tests')
@@ -314,12 +429,12 @@ class CheckerStorageMixin:
             raw_result = result.raw_result
             structured = raw_result.get('structured_data')
             if isinstance(structured, dict):
-                return structured
+                return self._normalize_commission_payload(structured)
 
             if self._is_meaningful_document_payload('paper', raw_result):
                 return raw_result
             if self._is_meaningful_document_payload('commission', raw_result):
-                return raw_result
+                return self._normalize_commission_payload(raw_result)
             return None
         except Exception:
             return None

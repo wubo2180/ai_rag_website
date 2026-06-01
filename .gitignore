@@ -46,3 +46,5 @@ ocr_test/
 # OS
 .DS_Store
 ._*
+# Local OCR service secrets
+IBoxTech-ocr-paper/config.yaml

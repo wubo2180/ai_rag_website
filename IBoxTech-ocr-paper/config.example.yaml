@@ -1,0 +1,23 @@
+api:
+  host: "127.0.0.1"
+  port: 6002
+  debug: false
+  enable_cors: true
+  allowed_origins:
+    - "*"
+  temp_upload_dir: "./temp_uploads"
+
+dify:
+  base_url: "http://172.21.108.102/v1"
+  api_key: "your_dify_api_key_here"
+  default_user: "ai-rag-paper-ocr"
+  upload:
+    endpoint: "/files/upload"
+    allowed_extensions:
+      - "pdf"
+    max_file_size: 100
+  workflow:
+    endpoint: "/workflows/run"
+    response_mode: "blocking"
+    transfer_method: "local_file"
+    file_type: "document"
