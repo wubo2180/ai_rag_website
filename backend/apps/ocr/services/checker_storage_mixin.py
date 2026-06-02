@@ -622,18 +622,125 @@ class CheckerStorageMixin:
 
     @staticmethod
     def _resolve_bucket_and_object(file_obj: File, default_bucket: str):
-        object_name = (file_obj.file_path or '').lstrip('/')
+        object_name = (file_obj.file_path or '').strip().replace('\\', '/').lstrip('/')
         bucket_name = default_bucket
 
+        if not object_name:
+            return bucket_name, object_name
+
+        # 本地磁盘路径（Windows/Linux）不应被当作 MinIO 对象键。
+        lowered = object_name.lower()
+        if (
+            ':' in object_name[:3]
+            or object_name.startswith('/')
+            or object_name.startswith('./')
+            or object_name.startswith('../')
+            or lowered.startswith('file://')
+        ):
+            return bucket_name, ''
+
+        # 兼容 s3://bucket/object 的显式格式。
+        if lowered.startswith('s3://'):
+            parts = object_name[5:].split('/', 1)
+            if len(parts) == 2 and parts[0] and parts[1]:
+                return parts[0], parts[1]
+            return bucket_name, ''
+
         # 兼容 file_path 存成 bucket/object 的场景。
-        if object_name and '/' in object_name:
+        if '/' in object_name:
             first, rest = object_name.split('/', 1)
-            if first and first in {'ocr-files', 'commissions', 'checker', 'files'}:
-                if first != 'files':
-                    bucket_name = first
-                    object_name = rest
+            known_buckets = {default_bucket, 'ocr-files', 'commissions'}
+            if first and first in known_buckets and rest:
+                bucket_name = first
+                object_name = rest
 
         return bucket_name, object_name
+
+    @staticmethod
+    def _build_minio_object_candidates(file_obj: File, resolved_object_name: str):
+        candidates = []
+
+        def push(value):
+            text = (value or '').strip().replace('\\', '/').lstrip('/')
+            if text and text not in candidates:
+                candidates.append(text)
+
+        # 优先使用解析出的对象键。
+        push(resolved_object_name)
+
+        # 历史记录可能把本地路径写入 file_path，这里取 basename 做兜底。
+        raw_file_path = (getattr(file_obj, 'file_path', '') or '').strip().replace('\\', '/')
+        basename = raw_file_path.split('/')[-1] if raw_file_path else ''
+        push(basename)
+
+        # 兼容旧实现常见键：stored_filename / filename。
+        stored_filename = (getattr(file_obj, 'stored_filename', '') or '').strip()
+        original_filename = (getattr(file_obj, 'filename', '') or '').strip()
+        push(stored_filename)
+        push(original_filename)
+
+        # 常见目录前缀兜底。
+        if stored_filename:
+            push(f'checker/{stored_filename}')
+            push(f'uploads/{stored_filename}')
+            push(f'ocr_uploads/{stored_filename}')
+        if basename:
+            push(f'checker/{basename}')
+            push(f'uploads/{basename}')
+            push(f'ocr_uploads/{basename}')
+
+        return candidates
+
+    def _upload_local_file_to_minio(self, local_path: Path, object_name: str, content_type: str = 'application/octet-stream'):
+        try:
+            Minio = importlib.import_module('minio').Minio
+        except Exception as exc:
+            return {
+                'success': False,
+                'error': f'minio包不可用: {exc}',
+            }
+
+        cfg = self._build_minio_config()
+        bucket_name = cfg['bucket_name']
+        object_name = (object_name or '').strip().replace('\\', '/').lstrip('/')
+
+        if not object_name:
+            return {
+                'success': False,
+                'error': '对象名为空，无法上传到MinIO',
+            }
+
+        try:
+            client = Minio(
+                cfg['endpoint'],
+                access_key=cfg['access_key'],
+                secret_key=cfg['secret_key'],
+                secure=cfg['secure'],
+            )
+
+            if not client.bucket_exists(bucket_name):
+                client.make_bucket(bucket_name)
+
+            client.fput_object(
+                bucket_name,
+                object_name,
+                str(local_path),
+                content_type=content_type or 'application/octet-stream',
+            )
+
+            self._minio_probe_cache = {'ok': True, 'error': None}
+            return {
+                'success': True,
+                'bucket': bucket_name,
+                'object': object_name,
+                'storage_path': f'{bucket_name}/{object_name}',
+            }
+        except Exception as exc:
+            self._minio_probe_cache = {'ok': False, 'error': str(exc)}
+            return {
+                'success': False,
+                'error': str(exc),
+            }
 
     def _try_download_from_minio(self, file_obj: File):
         try:
@@ -653,19 +760,39 @@ class CheckerStorageMixin:
             )
 
             bucket_name, object_name = self._resolve_bucket_and_object(file_obj, cfg['bucket_name'])
-            if not object_name:
-                self._minio_probe_cache = {'ok': False, 'error': 'file_path为空，无法从MinIO读取'}
+            candidate_objects = self._build_minio_object_candidates(file_obj, object_name)
+            if not candidate_objects:
+                self._minio_probe_cache = {'ok': False, 'error': '无可用对象键，无法从MinIO读取'}
                 return None
 
-            response = client.get_object(bucket_name, object_name)
-            try:
-                data = response.read()
-            finally:
-                response.close()
-                response.release_conn()
+            bucket_candidates = [bucket_name]
+            if cfg['bucket_name'] not in bucket_candidates:
+                bucket_candidates.append(cfg['bucket_name'])
 
-            self._minio_probe_cache = {'ok': True, 'error': None}
-            return data
+            last_error = None
+            for candidate_bucket in bucket_candidates:
+                for candidate_object in candidate_objects:
+                    try:
+                        response = client.get_object(candidate_bucket, candidate_object)
+                        try:
+                            data = response.read()
+                        finally:
+                            response.close()
+                            response.release_conn()
+
+                        self._minio_probe_cache = {
+                            'ok': True,
+                            'error': None,
+                            'bucket': candidate_bucket,
+                            'object': candidate_object,
+                        }
+                        return data
+                    except Exception as exc:
+                        last_error = exc
+                        continue
+
+            self._minio_probe_cache = {'ok': False, 'error': str(last_error) if last_error else '未知错误'}
+            return None
         except Exception as exc:
             self._minio_probe_cache = {'ok': False, 'error': str(exc)}
             return None
@@ -681,8 +808,9 @@ class CheckerStorageMixin:
 
         cfg = self._build_minio_config()
         bucket_name, object_name = self._resolve_bucket_and_object(file_obj, cfg['bucket_name'])
+        candidate_objects = self._build_minio_object_candidates(file_obj, object_name)
 
-        if not object_name:
+        if not candidate_objects:
             return {
                 'available': False,
                 'bucket': bucket_name,
@@ -697,13 +825,33 @@ class CheckerStorageMixin:
                 secret_key=cfg['secret_key'],
                 secure=cfg['secure'],
             )
-            stat = client.stat_object(bucket_name, object_name)
+            bucket_candidates = [bucket_name]
+            if cfg['bucket_name'] not in bucket_candidates:
+                bucket_candidates.append(cfg['bucket_name'])
+
+            last_error = None
+            for candidate_bucket in bucket_candidates:
+                for candidate_object in candidate_objects:
+                    try:
+                        stat = client.stat_object(candidate_bucket, candidate_object)
+                        return {
+                            'available': True,
+                            'endpoint': cfg['endpoint'],
+                            'bucket': candidate_bucket,
+                            'object': candidate_object,
+                            'size': getattr(stat, 'size', None),
+                        }
+                    except Exception as exc:
+                        last_error = exc
+                        continue
+
             return {
-                'available': True,
+                'available': False,
                 'endpoint': cfg['endpoint'],
                 'bucket': bucket_name,
                 'object': object_name,
-                'size': getattr(stat, 'size', None),
+                'candidates': candidate_objects[:8],
+                'error': str(last_error) if last_error else '未找到对象',
             }
         except Exception as exc:
             return {
@@ -711,5 +859,6 @@ class CheckerStorageMixin:
                 'endpoint': cfg['endpoint'],
                 'bucket': bucket_name,
                 'object': object_name,
+                'candidates': candidate_objects[:8],
                 'error': str(exc),
             }
