@@ -247,19 +247,57 @@ const startRecognize = async () => {
       return
     }
 
-    for (let index = 0; index < 80; index += 1) {
+    let transientNotFoundCount = 0
+    let completed = false
+    for (let index = 0; index < 120; index += 1) {
       await sleep(1500)
-      const statusData = await ocrCheckerApi.getTaskStatus(taskId)
-      const task = statusData?.data || statusData
-      const status = task?.status
+      let status = ''
+
+      if (taskId) {
+        try {
+          const statusData = await ocrCheckerApi.getTaskStatus(taskId)
+          const task = statusData?.data || statusData
+          status = String(task?.status || '').toLowerCase()
+        } catch (pollError) {
+          const message = String(pollError?.response?.data?.message || pollError?.message || '')
+          if (message.includes('任务不存在') || message.toLowerCase().includes('not_found')) {
+            transientNotFoundCount += 1
+          }
+        }
+      }
+
+      // 服务器部署场景下兜底：任务态不可用时，直接看文件 OCR 状态
+      if (!['completed', 'failed'].includes(status)) {
+        try {
+          const detail = await ocrCheckerApi.getFileDetail(fileId)
+          const fileData = detail?.data || detail
+          const fileStatus = normalizeStatus(fileData?.ocr_status)
+          if (fileStatus === 'completed') {
+            status = 'completed'
+          } else if (fileStatus === 'failed') {
+            status = 'failed'
+          }
+        } catch {
+          // ignore and keep polling
+        }
+      }
 
       if (status === 'completed') {
+        completed = true
         ElMessage.success('OCR 识别完成')
         break
       }
 
       if (status === 'failed') {
-        throw new Error(task?.error_message || 'OCR 任务失败')
+        throw new Error('OCR 任务失败')
+      }
+    }
+
+    if (!completed) {
+      if (taskId && transientNotFoundCount > 0) {
+        ElMessage.warning('识别任务仍在后台处理中，请稍后点击“刷新”查看结果')
+      } else {
+        ElMessage.warning('识别耗时较长，请稍后点击“刷新”查看结果')
       }
     }
 
