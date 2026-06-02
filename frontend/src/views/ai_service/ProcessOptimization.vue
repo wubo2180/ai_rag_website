@@ -378,7 +378,6 @@ import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
-import NavigationSidebar from '@/components/NavigationSidebar.vue'
 
 const router = useRouter()
 
@@ -704,7 +703,6 @@ const submitForm = async () => {
         }
       }
     }
-    }
 
   } catch (error) {
     console.error('请求失败:', error)
@@ -909,7 +907,6 @@ const loadHistoryList = async () => {
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   }
 
-  // 读取本地缓存
   const localHistory = (() => {
     try {
       const arr = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]')
@@ -919,10 +916,7 @@ const loadHistoryList = async () => {
     }
   })()
 
-  // 读取本地 pending/running 任务
-  const localPendingRunning = localHistory.filter(
-    (item) => ['pending', 'running'].includes(getTaskStatus(item))
-  )
+  const localPendingRunning = localHistory.filter((item) => ['pending', 'running'].includes(getTaskStatus(item)))
 
   try {
     const response = await fetch(`${API_BASE}/process-optimization/history/?limit=100`, {
@@ -934,52 +928,19 @@ const loadHistoryList = async () => {
     if (response.ok) {
       const payload = await response.json()
       const remoteTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
-      let backendList = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
+      const backendList = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
 
-      // 用 client_task_id 或 task_id 对账，合并本地 pending/running 记录
       const backendClientTaskIds = new Set(
         backendList.map((item) => String(item.inputs?.client_task_id || item.task_id || item.id))
       )
-const formatMarkdown = (text) => {
-  if (!text) return ''
-  // 禁用 HTML 标签，防止 XSS
-  const html = marked.parse(text, { mangle: false, headerIds: false, breaks: true, gfm: true, sanitize: false })
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
-}
-  const html = marked.parse(text, { mangle: false, headerIds: false })
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
-}
-            )
-        ),
-        ...backendList
-      ]
-      historyList.value = mergedList
-      persistHistoryList()
-      if (historyPage.value > totalHistoryPages.value) {
-        historyPage.value = totalHistoryPages.value
-      }
-      return
-    }
-  } catch (error) {
-    console.warn('加载后端工艺历史失败:', error)
-    // 回退到本地缓存
-    historyList.value = localHistory
-    if (historyPage.value > totalHistoryPages.value) {
-      historyPage.value = totalHistoryPages.value
-    }
-    return
-  }
-  // 如果完全失败，保留本地缓存
-  historyList.value = localHistory
-  if (historyPage.value > totalHistoryPages.value) {
-    historyPage.value = totalHistoryPages.value
-  }
-}
-          !backendClientIds.has(String(item.inputs?.client_task_id || item.task_id || item.id))
+
+      const localOnlyRunning = localPendingRunning.filter(
+        (item) => !backendClientTaskIds.has(String(item.inputs?.client_task_id || item.task_id || item.id))
       )
-      // 合并并去重
-      const mergedList = [...localPending, ...backendList]
-      historyList.value = mergedList
+
+      historyList.value = [...localOnlyRunning, ...backendList].sort((a, b) => {
+        return new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
+      })
       persistHistoryList()
       if (historyPage.value > totalHistoryPages.value) {
         historyPage.value = totalHistoryPages.value
@@ -988,54 +949,9 @@ const formatMarkdown = (text) => {
     }
   } catch (error) {
     console.warn('加载后端工艺历史失败:', error)
-    // 回退到本地缓存
-    historyList.value = localHistory
-    if (historyPage.value > totalHistoryPages.value) {
-      historyPage.value = totalHistoryPages.value
-    }
-    return
   }
-  // 若未命中 try/catch，回退到本地缓存
+
   historyList.value = localHistory
-  if (historyPage.value > totalHistoryPages.value) {
-    historyPage.value = totalHistoryPages.value
-  }
-}
-  try {
-    const response = await fetch(`${API_BASE}/process-optimization/history/?limit=100`, {
-      method: 'GET',
-      headers: authHeaders,
-      credentials: 'include'
-    })
-
-    if (response.ok) {
-      const payload = await response.json()
-      const remoteTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
-      remoteMapped = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
-    }
-  } catch (error) {
-    console.warn('加载后端工艺历史失败，回退本地历史:', error)
-  }
-const syncRunningHistoryStatus = async () => {
-  if (isSyncing) return
-  isSyncing = true
-  try {
-    const runningHistory = historyList.value.filter((item) => ['pending', 'running'].includes(getTaskStatus(item)))
-    if (!runningHistory.length) return
-    await loadHistoryList()
-  } finally {
-    isSyncing = false
-  }
-}
-    const key = String(item?.backend_task_id || item?.id || item?.task_id || '')
-    return key && !remoteKeySet.has(key)
-  })
-
-  historyList.value = [...remoteMapped, ...localOnly].sort((a, b) => {
-    return new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
-  })
-  persistHistoryList()
-
   if (historyPage.value > totalHistoryPages.value) {
     historyPage.value = totalHistoryPages.value
   }
@@ -1102,7 +1018,14 @@ const loadHistory = (item) => {
 // Markdown 格式化
 const formatMarkdown = (text) => {
   if (!text) return ''
-  return marked(text)
+  const html = marked.parse(text, {
+    mangle: false,
+    headerIds: false,
+    breaks: true,
+    gfm: true,
+    sanitize: false
+  })
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
 }
 
 // 格式化日期
@@ -1118,9 +1041,18 @@ const goBack = () => {
 }
 
 const syncRunningHistoryStatus = async () => {
+  if (isSyncing) return
+  isSyncing = true
   const runningHistory = historyList.value.filter((item) => ['pending', 'running'].includes(getTaskStatus(item)))
-  if (!runningHistory.length) return
-  await loadHistoryList()
+  if (!runningHistory.length) {
+    isSyncing = false
+    return
+  }
+  try {
+    await loadHistoryList()
+  } finally {
+    isSyncing = false
+  }
 }
 
 // 组件挂载时加载历史记录
