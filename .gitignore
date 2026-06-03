@@ -46,3 +46,10 @@ ocr_test/
 # OS
 .DS_Store
 ._*
+
+# Local startup scripts
+/projectctl.sh
+/start.sh
+/stop.sh
+/status.sh
+/restart.sh

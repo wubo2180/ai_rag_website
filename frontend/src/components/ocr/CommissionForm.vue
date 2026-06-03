@@ -132,7 +132,7 @@
 </template>
 
 <script setup>
-import { reactive, watch } from 'vue'
+import { nextTick, reactive, watch } from 'vue'
 
 const props = defineProps({
   modelValue: {
@@ -163,15 +163,28 @@ const toNormalizedData = (source = {}) => ({
     : [],
 })
 
-const localData = reactive(toNormalizedData(props.modelValue))
+const cloneNormalizedData = (source = {}) => JSON.parse(JSON.stringify(toNormalizedData(source)))
+
+const sameNormalizedData = (left = {}, right = {}) => (
+  JSON.stringify(toNormalizedData(left)) === JSON.stringify(toNormalizedData(right))
+)
+
+const localData = reactive({
+  basic_info: {},
+  test_items: [],
+  special_tests: [],
+})
 let syncingFromProps = false
 
-const syncFromProps = (nextValue) => {
-  syncingFromProps = true
+const syncFromProps = async (nextValue) => {
   const normalized = toNormalizedData(nextValue)
+  if (sameNormalizedData(normalized, localData)) return
+
+  syncingFromProps = true
   localData.basic_info = normalized.basic_info
-  localData.test_items = normalized.test_items
-  localData.special_tests = normalized.special_tests
+  localData.test_items.splice(0, localData.test_items.length, ...normalized.test_items)
+  localData.special_tests.splice(0, localData.special_tests.length, ...normalized.special_tests)
+  await nextTick()
   syncingFromProps = false
 }
 
@@ -185,7 +198,9 @@ watch(
   localData,
   () => {
     if (syncingFromProps) return
-    emit('update:modelValue', JSON.parse(JSON.stringify(localData)))
+    const nextValue = cloneNormalizedData(localData)
+    if (sameNormalizedData(nextValue, props.modelValue)) return
+    emit('update:modelValue', nextValue)
   },
   { deep: true },
 )

@@ -335,11 +335,29 @@ class CheckerLocalService(CheckerOcrMixin):
                         seen_hash_keys[dedupe_key] = existing.pk
                         continue
 
+                    object_key = (
+                        f"checker/{timezone.localtime().strftime('%Y/%m/%d')}/"
+                        f"{uuid.uuid4().hex}{suffix or Path(original_name).suffix.lower()}"
+                    )
+                    upload_result = self._upload_local_file_to_minio(
+                        local_path=disk_path,
+                        object_name=object_key,
+                        content_type=content_type,
+                    )
+                    if not upload_result.get('success'):
+                        if disk_path.exists():
+                            disk_path.unlink(missing_ok=True)
+                        raise RuntimeError(f"上传到MinIO失败: {upload_result.get('error', '未知错误')}")
+
+                    storage_path = upload_result.get('storage_path') or object_key
+                    if disk_path.exists():
+                        disk_path.unlink(missing_ok=True)
+
                     file_obj = File.objects.create(
                         id=current_file_id,
                         filename=original_name,
                         stored_filename=stored_filename,
-                        file_path=str(disk_path),
+                        file_path=storage_path,
                         file_size=size,
                         file_type=suffix or Path(original_name).suffix.lower() or '',
                         document_type_code=document_type,
@@ -364,11 +382,13 @@ class CheckerLocalService(CheckerOcrMixin):
                     })
 
             if errors and not saved_files:
+                joined_errors = ' | '.join(str(item.get('message', '')) for item in errors)
+                is_storage_full = 'XMinioStorageFull' in joined_errors or 'minimum free drive threshold' in joined_errors
                 return {
-                    'status_code': 500,
+                    'status_code': 507 if is_storage_full else 500,
                     'body': {
                         'success': False,
-                        'message': '上传失败',
+                        'message': '对象存储空间不足，请清理MinIO磁盘空间后重试' if is_storage_full else '上传失败',
                         'errors': errors,
                         'duplicates': duplicates,
                     },

@@ -22,7 +22,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             if not file_obj:
                 return {'status_code': 404, 'body': {'success': False, 'message': '文件不存在'}}
 
-            task_id = f'local-{uuid.uuid4().hex[:12]}'
+            task_id = f'local-{file_id}-{uuid.uuid4().hex[:12]}'
             document_type = self._normalize_document_type(file_obj)
             self._tasks[task_id] = {
                 'status': 'processing',
@@ -500,85 +500,346 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             or ('表' in field_name and field_name not in {'表格编号'})
         )
 
-    def _parse_commission_ocr_result(self, raw_result):
-        field_name_mapping = {
-            '表格编号': 'form_number',
-            '委托编号': 'commission_number',
-            '服务类型': 'service_type',
-            '是否需要报告': 'need_report',
-            '研发项目': 'project_number',
-            '物料代码': 'material_number',
-            '产品或原材料型号': 'product_number',
-            '样品重量': 'sample_weight',
-            '委托部门': 'commission_department',
-            '委托人': 'commissioner',
-            '委托日期': 'commission_date',
-            '委托地址': 'commission_address',
-            '样品名称': 'sample_name',
-            '样品数量': 'sample_quantity',
-            '样品代码': 'sample_code',
-            '样品批次': 'sample_batch',
-            '送样时间': 'delivery_time',
-            '需求时间': 'required_time',
-            '余样处理': 'sample_disposal',
-            '样品储存方式': 'storage_method',
-            '测试性质': 'test_nature',
-            '测试说明': 'test_description',
-            '有无特殊条件': 'special_condition_flag',
-            '条件是': 'special_condition_detail',
-            '测试员': 'tester',
-            '数据复核人': 'data_reviewer',
-            '复核日期': 'review_date',
-            '送样人签名': 'delivery_person_signature',
-            '样品是否完好': 'sample_condition_ok',
-            '业务受理人签字': 'business_receiver_signature',
-            '申请单是否填写完整': 'form_complete',
-            '样品实物信息是否一致': 'sample_info_consistent',
+    @staticmethod
+    def _commission_field_name_mapping():
+        return {
+            '\u8868\u683c\u7f16\u53f7': 'form_number',
+            '\u59d4\u6258\u7f16\u53f7': 'commission_number',
+            '\u670d\u52a1\u7c7b\u578b': 'service_type',
+            '\u662f\u5426\u9700\u8981\u62a5\u544a': 'need_report',
+            '\u662f\u5426\u63d0\u4ea4\u62a5\u544a': 'need_report',
+            '\u7814\u53d1\u9879\u76ee': 'project_number',
+            '\u7269\u6599\u4ee3\u7801': 'material_number',
+            '\u6750\u8d28\u7f16\u53f7': 'material_number',
+            '\u4ea7\u54c1\u6216\u539f\u6750\u6599\u578b\u53f7': 'product_number',
+            '\u4ea7\u54c1\u578b\u53f7': 'product_number',
+            '\u6837\u54c1\u91cd\u91cf': 'sample_weight',
+            '\u6837\u54c1\u89c4\u683c/\u91cd\u91cf': 'sample_weight',
+            '\u59d4\u6258\u90e8\u95e8': 'commission_department',
+            '\u59d4\u6258\u4eba': 'commissioner',
+            '\u59d4\u6258\u65e5\u671f': 'commission_date',
+            '\u59d4\u6258\u5730\u5740': 'commission_address',
+            '\u6837\u54c1\u540d\u79f0': 'sample_name',
+            '\u6837\u54c1\u6570\u91cf': 'sample_quantity',
+            '\u6837\u54c1\u6570\u91cf/\u4ef6': 'product_quantity',
+            '\u6837\u54c1\u4ee3\u7801': 'sample_code',
+            '\u6837\u54c1\u6279\u6b21': 'sample_batch',
+            '\u6837\u54c1\u6279\u53f7': 'sample_batch',
+            '\u9001\u6837\u65f6\u95f4': 'delivery_time',
+            '\u6837\u54c1\u5230\u8fbe\u65f6\u95f4': 'delivery_time',
+            '\u9700\u6c42\u65f6\u95f4': 'required_time',
+            '\u8981\u6c42\u5b8c\u6210\u65f6\u95f4': 'required_time',
+            '\u4f59\u6837\u5904\u7406': 'sample_disposal',
+            '\u6837\u54c1\u5904\u7406': 'sample_disposal',
+            '\u6837\u54c1\u50a8\u5b58\u65b9\u5f0f': 'storage_method',
+            '\u6837\u54c1\u5b58\u50a8\u65b9\u5f0f': 'storage_method',
+            '\u6d4b\u8bd5\u6027\u8d28': 'test_nature',
+            '\u6d4b\u8bd5\u8bf4\u660e': 'test_description',
+            '\u6709\u65e0\u7279\u6b8a\u6761\u4ef6': 'special_condition_flag',
+            '\u6709\u65e0\u7279\u6b8a\u6d4b\u8bd5': 'special_condition_flag',
+            '\u6761\u4ef6\u662f': 'special_condition_detail',
+            '\u7279\u6b8a\u6d4b\u8bd5\u8981\u6c42': 'special_condition_detail',
+            '\u6d4b\u8bd5\u5458': 'tester',
+            '\u6570\u636e\u590d\u6838\u4eba': 'data_reviewer',
+            '\u62a5\u544a\u5ba1\u6838': 'data_reviewer',
+            '\u590d\u6838\u65e5\u671f': 'review_date',
+            '\u62a5\u544a\u65e5\u671f': 'review_date',
+            '\u9001\u6837\u4eba\u7b7e\u540d': 'delivery_person_signature',
+            '\u9001\u6837\u4eba\u7b7e\u540d/\u65e5\u671f': 'delivery_person_signature',
+            '\u6837\u54c1\u662f\u5426\u5b8c\u597d': 'sample_condition_ok',
+            '\u6837\u54c1\u662f\u5426\u5b8c\u597d\u5e76\u65e0\u591a\u4f59\u9644\u5e26\u7269\uff0c\u662f\u5426\u6ee1\u8db3\u6d4b\u8bd5\u6761\u4ef6\uff1f': 'sample_condition_ok',
+            '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u5b57': 'business_receiver_signature',
+            '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u5b57/\u65e5\u671f': 'business_receiver_signature',
+            '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u540d/\u65e5\u671f': 'business_receiver_signature',
+            '\u4e1a\u52a1\u53d7\u8fce\u4eba\u91dc\u5b57/\u65e5\u671f': 'business_receiver_signature',
+            '\u7533\u8bf7\u5355\u662f\u5426\u586b\u5199\u5b8c\u6574': 'form_complete',
+            '\u7533\u8bf7\u5355\u662f\u5426\u586b\u5199\u5b8c\u6574\uff1f\u65e0\u7f3a\u9879\u6216\u5c11\u9879\uff1f': 'form_complete',
+            '\u6837\u54c1\u5b9e\u7269\u4fe1\u606f\u662f\u5426\u4e00\u81f4': 'sample_info_consistent',
+            '\u6837\u54c1\u5b9e\u7269\u4fe1\u606f\u4e0e\u59d4\u6258\u5355\u8868\u8ff0\u662f\u5426\u4e00\u81f4\uff1f': 'sample_info_consistent',
+            '\u5176\u4ed6\u68c0\u67e5\u9879': 'other_notes',
+            '\u5176\u4ed6': 'other_notes',
         }
 
+    def _parse_commission_ocr_result(self, raw_result):
+        field_name_mapping = self._commission_field_name_mapping()
         structured = {'basic_info': {}, 'test_items': [], 'special_tests': []}
-        data = raw_result.get('data', raw_result) if isinstance(raw_result, dict) else {}
+        if not isinstance(raw_result, dict):
+            return structured
 
-        if isinstance(data.get('basic_info'), dict):
-            structured['basic_info'].update(data.get('basic_info') or {})
-        if isinstance(data.get('test_items'), list):
-            structured['test_items'] = data.get('test_items') or []
-        if isinstance(data.get('special_tests'), list):
-            structured['special_tests'] = data.get('special_tests') or []
+        data = raw_result.get('data', raw_result) if isinstance(raw_result.get('data', raw_result), dict) else {}
 
-        field_results = data.get('field_extraction_results') if isinstance(data, dict) else None
+        def merge_direct_payload(source):
+            if not isinstance(source, dict):
+                return
+            if isinstance(source.get('basic_info'), dict):
+                structured['basic_info'].update(source.get('basic_info') or {})
+            if isinstance(source.get('test_items'), list):
+                structured['test_items'].extend(source.get('test_items') or [])
+            if isinstance(source.get('special_tests'), list):
+                structured['special_tests'].extend(source.get('special_tests') or [])
+            if isinstance(source.get('extracted_fields'), dict):
+                self._merge_commission_fields(source.get('extracted_fields'), structured, field_name_mapping)
+            elif isinstance(source.get('extracted_fields'), list):
+                for item in source.get('extracted_fields') or []:
+                    if isinstance(item, dict):
+                        self._merge_commission_fields(item, structured, field_name_mapping)
+            if isinstance(source.get('fields'), dict):
+                self._merge_commission_fields(source.get('fields'), structured, field_name_mapping)
+            self._merge_commission_table_data(source.get('table_data'), structured)
+            self._merge_commission_table_data(source.get('combined_table_data'), structured)
+
+        merge_direct_payload(raw_result)
+        merge_direct_payload(data)
+
+        field_results = data.get('field_extraction_results') or raw_result.get('field_extraction_results')
         if isinstance(field_results, list):
-            collected_fields = {}
             for page_data in field_results:
-                extracted_fields = page_data.get('extracted_fields') if isinstance(page_data, dict) else None
-                if not isinstance(extracted_fields, dict):
+                if not isinstance(page_data, dict):
                     continue
+                for key in ('extracted_fields', 'fields'):
+                    fields = page_data.get(key)
+                    if isinstance(fields, dict):
+                        self._merge_commission_fields(fields, structured, field_name_mapping)
+                self._merge_commission_table_data(page_data.get('tables'), structured)
+                self._merge_commission_table_data(page_data.get('table'), structured)
 
-                for field_name, field_data in extracted_fields.items():
-                    if self._looks_like_table_field(field_name, field_data):
-                        self._parse_commission_table(field_name, field_data, structured)
-                        continue
-
-                    mapped_name = field_name_mapping.get(field_name, field_name)
-                    value = self._extract_scalar_value(field_data)
-                    if value and mapped_name not in collected_fields:
-                        collected_fields[mapped_name] = value
-
-            structured['basic_info'].update(collected_fields)
-
-        combined = data.get('combined_results') if isinstance(data, dict) else None
-        if isinstance(combined, dict) and not structured['basic_info']:
+        combined = data.get('combined_results') or raw_result.get('combined_results')
+        if isinstance(combined, dict):
             combined_field_data = combined.get('combined_field_data')
             if isinstance(combined_field_data, dict):
-                extracted = combined_field_data.get('all_extracted_fields')
-                if isinstance(extracted, dict):
-                    for key, value in extracted.items():
-                        mapped_name = field_name_mapping.get(key, key)
-                        scalar = self._extract_scalar_value(value)
-                        if scalar:
-                            structured['basic_info'][mapped_name] = scalar
+                for key in ('all_extracted_fields', 'extracted_fields', 'fields'):
+                    fields = combined_field_data.get(key)
+                    if isinstance(fields, dict):
+                        self._merge_commission_fields(fields, structured, field_name_mapping)
+                    elif isinstance(fields, list):
+                        for item in fields:
+                            if isinstance(item, dict):
+                                self._merge_commission_fields(item, structured, field_name_mapping)
+                self._merge_commission_table_data(combined_field_data.get('table_data'), structured)
+                self._merge_commission_table_data(combined_field_data.get('combined_table_data'), structured)
 
+            merge_direct_payload(combined)
+            self._merge_commission_table_data(combined.get('table_data'), structured)
+            self._merge_commission_table_data(combined.get('combined_table_data'), structured)
+
+            if not structured['basic_info']:
+                excluded = {
+                    'combined_field_data', 'combined_ocr_data', 'table_data', 'combined_table_data',
+                    'extracted_fields', 'fields', 'field_sources', 'total_pages', 'combined_timestamp',
+                }
+                self._merge_plain_commission_dict(combined, structured, field_name_mapping, excluded)
+
+        result_data = data.get('result') or raw_result.get('result')
+        if isinstance(result_data, dict):
+            merge_direct_payload(result_data)
+            if not structured['basic_info']:
+                self._merge_plain_commission_dict(result_data, structured, field_name_mapping, set())
+
+        if not structured['basic_info']:
+            excluded = {
+                'fields', 'tables', 'table', 'result', 'basic_info', 'test_items', 'special_tests',
+                'combined_results', 'field_extraction_results', 'ocr_raw_data', 'success', 'message',
+                'processing_time', 'total_pages', 'data',
+            }
+            self._merge_plain_commission_dict(data, structured, field_name_mapping, excluded)
+            self._merge_plain_commission_dict(raw_result, structured, field_name_mapping, excluded)
+
+        if not structured['test_items'] and not structured['special_tests']:
+            texts = self._collect_commission_ocr_texts(data or raw_result)
+            if texts:
+                structured['test_items'].extend(self._extract_commission_test_items_from_texts(texts))
+                structured['special_tests'].extend(self._extract_commission_special_tests_from_texts(texts))
+
+        structured = self._normalize_commission_payload(structured)
+        structured['test_items'] = self._dedupe_commission_rows(structured.get('test_items'))
+        structured['special_tests'] = self._dedupe_commission_rows(structured.get('special_tests'))
         return structured
+
+    def _merge_commission_fields(self, fields, structured: dict, field_name_mapping: dict):
+        if not isinstance(fields, dict):
+            return
+        for field_name, field_data in fields.items():
+            if self._looks_like_table_field(field_name, field_data):
+                self._parse_commission_table(field_name, field_data, structured)
+                continue
+            mapped_name = field_name_mapping.get(field_name, field_name)
+            value = self._extract_scalar_value(field_data)
+            if value and not self._extract_scalar_value(structured['basic_info'].get(mapped_name)):
+                structured['basic_info'][mapped_name] = value
+
+    def _merge_plain_commission_dict(self, source, structured: dict, field_name_mapping: dict, excluded_keys: set):
+        if not isinstance(source, dict):
+            return
+        for key, value in source.items():
+            if key in excluded_keys:
+                continue
+            if self._looks_like_table_field(key, value):
+                self._parse_commission_table(key, value, structured)
+                continue
+            if isinstance(value, dict):
+                if 'value' in value or 'text' in value or 'content' in value:
+                    scalar = self._extract_scalar_value(value)
+                    if scalar:
+                        structured['basic_info'][field_name_mapping.get(key, key)] = scalar
+            elif isinstance(value, (str, int, float, bool)):
+                structured['basic_info'][field_name_mapping.get(key, key)] = str(value)
+
+    def _merge_commission_table_data(self, table_data, structured: dict):
+        if not table_data:
+            return
+        if isinstance(table_data, dict):
+            for key in ('test_items', '\u6d4b\u8bd5\u9879\u76ee\u8868'):
+                rows = table_data.get(key)
+                if isinstance(rows, list):
+                    for index, row in enumerate(rows):
+                        if isinstance(row, dict):
+                            mapped = {'sort_order': index}
+                            for source_key, value in row.items():
+                                mapped[source_key] = value
+                            structured['test_items'].append(mapped)
+                elif isinstance(rows, dict):
+                    self._parse_commission_table(key, rows, structured)
+            for key in ('special_tests', '\u6d4b\u8bd5\u7ed3\u679c\u8868', '\u7279\u6b8a\u6d4b\u8bd5'):
+                rows = table_data.get(key)
+                if isinstance(rows, list):
+                    for index, row in enumerate(rows):
+                        if isinstance(row, dict):
+                            mapped = {'sort_order': index}
+                            for source_key, value in row.items():
+                                mapped[source_key] = value
+                            structured['special_tests'].append(mapped)
+                elif isinstance(rows, dict):
+                    self._parse_commission_table(key, rows, structured)
+
+            handled = {'test_items', '\u6d4b\u8bd5\u9879\u76ee\u8868', 'special_tests', '\u6d4b\u8bd5\u7ed3\u679c\u8868', '\u7279\u6b8a\u6d4b\u8bd5'}
+            for key, value in table_data.items():
+                if key in handled:
+                    continue
+                if isinstance(value, dict) and any(k in value for k in ('data', 'rows', 'tests')):
+                    self._parse_commission_table(key, value, structured)
+                elif isinstance(value, list):
+                    self._parse_commission_table(key, {'data': value}, structured)
+            return
+
+        if isinstance(table_data, list):
+            for index, item in enumerate(table_data):
+                if isinstance(item, dict):
+                    name = item.get('name') or item.get('table_name') or item.get('field_name') or f'table_{index}'
+                    self._parse_commission_table(str(name), item, structured)
+
+    @staticmethod
+    def _collect_commission_ocr_texts(payload):
+        texts = []
+        if not isinstance(payload, dict):
+            return texts
+        raw_pages = payload.get('ocr_raw_data') or payload.get('pages') or []
+        if not isinstance(raw_pages, list):
+            return texts
+        for page_data in raw_pages:
+            if not isinstance(page_data, dict):
+                continue
+            for key in ('rec_texts', 'texts', 'recognized_texts'):
+                values = page_data.get(key)
+                if isinstance(values, list):
+                    texts.extend(str(item) for item in values if item)
+            blocks = page_data.get('content_blocks') or page_data.get('blocks') or []
+            if isinstance(blocks, list):
+                for block in blocks:
+                    if isinstance(block, dict):
+                        text = block.get('text') or block.get('content')
+                        if text:
+                            texts.append(str(text))
+        return texts
+
+    @staticmethod
+    def _extract_commission_test_items_from_texts(texts):
+        test_items = []
+        keywords = [
+            '\u6325\u53d1\u5206', '\u5916\u89c2', 'RoHs\u6d4b\u8bd5', 'ROHS\u6d4b\u8bd5',
+            '\u7ea2\u5916\u626b\u63cf', '\u6210\u5206\u5206\u6790', '\u7269\u7406\u6027\u80fd',
+            '\u7c98\u5ea6', '\u52a0\u70ed\u56fa\u5316', '\u56fa\u5316\u6bd4\u91cd',
+            '\u90b5\u6c0fD\u786c\u5ea6', '\u526a\u5207\u5f3a\u5ea6',
+        ]
+        for index, text in enumerate(texts):
+            for keyword in keywords:
+                if keyword not in text:
+                    continue
+                nearby = texts[max(0, index - 2):min(len(texts), index + 3)]
+                item = {
+                    'test_item': keyword,
+                    'test_equipment': '',
+                    'test_standard': '',
+                    'test_condition': '',
+                    'product_standard': '',
+                    'unit': '',
+                    'test_result': '',
+                    'tester': '',
+                    'remark': '',
+                    'sort_order': len(test_items),
+                }
+                for nearby_text in nearby:
+                    if ('GB/T' in nearby_text or 'GB' in nearby_text) and not item['test_standard']:
+                        item['test_standard'] = nearby_text
+                    if any(unit in nearby_text for unit in ('%', 'kg', 'g', 'mPa', 'MPa')) and not item['unit']:
+                        item['unit'] = nearby_text
+                    if re.search(r'\d+\.?\d*', nearby_text) and not item['test_result']:
+                        item['test_result'] = nearby_text
+                test_items.append(item)
+                break
+        return test_items
+
+    @staticmethod
+    def _extract_commission_special_tests_from_texts(texts):
+        special_tests = []
+        rohs = {'\u94c5': 'Pb', '\u6c5e': 'Hg', '\u9549': 'Cd', '\u94ec': 'Cr', 'Pb': 'Pb', 'Hg': 'Hg', 'Cd': 'Cd', 'Cr': 'Cr'}
+        halogen = {'\u6eb4': 'Br', '\u6c2f': 'Cl', 'Br': 'Br', 'Cl': 'Cl'}
+        metals = {'\u7837': 'As', '\u9511': 'Sb', '\u9521': 'Sn', 'As': 'As', 'Sb': 'Sb', 'Sn': 'Sn'}
+        has_rohs = any('rohs' in text.lower() for text in texts)
+        has_halogen = any('\u5364\u7d20' in text or 'HF' in text for text in texts)
+
+        def value_from(text):
+            match = re.search(r'(ND|<\s*\d+|\d+\.?\d*)', text, flags=re.I)
+            return match.group(1).replace(' ', '') if match else 'ND'
+
+        def add_group(group_name, elements, standard):
+            for text in texts:
+                for label, symbol in elements.items():
+                    if label not in text and symbol not in text:
+                        continue
+                    measured = value_from(text)
+                    special_tests.append({
+                        'test_type': group_name,
+                        'element_name': f'{label}({symbol})' if label != symbol else symbol,
+                        'standard_value': standard,
+                        'measured_value': measured,
+                        'remark': '',
+                        'sort_order': len(special_tests),
+                    })
+
+        if has_rohs:
+            add_group('RoHs', rohs, '<1000')
+        if has_halogen:
+            add_group('HF', halogen, '<900')
+        add_group('\u5176\u4ed6\u91d1\u5c5e', metals, '<1000')
+        return special_tests
+
+    @staticmethod
+    def _dedupe_commission_rows(rows):
+        deduped = []
+        seen = set()
+        if not isinstance(rows, list):
+            return deduped
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            normalized = dict(row)
+            normalized['sort_order'] = normalized.get('sort_order', index)
+            key = json.dumps({k: v for k, v in normalized.items() if k != 'sort_order'}, ensure_ascii=False, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(normalized)
+        return deduped
 
     @staticmethod
     def _parse_commission_table(field_name: str, field_data, structured: dict):
@@ -586,24 +847,27 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             return
 
         test_item_mapping = {
-            '测试项目': 'test_item',
-            '测试设备': 'test_equipment',
-            '测试标准': 'test_standard',
-            '测试条件': 'test_condition',
-            '产品标准': 'product_standard',
-            '单位': 'unit',
-            '测试结果': 'test_result',
-            '测试员': 'tester',
-            '备注': 'remark',
+            '\u6d4b\u8bd5\u9879\u76ee': 'test_item',
+            '\u6d4b\u8bd5\u8bbe\u5907': 'test_equipment',
+            '\u6d4b\u8bd5\u6807\u51c6': 'test_standard',
+            '\u6d4b\u8bd5\u6761\u4ef6': 'test_condition',
+            '\u4ea7\u54c1\u6807\u51c6': 'product_standard',
+            '\u5224\u5b9a\u6807\u51c6': 'product_standard',
+            '\u5355\u4f4d': 'unit',
+            '\u6d4b\u8bd5\u7ed3\u679c': 'test_result',
+            '\u6d4b\u8bd5\u5458': 'tester',
+            '\u5219\u8bd5\u5458': 'tester',
+            '\u5907\u6ce8': 'remark',
         }
         special_test_mapping = {
-            '测试类型': 'test_type',
-            '元素名称': 'element_name',
-            '标准值': 'standard_value',
-            '标准': 'standard_value',
-            '实测值': 'measured_value',
-            '实测': 'measured_value',
-            '备注': 'remark',
+            '\u6d4b\u8bd5\u7c7b\u578b': 'test_type',
+            '\u5143\u7d20\u540d\u79f0': 'element_name',
+            '\u6807\u51c6\u503c': 'standard_value',
+            '\u6807\u51c6': 'standard_value',
+            '\u5b9e\u6d4b\u503c': 'measured_value',
+            '\u5b9e\u6d4b': 'measured_value',
+            '\u6d4b\u8bd5\u503c': 'measured_value',
+            '\u5907\u6ce8': 'remark',
         }
 
         if isinstance(field_data.get('tests'), list):
@@ -623,7 +887,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         if not isinstance(rows, list):
             return
 
-        is_special = any(token in field_name.lower() for token in ('特殊', 'rohs', 'special')) or '测试结果表' in field_name
+        is_special = any(token in field_name.lower() for token in ('\u7279\u6b8a', 'rohs', 'special')) or '\u6d4b\u8bd5\u7ed3\u679c\u8868' in field_name
         mapping = special_test_mapping if is_special else test_item_mapping
         target = 'special_tests' if is_special else 'test_items'
         for row_index, row in enumerate(rows):
@@ -695,9 +959,45 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
     def _get_task_status(self, task_id: str):
         task = self._tasks.get(task_id)
         if not task:
+            # 容错：多进程/重启导致内存任务丢失时，回退到数据库状态，避免前端频繁报“任务不存在”。
+            match = re.fullmatch(r'local-(\d+)-[a-z0-9]+', str(task_id or '').strip().lower())
+            if not match:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
+                }
+
+            file_id = int(match.group(1))
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
+                }
+
+            raw_status = str(file_obj.ocr_status or '').strip().lower()
+            status = raw_status if raw_status in {'pending', 'processing', 'completed', 'failed'} else 'processing'
+            if status == 'pending':
+                status = 'processing'
+
+            result_payload = {}
+            if status == 'completed':
+                latest_payload = self._load_latest_ocr_payload(file_id)
+                document_type = self._normalize_document_type(file_obj)
+                if isinstance(latest_payload, dict):
+                    result_payload = {
+                        'structured_data': latest_payload,
+                        'document_type': document_type,
+                    }
+
             return {
-                'status_code': 404,
-                'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'status': status,
+                    'result': result_payload,
+                    'error_message': file_obj.ocr_error_message if status == 'failed' else None,
+                },
             }
 
         return {

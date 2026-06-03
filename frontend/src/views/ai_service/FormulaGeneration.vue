@@ -405,7 +405,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
@@ -413,6 +413,13 @@ import NavigationSidebar from '@/components/NavigationSidebar.vue'
 const router = useRouter()
 const FORMULA_HISTORY_STORAGE_KEY = 'formula_generation_history'
 const LOCAL_TASK_STORAGE_KEY = 'smart_agent_local_tasks'
+const isPageLeaving = ref(false)
+const RUNNING_STATUS_SYNC_INTERVAL_MS = 10000
+const TASK_MATCH_WINDOW_MS = 5 * 60 * 1000
+const RUNNING_STATUS_STALE_MS = 20 * 60 * 1000
+let runningStatusSyncTimer = null
+
+const getAuthToken = () => localStorage.getItem('access_token') || localStorage.getItem('token') || ''
 
 const materialSystemOptions = [
   { value: 'lithium_battery_anode', label: '锂电负极体系' },
@@ -763,14 +770,15 @@ const submitForm = async () => {
   resetForm()
   
   try {
-    // 调用后端API（流式响应）
-  const response = await fetch(`${API_BASE}/formula-generation/stream/`, {
+    const token = getAuthToken()
+    // 调用后端提交接口（阻塞执行，结果写入后端任务）
+    const response = await fetch(`${API_BASE}/formula-generation/submit/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // 如果需要认证，添加token
-        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
+      credentials: 'include',
       body: JSON.stringify({
         product_performance_requirements: inputSnapshot.product_performance_requirements,
         // 兼容旧字段
@@ -780,12 +788,35 @@ const submitForm = async () => {
         environmental_requirements: inputSnapshot.environmental_requirements,
         material_system: inputSnapshot.material_system,
         system_specific_params: inputSnapshot.system_specific_params || {},
+        client_task_id: taskId,
         ...(inputSnapshot.system_specific_params || {})
       })
     })
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const payload = await response.json()
+    const backendTaskId = String(payload?.task_id || payload?.task?.id || '').trim()
+    const taskPayload = payload?.task || {}
+    const outputData = taskPayload?.output_data || payload?.result || {}
+    const answerText = String(outputData?.answer || '')
+    const detailData = outputData?.details || { materials: [], process: [], costs: [] }
+    const remoteStatus = getTaskStatus({ task_status: taskPayload?.status || 'completed' })
+
+    if (backendTaskId && createdHistory?.id) {
+      const target = historyList.value.find((item) => item?.id === createdHistory.id)
+      if (target) {
+        target.backend_task_id = backendTaskId
+        target.task_id = taskId
+      }
+      upsertLocalTask({
+        id: taskId,
+        backend_task_id: backendTaskId,
+        category: 'formula_generation',
+        agent_name: '配方生成智能体'
+      })
     }
 
     if (createdHistory?.id) {
@@ -798,74 +829,53 @@ const submitForm = async () => {
       agent_name: '配方生成智能体'
     })
 
-    // 处理流式响应
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
+    streamingAnswer.value = answerText
+    streaming.value = false
+    applyFormulaResult(answerText, detailData)
+    resultTime.value = new Date()
+    conversationId.value = outputData?.conversation_id || conversationId.value || ''
+    messageId.value = outputData?.message_id || outputData?.id || messageId.value || ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      
-      if (done) {
-        streaming.value = false
-        applyFormulaResult(streamingAnswer.value, {})
-        resultTime.value = new Date()
-
-        if (createdHistory?.id) {
-          const target = historyList.value.find((item) => item?.id === createdHistory.id)
-          if (target) {
-            target.result = streamingAnswer.value
-            target.details = { ...formulaDetails.value }
-            target.conversation_id = conversationId.value
-            target.task_id = taskId
-          }
-          updateHistoryTaskStatus(createdHistory.id, 'completed')
-        }
-
-        upsertLocalTask({
-          id: taskId,
-          status: 'completed',
-          category: 'formula_generation',
-          agent_name: '配方生成智能体',
-          completed_at: new Date().toISOString(),
-          execution_time: Math.max(1, Math.round((Date.now() - taskCreatedAt.getTime()) / 1000))
-        })
-        break
-      }
-
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            
-            if (data.event === 'task_created') {
-              console.log('任务已创建:', data.task_id)
-            } else if (data.event === 'message' || data.event === 'agent_message') {
-              if (data.answer) {
-                streamingAnswer.value += data.answer
-              }
-            } else if (data.event === 'message_end' || data.event === 'agent_message_end') {
-              conversationId.value = data.conversation_id || ''
-              messageId.value = data.id || ''
-            } else if (data.event === 'agent_thought') {
-              console.log('Agent 思考:', data.thought)
-            } else if (data.event === 'error') {
-              console.error('错误:', data.message)
-              alert('处理失败: ' + (data.message || data.errors?.join(', ') || '未知错误'))
-            } else if (data.event === 'done') {
-              console.log('流式响应完成')
-            }
-          } catch (e) {
-            console.error('解析JSON失败:', e)
-          }
+    if (createdHistory?.id) {
+      const target = historyList.value.find((item) => item?.id === createdHistory.id)
+      if (target) {
+        target.result = answerText
+        target.details = { ...detailData }
+        target.conversation_id = conversationId.value
+        target.task_id = taskId
+        if (backendTaskId) {
+          target.backend_task_id = backendTaskId
         }
       }
+      updateHistoryTaskStatus(createdHistory.id, remoteStatus === 'failed' ? 'failed' : 'completed')
     }
+
+    upsertLocalTask({
+      id: taskId,
+      status: remoteStatus === 'failed' ? 'failed' : 'completed',
+      category: 'formula_generation',
+      agent_name: '配方生成智能体',
+      backend_task_id: backendTaskId || undefined,
+      completed_at: new Date().toISOString(),
+      execution_time: Math.max(1, Math.round((Date.now() - taskCreatedAt.getTime()) / 1000))
+    })
 
   } catch (error) {
     console.error('请求失败:', error)
+    if (isNavigationAbortError(error)) {
+      if (createdHistory?.id) {
+        updateHistoryTaskStatus(createdHistory.id, 'running')
+      }
+
+      upsertLocalTask({
+        id: taskId,
+        status: 'running',
+        category: 'formula_generation',
+        agent_name: '配方生成智能体'
+      })
+      return
+    }
+
     if (createdHistory?.id) {
       updateHistoryTaskStatus(createdHistory.id, 'failed')
     }
@@ -1011,8 +1021,230 @@ const upsertLocalTask = (taskRecord) => {
   writeLocalTasks(tasks.slice(0, 500))
 }
 
+const markPageLeaving = () => {
+  isPageLeaving.value = true
+}
+
+const isNavigationAbortError = (error) => {
+  if (isPageLeaving.value) return true
+  const name = String(error?.name || '').toLowerCase()
+  const msg = String(error?.message || '').toLowerCase()
+  return name === 'aborterror' || msg.includes('aborted') || msg.includes('networkerror')
+}
+
+const resolveRemoteTaskCategory = (task) => {
+  const rawCategory = String(task?.category || '').trim().toLowerCase()
+  if (rawCategory) return rawCategory
+
+  const text = `${task?.agent_name || ''} ${task?.title || ''}`.toLowerCase()
+  if (text.includes('配方') || text.includes('formula')) return 'formula_generation'
+  if (text.includes('工艺') || text.includes('process')) return 'process_optimization'
+
+  const payload = task?.input_data || {}
+  if (payload?.material_system || payload?.system_specific_params) return 'formula_generation'
+  return ''
+}
+
+const isFormulaTask = (task) => {
+  return resolveRemoteTaskCategory(task) === 'formula_generation'
+}
+
+const toTimestamp = (value) => {
+  const ts = new Date(value).getTime()
+  return Number.isFinite(ts) ? ts : 0
+}
+
+const syncRunningHistoryStatus = async () => {
+  const runningHistory = historyList.value.filter((item) => ['pending', 'running'].includes(getTaskStatus(item)))
+  if (!runningHistory.length) return
+
+  const token = getAuthToken()
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
+
+  const fetchTaskDetail = async (taskUuid) => {
+    if (!taskUuid) return null
+    try {
+      const detailResp = await fetch(`${API_BASE}/formula-generation/task/${taskUuid}/`, {
+        method: 'GET',
+        headers: authHeaders,
+        credentials: 'include'
+      })
+      if (!detailResp.ok) return null
+      const detailPayload = await detailResp.json()
+      return detailPayload?.task || null
+    } catch (error) {
+      return null
+    }
+  }
+
+  const fetchFormulaHistoryTasks = async () => {
+    try {
+      const historyResp = await fetch(`${API_BASE}/formula-generation/history/?limit=100`, {
+        method: 'GET',
+        headers: authHeaders,
+        credentials: 'include'
+      })
+      if (!historyResp.ok) return []
+      const payload = await historyResp.json()
+      const list = payload?.tasks || payload?.results || payload || []
+      return Array.isArray(list) ? list : []
+    } catch (error) {
+      return []
+    }
+  }
+
+  let remoteTasks = []
+  let tasksFetchSucceeded = false
+  try {
+    const response = await fetch(`${API_BASE}/tasks/`, {
+      method: 'GET',
+      headers: authHeaders,
+      credentials: 'include'
+    })
+    if (response.ok) {
+      const payload = await response.json()
+      remoteTasks = payload?.results || payload || []
+      tasksFetchSucceeded = true
+    }
+  } catch (error) {
+    console.warn('同步任务状态失败（后端不可达）:', error)
+  }
+
+  const historyTasks = await fetchFormulaHistoryTasks()
+
+  const remoteMap = new Map(
+    remoteTasks
+      .filter((item) => item?.id !== undefined && item?.id !== null)
+      .map((item) => [String(item.id), item])
+  )
+  const usedRemoteIds = new Set()
+
+  let changed = false
+
+  for (const item of historyList.value) {
+    if (!['pending', 'running'].includes(getTaskStatus(item))) continue
+
+    const backendTaskId = String(item?.backend_task_id || '').trim()
+    const localTaskId = String(item?.task_id || '').trim()
+    if (!backendTaskId) {
+      const directMatch = historyTasks.find((task) => {
+        const clientTaskId = String(task?.input_data?.client_task_id || '').trim()
+        return clientTaskId && localTaskId && clientTaskId === localTaskId
+      })
+
+      if (directMatch) {
+        const recoveredId = String(directMatch.id)
+        const recoveredStatus = getTaskStatus({ task_status: directMatch?.status })
+        item.backend_task_id = recoveredId
+        item.task_status = recoveredStatus
+        changed = true
+        usedRemoteIds.add(recoveredId)
+
+        upsertLocalTask({
+          id: item.task_id || item.id,
+          backend_task_id: recoveredId,
+          status: recoveredStatus,
+          category: 'formula_generation',
+          agent_name: '配方生成智能体',
+          completed_at: directMatch?.completed_at || undefined,
+          execution_time: Number(directMatch?.execution_time || 0)
+        })
+        continue
+      }
+    }
+
+    let remote = remoteMap.get(backendTaskId)
+    if (!remote) {
+      remote = await fetchTaskDetail(backendTaskId)
+    }
+
+    if (remote) {
+      const remoteStatus = getTaskStatus({ task_status: remote?.status })
+      if (remoteStatus !== getTaskStatus(item)) {
+        item.task_status = remoteStatus
+        changed = true
+      }
+      usedRemoteIds.add(String(remote.id))
+
+      upsertLocalTask({
+        id: item.task_id || item.id,
+        backend_task_id: backendTaskId,
+        status: remoteStatus,
+        category: 'formula_generation',
+        agent_name: '配方生成智能体',
+        completed_at: remote?.completed_at || undefined,
+        execution_time: Number(remote?.execution_time || 0)
+      })
+      continue
+    }
+
+    const localCreatedAt = toTimestamp(item?.created_at)
+    const unresolvedCandidates = remoteTasks
+      .filter((task) => {
+        const remoteId = String(task?.id || '').trim()
+        if (!remoteId || usedRemoteIds.has(remoteId)) return false
+        if (!isFormulaTask(task)) return false
+        if (!localCreatedAt) return true
+
+        const remoteCreatedAt = toTimestamp(task?.created_at || task?.started_at)
+        if (!remoteCreatedAt) return false
+
+        return Math.abs(remoteCreatedAt - localCreatedAt) <= TASK_MATCH_WINDOW_MS
+      })
+      .sort((a, b) => {
+        const diffA = Math.abs(toTimestamp(a?.created_at || a?.started_at) - localCreatedAt)
+        const diffB = Math.abs(toTimestamp(b?.created_at || b?.started_at) - localCreatedAt)
+        return diffA - diffB
+      })
+
+    const recoveredTask = unresolvedCandidates[0]
+    if (!recoveredTask) {
+      if (!backendTaskId && tasksFetchSucceeded) {
+        const itemCreatedAt = toTimestamp(item?.created_at)
+        if (itemCreatedAt && Date.now() - itemCreatedAt > RUNNING_STATUS_STALE_MS) {
+          item.task_status = 'failed'
+          changed = true
+          upsertLocalTask({
+            id: item.task_id || item.id,
+            status: 'failed',
+            category: 'formula_generation',
+            agent_name: '配方生成智能体',
+            completed_at: new Date().toISOString()
+          })
+        }
+      }
+      continue
+    }
+
+    const recoveredId = String(recoveredTask.id)
+    const recoveredStatus = getTaskStatus({ task_status: recoveredTask?.status })
+    item.backend_task_id = recoveredId
+    item.task_status = recoveredStatus
+    changed = true
+    usedRemoteIds.add(recoveredId)
+
+    upsertLocalTask({
+      id: item.task_id || item.id,
+      backend_task_id: recoveredId,
+      status: recoveredStatus,
+      category: 'formula_generation',
+      agent_name: '配方生成智能体',
+      completed_at: recoveredTask?.completed_at || undefined,
+      execution_time: Number(recoveredTask?.execution_time || 0)
+    })
+  }
+
+  if (changed) {
+    persistHistoryList()
+  }
+}
+
 const getTaskStatus = (item) => {
   const raw = String(item?.task_status || '').trim().toLowerCase()
+  if (raw === 'cancelled') return 'failed'
   if (['pending', 'running', 'completed', 'failed'].includes(raw)) {
     return raw
   }
@@ -1029,6 +1261,7 @@ const getTaskStatusLabel = (item) => {
 
 const updateHistoryTaskStatus = (targetId, nextStatus) => {
   if (!targetId) return
+  if (nextStatus === 'cancelled') nextStatus = 'failed'
   if (!['pending', 'running', 'completed', 'failed'].includes(nextStatus)) return
   const target = historyList.value.find((record) => record?.id === targetId)
   if (!target) return
@@ -1056,32 +1289,63 @@ const getValidityLabel = (item) => {
   return '待确认'
 }
 
-// 加载历史记录列表
-const loadHistoryList = () => {
-  const history = JSON.parse(localStorage.getItem(FORMULA_HISTORY_STORAGE_KEY) || '[]')
-  const fallbackHistory = history.length
-    ? history
-    : JSON.parse(localStorage.getItem('optimization_history') || '[]').filter((item) => item?.inputs?.product_performance_requirements)
+const normalizeBackendHistoryItem = (task) => {
+  const inputData = task?.input_data || {}
+  const outputData = task?.output_data || {}
+  const details = outputData?.details || { materials: [], process: [], costs: [] }
+  const answerText = outputData?.answer || ''
+  const fallbackBrief = (inputData?.product_performance_requirements || task?.title || answerText || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
 
-  historyList.value = fallbackHistory.map((item) => {
-    const fallbackBrief = (item?.inputs?.product_performance_requirements || item?.title || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 60)
-    const fallbackValid = Boolean(
-      item?.is_valid_formula
-      || (item?.details?.materials && item.details.materials.length > 0)
-      || String(item?.result || '').includes('建议')
-      || String(item?.result || '').includes('配方')
-    )
-    return {
-      ...item,
-      brief: item?.brief || fallbackBrief || '未提取到配方简要',
-      task_status: getTaskStatus(item),
-      validity_status: normalizeValidityStatus(item, fallbackValid),
-      is_valid_formula: normalizeValidityStatus(item, fallbackValid) === 'valid',
+  return {
+    id: String(task?.id || `history-${Date.now()}`),
+    title: task?.title || '配方生成任务',
+    brief: task?.brief_summary || fallbackBrief || '未提取到配方简要',
+    inputs: inputData,
+    result: answerText,
+    details,
+    conversation_id: outputData?.conversation_id || '',
+    created_at: task?.created_at || new Date().toISOString(),
+    task_id: String(inputData?.client_task_id || task?.id || ''),
+    backend_task_id: String(task?.id || ''),
+    task_status: getTaskStatus({ task_status: task?.status }),
+    validity_status: normalizeValidityStatus({ validity_status: task?.validity_status }),
+    is_valid_formula: normalizeValidityStatus({ validity_status: task?.validity_status }) === 'valid',
+    created_by_name: task?.created_by_name || ''
+  }
+}
+
+// 加载历史记录列表
+const loadHistoryList = async () => {
+  const token = getAuthToken()
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/formula-generation/history/?limit=100`, {
+      method: 'GET',
+      headers: authHeaders,
+      credentials: 'include'
+    })
+
+    if (response.ok) {
+      const payload = await response.json()
+      const remoteTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
+      historyList.value = remoteTasks.map((task) => normalizeBackendHistoryItem(task))
+      persistHistoryList()
+      if (historyPage.value > totalHistoryPages.value) {
+        historyPage.value = totalHistoryPages.value
+      }
+      return
     }
-  })
+  } catch (error) {
+    console.warn('加载后端配方历史失败:', error)
+  }
+  historyList.value = []
 
   if (historyPage.value > totalHistoryPages.value) {
     historyPage.value = totalHistoryPages.value
@@ -1101,6 +1365,24 @@ const updateHistoryValidity = (targetId, nextStatus) => {
   target.validity_status = nextStatus
   target.is_valid_formula = nextStatus === 'valid'
   persistHistoryList()
+
+  const backendTaskId = String(target?.backend_task_id || target?.id || '').trim()
+  if (!backendTaskId) return
+
+  const token = getAuthToken()
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
+
+  fetch(`${API_BASE}/tasks/${backendTaskId}/`, {
+    method: 'PATCH',
+    headers: authHeaders,
+    credentials: 'include',
+    body: JSON.stringify({ validity_status: nextStatus })
+  }).catch((error) => {
+    console.warn('回写有效性到后端失败:', error)
+  })
 }
 
 const openHistoryDetail = (item) => {
@@ -1150,10 +1432,28 @@ const goBack = () => {
 }
 
 // 组件挂载时加载历史记录
-onMounted(() => {
-  loadHistoryList()
+onMounted(async () => {
+  isPageLeaving.value = false
+  window.addEventListener('beforeunload', markPageLeaving)
+  window.addEventListener('pagehide', markPageLeaving)
+
+  await loadHistoryList()
+  await syncRunningHistoryStatus()
+  runningStatusSyncTimer = setInterval(() => {
+    syncRunningHistoryStatus()
+  }, RUNNING_STATUS_SYNC_INTERVAL_MS)
+
   if (!historyList.value.length) {
     loadDemoFormula()
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', markPageLeaving)
+  window.removeEventListener('pagehide', markPageLeaving)
+  if (runningStatusSyncTimer) {
+    clearInterval(runningStatusSyncTimer)
+    runningStatusSyncTimer = null
   }
 })
 </script>
