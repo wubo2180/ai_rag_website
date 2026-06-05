@@ -29,6 +29,8 @@ def ensure_default_ocr_user(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
+
     dependencies = [
         ("ocr", "0003_ensure_sha256_hash_column"),
     ]
