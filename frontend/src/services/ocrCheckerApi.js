@@ -18,6 +18,10 @@ const ocrCheckerApi = {
     })
   },
 
+  deleteFile(fileId) {
+    return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}`, 'DELETE')
+  },
+
   startRecognize(fileId) {
     return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}/ocr/recognize`, 'POST')
   },
