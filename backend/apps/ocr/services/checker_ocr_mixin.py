@@ -22,7 +22,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             if not file_obj:
                 return {'status_code': 404, 'body': {'success': False, 'message': '文件不存在'}}
 
-            task_id = f'local-{uuid.uuid4().hex[:12]}'
+            task_id = f'local-{file_id}-{uuid.uuid4().hex[:12]}'
             document_type = self._normalize_document_type(file_obj)
             self._tasks[task_id] = {
                 'status': 'processing',
@@ -959,9 +959,45 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
     def _get_task_status(self, task_id: str):
         task = self._tasks.get(task_id)
         if not task:
+            # 容错：多进程/重启导致内存任务丢失时，回退到数据库状态，避免前端频繁报“任务不存在”。
+            match = re.fullmatch(r'local-(\d+)-[a-z0-9]+', str(task_id or '').strip().lower())
+            if not match:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
+                }
+
+            file_id = int(match.group(1))
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
+                }
+
+            raw_status = str(file_obj.ocr_status or '').strip().lower()
+            status = raw_status if raw_status in {'pending', 'processing', 'completed', 'failed'} else 'processing'
+            if status == 'pending':
+                status = 'processing'
+
+            result_payload = {}
+            if status == 'completed':
+                latest_payload = self._load_latest_ocr_payload(file_id)
+                document_type = self._normalize_document_type(file_obj)
+                if isinstance(latest_payload, dict):
+                    result_payload = {
+                        'structured_data': latest_payload,
+                        'document_type': document_type,
+                    }
+
             return {
-                'status_code': 404,
-                'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'status': status,
+                    'result': result_payload,
+                    'error_message': file_obj.ocr_error_message if status == 'failed' else None,
+                },
             }
 
         return {

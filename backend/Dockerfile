@@ -12,7 +12,8 @@ WORKDIR /app
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
-    postgresql-client \
+    # postgresql-client \
+    default-mysql-client \
     default-libmysqlclient-dev \
     pkg-config \
     gcc \
