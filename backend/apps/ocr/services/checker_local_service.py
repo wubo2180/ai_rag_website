@@ -75,7 +75,11 @@ class CheckerLocalService(CheckerOcrMixin):
         if request.method == 'GET' and normalized in ('api/files/count', 'files/count'):
             return self._count_files(request)
 
-        detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)', normalized)
+        detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/?', normalized)
+        if request.method == 'DELETE' and detail_match:
+            file_id = int(detail_match.group('file_id'))
+            return self._delete_file(file_id)
+
         if request.method == 'GET' and detail_match:
             file_id = int(detail_match.group('file_id'))
             return self._get_file_detail(file_id)
@@ -415,7 +419,6 @@ class CheckerLocalService(CheckerOcrMixin):
             status_filter = request.GET.get('status')
             review_status_filter = request.GET.get('review_status')
             document_type_filter = request.GET.get('document_type')
-
             queryset = File.objects.filter(is_deleted=False).only(
                 'id',
                 'filename',
@@ -494,6 +497,49 @@ class CheckerLocalService(CheckerOcrMixin):
                 'body': {
                     'success': False,
                     'message': f'读取文件列表失败: {exc}',
+                    'service': self.service_name,
+                },
+            }
+
+    def _delete_file(self, file_id: int):
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {
+                        'success': False,
+                        'message': '文件不存在',
+                    },
+                }
+
+            file_obj.is_deleted = True
+            file_obj.deleted_at = timezone.now()
+            file_obj.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+
+            file_path = (file_obj.file_path or '').strip()
+            if file_path:
+                try:
+                    Path(file_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+            return {
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'message': '文件删除成功',
+                    'data': {
+                        'id': file_obj.id,
+                    },
+                },
+            }
+        except Exception as exc:
+            return {
+                'status_code': 500,
+                'body': {
+                    'success': False,
+                    'message': f'删除文件失败: {exc}',
                     'service': self.service_name,
                 },
             }

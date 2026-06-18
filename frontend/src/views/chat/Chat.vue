@@ -63,7 +63,21 @@
               <!-- 思考中加载状态 -->
               <div v-if="message._isLoading" class="thinking-indicator">
                 <div class="thinking-dots">
-                  <span class="thinking-text">🤔 思考中</span>
+                  <span class="thinking-text">{{
+                    message._stageText || '🤔 思考中'
+                  }}</span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
+              </div>
+              <!-- 聚合模式：汇总阶段提示（不再 loading 但内容还未开始） -->
+              <div
+                v-else-if="message._stageText && !message.content"
+                class="thinking-indicator"
+              >
+                <div class="thinking-dots">
+                  <span class="thinking-text">{{ message._stageText }}</span>
                   <span class="dot"></span>
                   <span class="dot"></span>
                   <span class="dot"></span>
@@ -243,7 +257,7 @@
       const isAllDropdownVisible = ref(false)
       const isAllIconRotated = ref(false)
       const isDeepThinkingActive = ref(false)
-      const options = ['全部', '内部数据库', '外部数据库']
+      const options = ['全部', '内部数据库', '外部数据库', '聚合模式']
       const selectedOption = ref('全部')
       // 对话上下文ID（用于后端记忆）
       const currentChatId = ref(null)
@@ -343,39 +357,52 @@
           try {
             isLoading.value = true
 
-            // 使用微信小程序SSE接口（使用相对路径，让 Vite 代理处理）
-            const streamUrl = '/api/chat/wechat/stream/'
+            const isAggregateMode = selectedOption.value === '聚合模式'
+            const streamUrl = isAggregateMode
+              ? '/api/chat/aggregate/stream/'
+              : '/api/chat/wechat/stream/'
 
-            // 构建请求体 - 符合微信小程序SSE接口格式
-            const payload = {
-              message: text,
-              model: chatStore.selectedModel || 'deepseek',
-              // 微信小程序接口使用 user_id 字段
-              user_id: localStorage.getItem('user_id') || 'web_anonymous',
-            }
+            const payload = isAggregateMode
+              ? {
+                  message: text,
+                  user_id: localStorage.getItem('user_id') || 'web_anonymous',
+                  ...(currentChatId.value &&
+                  !String(currentChatId.value).startsWith('temp_')
+                    ? {
+                        session_id:
+                          parseInt(currentChatId.value, 10) ||
+                          currentChatId.value,
+                      }
+                    : {}),
+                }
+              : {
+                  message: text,
+                  model: chatStore.selectedModel || 'deepseek',
+                  user_id: localStorage.getItem('user_id') || 'web_anonymous',
+                  ...(currentChatId.value &&
+                  !String(currentChatId.value).startsWith('temp_')
+                    ? {
+                        session_id:
+                          parseInt(currentChatId.value, 10) ||
+                          currentChatId.value,
+                      }
+                    : {}),
+                }
 
-            // 添加会话 ID
-            if (
-              currentChatId.value &&
-              !String(currentChatId.value).startsWith('temp_')
-            ) {
-              payload.session_id =
-                parseInt(currentChatId.value, 10) || currentChatId.value
-            }
+            console.log(
+              'SSE 请求 payload:',
+              payload,
+              '聚合模式:',
+              isAggregateMode,
+            )
 
-            console.log('微信小程序SSE请求 payload:', payload)
-
-            // 发起流式请求
             const response = await fetch(streamUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                // 添加认证头（如果有）
                 ...(localStorage.getItem('access_token')
                   ? {
-                      Authorization: `Bearer ${localStorage.getItem(
-                        'access_token',
-                      )}`,
+                      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
                     }
                   : {}),
               },
@@ -389,103 +416,103 @@
             const reader = response.body.getReader()
             const decoder = new TextDecoder()
             let buffer = ''
-            let receivedFirstContent = false // 标记是否收到第一个内容块
+            let receivedFirstContent = false
 
             while (true) {
               const { done, value } = await reader.read()
+              if (done) break
 
-              if (done) {
-                console.log('微信小程序SSE流式响应接收完成')
-                break
-              }
-
-              // 解码数据块
               buffer += decoder.decode(value, { stream: true })
-
-              // 按行处理 SSE 数据
               const lines = buffer.split('\n')
-              buffer = lines.pop() || '' // 保留未完成的行
+              buffer = lines.pop() || ''
 
               for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const dataStr = line.slice(6).trim()
+                if (!line.startsWith('data: ')) continue
+                const dataStr = line.slice(6).trim()
+                if (dataStr === '[DONE]' || !dataStr) continue
 
-                  // 处理SSE结束标记
-                  if (dataStr === '[DONE]') {
-                    console.log('收到SSE结束标记 [DONE]')
+                try {
+                  const data = JSON.parse(dataStr)
+
+                  if (data.error) {
+                    messages.value[aiMessageIndex]._isLoading = false
+                    messages.value[aiMessageIndex]._stageText = ''
+                    messages.value[aiMessageIndex].content =
+                      `错误: ${data.error}`
                     continue
                   }
 
-                  if (!dataStr) continue
-
-                  try {
-                    const data = JSON.parse(dataStr)
-
-                    // 处理错误信息
-                    if (data.error) {
-                      console.error('SSE流式响应错误:', data.error)
+                  if (isAggregateMode) {
+                    // ---- 聚合模式 SSE 处理 ----
+                    if (data.stage === 'collecting') {
+                      if (data.session_id)
+                        currentChatId.value = String(data.session_id)
+                      messages.value[aiMessageIndex]._stageText =
+                        '🔄 正在向所有模型提问...'
+                    } else if (data.stage === 'model_done') {
+                      const doneCount =
+                        Object.keys(
+                          messages.value[aiMessageIndex]._modelResults || {},
+                        ).length + 1
+                      if (!messages.value[aiMessageIndex]._modelResults)
+                        messages.value[aiMessageIndex]._modelResults = {}
+                      messages.value[aiMessageIndex]._modelResults[data.model] =
+                        data.content
+                      messages.value[aiMessageIndex]._stageText =
+                        `⏳ 已收到 ${doneCount} 个模型回复，等待其余模型...`
+                    } else if (data.stage === 'summarizing') {
                       messages.value[aiMessageIndex]._isLoading = false
-                      messages.value[aiMessageIndex].content =
-                        `错误: ${data.error}`
-                      continue
+                      messages.value[aiMessageIndex]._stageText =
+                        '🧠 DeepSeek 正在汇总所有答案...'
+                    } else if (data.stage === 'answer') {
+                      if (!receivedFirstContent) {
+                        receivedFirstContent = true
+                        messages.value[aiMessageIndex]._stageText = ''
+                        messages.value[aiMessageIndex].content = ''
+                      }
+                      messages.value[aiMessageIndex].content += data.content
+                      if (isAtBottom.value) scrollToBottom()
+                    } else if (data.stage === 'done') {
+                      if (data.session_id)
+                        currentChatId.value = String(data.session_id)
                     }
-
-                    // 处理会话 ID（在流开始时返回）
+                  } else {
+                    // ---- 普通模式 SSE 处理（原有逻辑）----
                     if (data.session_id && !data.content && !data.done) {
                       currentChatId.value = String(data.session_id)
-                      console.log('更新 currentChatId:', currentChatId.value)
-                      // 同时保存 conversation_id
-                      if (data.conversation_id) {
-                        console.log(
-                          '收到 conversation_id:',
-                          data.conversation_id,
-                        )
-                      }
                     }
-
-                    // 处理内容块
                     if (data.content) {
-                      // 收到第一个内容块时，切换为打字机模式
                       if (!receivedFirstContent) {
                         receivedFirstContent = true
                         messages.value[aiMessageIndex]._isLoading = false
                         messages.value[aiMessageIndex].content = ''
                       }
                       messages.value[aiMessageIndex].content += data.content
-                      // 若当前在底部，则跟随滚动
                       if (isAtBottom.value) scrollToBottom()
                     }
-
-                    // 处理完成信号
-                    if (data.done) {
-                      console.log('收到完成信号, message_id:', data.message_id)
-                      // 更新最终的 session_id 和 conversation_id
-                      if (data.session_id) {
-                        currentChatId.value = String(data.session_id)
-                      }
+                    if (data.done && data.session_id) {
+                      currentChatId.value = String(data.session_id)
                     }
-                  } catch (e) {
-                    // 忽略解析错误，可能是不完整的 JSON
-                    console.debug('解析 SSE 数据失败:', line, e)
                   }
+                } catch (e) {
+                  console.debug('解析 SSE 数据失败:', line, e)
                 }
               }
             }
 
-            // 如果没有收到任何内容，显示默认消息
             if (!messages.value[aiMessageIndex].content) {
               messages.value[aiMessageIndex]._isLoading = false
+              messages.value[aiMessageIndex]._stageText = ''
               messages.value[aiMessageIndex].content =
                 '抱歉，未能获取到 AI 回复。'
             }
 
             isLoading.value = false
-            // AI 回复完成后，更新历史记录
             saveCurrentChat()
           } catch (error) {
             console.error('Error fetching AI response:', error)
-            // 更新占位消息为错误提示
             messages.value[aiMessageIndex]._isLoading = false
+            messages.value[aiMessageIndex]._stageText = ''
             messages.value[aiMessageIndex].content =
               '抱歉，AI 服务暂时不可用，请稍后重试。'
             isLoading.value = false

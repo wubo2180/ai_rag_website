@@ -1,0 +1,53 @@
+# Dify API 配置文件
+dify:
+  # Dify API 基础 URL
+  base_url: 'http://172.20.46.18:8088'
+
+  # API 认证令牌
+  api_key: 'app-Xomtem4zJ9dkx23GcUbsUpNd'
+
+  # 默认用户标识
+  default_user: 'difyuser'
+
+  # 文件上传配置
+  upload:
+    endpoint: '/v1/files/upload'
+    # 支持的文件类型
+    allowed_extensions:
+      - pdf
+      - txt
+      - doc
+      - docx
+    # 最大文件大小（MB）
+    max_file_size: 50
+
+  # 工作流配置
+  workflow:
+    endpoint: '/v1/workflows/run'
+    # 响应模式: "blocking" 或 "streaming"
+    response_mode: 'blocking'
+    # 文件传输方法
+    transfer_method: 'local_file'
+    # 文件类型
+    file_type: 'document'
+
+# REST API 服务配置
+api:
+  # 服务监听地址
+  host: '0.0.0.0'
+
+  # 服务端口
+  port: 6002
+
+  # 是否启用调试模式
+  debug: true
+
+  # 是否启用 CORS
+  enable_cors: true
+
+  # 允许的来源（CORS）
+  allowed_origins:
+    - '*'
+
+  # 临时文件存储路径
+  temp_upload_dir: './temp_uploads'

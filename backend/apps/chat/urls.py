@@ -7,6 +7,7 @@ from .enhanced_views import (
     EnhancedModelsAPIView,
     ChatModelSwitchAPIView
 )
+from .aggregate_views import AggregateStreamAPIView
 
 app_name = 'chat'
 
@@ -28,4 +29,7 @@ urlpatterns = [
     
     # 微信小程序专用SSE接口
     path('wechat/stream/', views.WeChatMiniProgramSSEAPIView.as_view(), name='wechat_stream'),
+
+    # 聚合模式：并行问所有模型，deepseek 流式汇总
+    path('aggregate/stream/', AggregateStreamAPIView.as_view(), name='aggregate_stream'),
 ]
