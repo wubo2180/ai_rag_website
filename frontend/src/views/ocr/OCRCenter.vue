@@ -65,8 +65,9 @@
                 <th>类型</th>
                 <th>OCR状态</th>
                 <th>核对状态</th>
-                <th>更新时间</th>
+                <th>上传时间</th>
                 <th>状态说明</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -76,17 +77,26 @@
                 <td>{{ getDocumentTypeText(row.document_type_code) }}</td>
                 <td>{{ getOcrStatusText(row.ocr_status) }}</td>
                 <td>{{ getReviewStatusText(row.review_status) }}</td>
-                <td>{{ formatTime(row.updated_at || row.created_at) }}</td>
+                <td>{{ formatTime(row.created_at) }}</td>
                 <td>
                   <span :class="['status-note', getStatusSummaryClass(row)]">{{ getStatusSummaryText(row) }}</span>
+                </td>
+                <td>
+                  <button
+                    class="btn btn-danger btn-small"
+                    :disabled="deletingId === row.id"
+                    @click="removeFile(row)"
+                  >
+                    {{ deletingId === row.id ? '删除中...' : '删除' }}
+                  </button>
                 </td>
               </tr>
 
               <tr v-if="filesLoading">
-                <td colspan="7" class="empty">加载中...</td>
+                <td colspan="8" class="empty">加载中...</td>
               </tr>
               <tr v-else-if="fileRows.length === 0">
-                <td colspan="7" class="empty">暂无文件</td>
+                <td colspan="8" class="empty">暂无文件</td>
               </tr>
             </tbody>
           </table>
@@ -108,6 +118,7 @@ const router = useRouter()
 const gatewayBase = '/api/ocr'
 const gatewayStatus = ref('idle')
 const filesLoading = ref(false)
+const deletingId = ref(null)
 
 const fileRows = ref([])
 const stats = ref({
@@ -250,6 +261,23 @@ const loadFiles = async () => {
     ElMessage.warning(error?.response?.data?.message || '文件列表读取失败')
   } finally {
     filesLoading.value = false
+  }
+}
+
+const removeFile = async (row) => {
+  if (!row?.id || deletingId.value) return
+  const confirmed = window.confirm(`确认删除文件《${row.filename || row.file_name || row.id}》吗？`)
+  if (!confirmed) return
+
+  deletingId.value = row.id
+  try {
+    await ocrCheckerApi.deleteFile(row.id)
+    ElMessage.success('文件已删除')
+    await Promise.all([loadStats(), loadFiles()])
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '删除失败，请稍后重试')
+  } finally {
+    deletingId.value = null
   }
 }
 
@@ -531,5 +559,20 @@ onMounted(async () => {
     width: 100%;
     flex-wrap: wrap;
   }
+}
+
+.btn-danger {
+  background: #fff;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.btn-small {
+  padding: 5px 10px;
+  font-size: 12px;
 }
 </style>

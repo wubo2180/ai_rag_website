@@ -75,7 +75,11 @@ class CheckerLocalService(CheckerOcrMixin):
         if request.method == 'GET' and normalized in ('api/files/count', 'files/count'):
             return self._count_files(request)
 
-        detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)', normalized)
+        detail_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/?', normalized)
+        if request.method == 'DELETE' and detail_match:
+            file_id = int(detail_match.group('file_id'))
+            return self._delete_file(file_id)
+
         if request.method == 'GET' and detail_match:
             file_id = int(detail_match.group('file_id'))
             return self._get_file_detail(file_id)
@@ -335,29 +339,11 @@ class CheckerLocalService(CheckerOcrMixin):
                         seen_hash_keys[dedupe_key] = existing.pk
                         continue
 
-                    object_key = (
-                        f"checker/{timezone.localtime().strftime('%Y/%m/%d')}/"
-                        f"{uuid.uuid4().hex}{suffix or Path(original_name).suffix.lower()}"
-                    )
-                    upload_result = self._upload_local_file_to_minio(
-                        local_path=disk_path,
-                        object_name=object_key,
-                        content_type=content_type,
-                    )
-                    if not upload_result.get('success'):
-                        if disk_path.exists():
-                            disk_path.unlink(missing_ok=True)
-                        raise RuntimeError(f"上传到MinIO失败: {upload_result.get('error', '未知错误')}")
-
-                    storage_path = upload_result.get('storage_path') or object_key
-                    if disk_path.exists():
-                        disk_path.unlink(missing_ok=True)
-
                     file_obj = File.objects.create(
                         id=current_file_id,
                         filename=original_name,
                         stored_filename=stored_filename,
-                        file_path=storage_path,
+                        file_path=str(disk_path),
                         file_size=size,
                         file_type=suffix or Path(original_name).suffix.lower() or '',
                         document_type_code=document_type,
@@ -382,13 +368,11 @@ class CheckerLocalService(CheckerOcrMixin):
                     })
 
             if errors and not saved_files:
-                joined_errors = ' | '.join(str(item.get('message', '')) for item in errors)
-                is_storage_full = 'XMinioStorageFull' in joined_errors or 'minimum free drive threshold' in joined_errors
                 return {
-                    'status_code': 507 if is_storage_full else 500,
+                    'status_code': 500,
                     'body': {
                         'success': False,
-                        'message': '对象存储空间不足，请清理MinIO磁盘空间后重试' if is_storage_full else '上传失败',
+                        'message': '上传失败',
                         'errors': errors,
                         'duplicates': duplicates,
                     },
@@ -435,7 +419,6 @@ class CheckerLocalService(CheckerOcrMixin):
             status_filter = request.GET.get('status')
             review_status_filter = request.GET.get('review_status')
             document_type_filter = request.GET.get('document_type')
-
             queryset = File.objects.filter(is_deleted=False).only(
                 'id',
                 'filename',
@@ -514,6 +497,49 @@ class CheckerLocalService(CheckerOcrMixin):
                 'body': {
                     'success': False,
                     'message': f'读取文件列表失败: {exc}',
+                    'service': self.service_name,
+                },
+            }
+
+    def _delete_file(self, file_id: int):
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {
+                        'success': False,
+                        'message': '文件不存在',
+                    },
+                }
+
+            file_obj.is_deleted = True
+            file_obj.deleted_at = timezone.now()
+            file_obj.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+
+            file_path = (file_obj.file_path or '').strip()
+            if file_path:
+                try:
+                    Path(file_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+            return {
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'message': '文件删除成功',
+                    'data': {
+                        'id': file_obj.id,
+                    },
+                },
+            }
+        except Exception as exc:
+            return {
+                'status_code': 500,
+                'body': {
+                    'success': False,
+                    'message': f'删除文件失败: {exc}',
                     'service': self.service_name,
                 },
             }

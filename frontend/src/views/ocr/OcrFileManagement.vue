@@ -86,6 +86,7 @@
               <th>ID</th>
               <th>文件名</th>
               <th>类型</th>
+              <th>上传时间</th>
               <th>OCR 状态</th>
               <th>核对状态</th>
               <th>操作</th>
@@ -104,6 +105,7 @@
               <td>{{ item.id }}</td>
               <td>{{ item.filename }}</td>
               <td>{{ getDocumentTypeText(item.document_type_code) }}</td>
+              <td>{{ formatTime(item.created_at) }}</td>
               <td>
                 <span
                   v-if="getOcrStatusText(item?.ocr_status)"
@@ -130,14 +132,21 @@
                     {{ recognizeActionLabel(item) }}
                   </button>
                   <button class="action-btn" @click="goReview(item)">进入核对</button>
+                  <button
+                    class="action-btn danger"
+                    :disabled="deletingId === item.id"
+                    @click="removeFile(item)"
+                  >
+                    {{ deletingId === item.id ? '删除中...' : '删除文件' }}
+                  </button>
                 </div>
               </td>
             </tr>
             <tr v-if="!loading && files.length === 0">
-              <td colspan="7" class="empty">暂无数据</td>
+              <td colspan="8" class="empty">暂无数据</td>
             </tr>
             <tr v-if="loading">
-              <td colspan="7" class="empty">加载中...</td>
+              <td colspan="8" class="empty">加载中...</td>
             </tr>
           </tbody>
         </table>
@@ -183,6 +192,7 @@ const totalPages = ref(0)
 const total = ref(0)
 const perPage = ref(50)
 const selectedIds = ref([])
+const deletingId = ref(null)
 const batchRecognizing = ref(false)
 const onlyPendingForBatch = ref(true)
 const selectedDocumentType = ref('all')
@@ -244,6 +254,13 @@ const getDocumentTypeText = (code) => {
   if (normalized === 'paper') return '论文'
   if (normalized === 'commission') return '委托单'
   return '-'
+}
+
+const formatTime = (value) => {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString('zh-CN', { hour12: false })
 }
 
 const getOcrStatusText = (status) => {
@@ -408,6 +425,22 @@ const goReview = (item) => {
   router.push(`/ocr/review/${item.id}`)
 }
 
+const removeFile = async (item) => {
+  if (!item?.id || deletingId.value) return
+  const confirmed = window.confirm(`确认删除文件《${item.filename}》吗？`)
+  if (!confirmed) return
+
+  deletingId.value = item.id
+  try {
+    await ocrCheckerApi.deleteFile(item.id)
+    ElMessage.success('文件已删除')
+    await fetchFiles(files.value.length === 1 && currentPage.value > 1 ? currentPage.value - 1 : currentPage.value)
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '删除失败，请稍后重试')
+  } finally {
+    deletingId.value = null
+  }
+}
 onMounted(() => {
   fetchFiles(1)
 })
@@ -446,6 +479,8 @@ onMounted(() => {
 .action-btn { border:1px solid #dbe4f0; background:#fff; color:#334155; padding:6px 10px; border-radius:8px; cursor:pointer; line-height:1.2; }
 .action-btn:hover { background:#f8fafc; }
 .action-primary { border-color:#6366f1; background:#eef2ff; color:#4338ca; }
+.action-btn.danger { border-color:#fecaca; background:#fff; color:#b91c1c; }
+.action-btn.danger:hover:not(:disabled) { background:#fef2f2; }
 .status-hint { margin-left:8px; font-size:12px; line-height:1; padding:3px 8px; border-radius:999px; }
 .status-hint.recognized { color:#166534; background:#dcfce7; border:1px solid #bbf7d0; }
 .status-hint.pending { color:#92400e; background:#fef3c7; border:1px solid #fde68a; }
