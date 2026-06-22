@@ -34,16 +34,12 @@
           <span class="filter-indicator">当前筛选：{{ selectedDocumentTypeLabel }}</span>
           <button class="btn" @click="router.push('/ocr-center')">返回OCR中心</button>
           <button class="btn" @click="fetchFiles(currentPage)">刷新</button>
-          <label class="check-option">
-            <input v-model="onlyPendingForBatch" type="checkbox" />
-            仅识别待识别
-          </label>
           <button
-            class="btn"
-            :disabled="loading || batchRecognizing || selectedCount === 0"
-            @click="batchRecognizeSelected"
+            class="btn danger-btn"
+            :disabled="loading || batchDeleting || !!deletingId || selectedCount === 0"
+            @click="batchDeleteSelected"
           >
-            {{ batchRecognizing ? '批量识别中...' : `批量识别（${batchTargetCount}）` }}
+            {{ batchDeleting ? '批量删除中...' : `批量删除（${selectedCount}）` }}
           </button>
           <button class="btn primary" @click="router.push('/ocr/upload')">上传文件</button>
         </div>
@@ -69,6 +65,20 @@
             </button>
             <button class="page-btn" :disabled="loading || currentPage >= displayTotalPages" @click="changePage(currentPage + 1)">下一页</button>
             <button class="page-btn" :disabled="loading || currentPage >= displayTotalPages" @click="changePage(displayTotalPages)">末页</button>
+            <div class="page-jump">
+              <span>跳转到</span>
+              <input
+                v-model="pageJumpInput"
+                class="page-jump-input"
+                type="number"
+                min="1"
+                :max="displayTotalPages"
+                :disabled="loading"
+                @keydown.enter.prevent="jumpToPage"
+              />
+              <span>页</span>
+              <button class="page-btn" :disabled="loading" @click="jumpToPage">跳转</button>
+            </div>
           </div>
         </div>
 
@@ -79,7 +89,7 @@
                 <input
                   type="checkbox"
                   :checked="allSelectedOnPage"
-                  :disabled="loading || files.length === 0"
+                  :disabled="loading || batchDeleting || files.length === 0"
                   @change="toggleSelectAllOnPage"
                 />
               </th>
@@ -99,7 +109,7 @@
                   type="checkbox"
                   :value="item.id"
                   v-model="selectedIds"
-                  :disabled="loading || batchRecognizing"
+                  :disabled="loading || batchDeleting"
                 />
               </td>
               <td>{{ item.id }}</td>
@@ -134,7 +144,7 @@
                   <button class="action-btn" @click="goReview(item)">进入核对</button>
                   <button
                     class="action-btn danger"
-                    :disabled="deletingId === item.id"
+                    :disabled="deletingId === item.id || batchDeleting"
                     @click="removeFile(item)"
                   >
                     {{ deletingId === item.id ? '删除中...' : '删除文件' }}
@@ -170,6 +180,20 @@
             </button>
             <button class="page-btn" :disabled="loading || currentPage >= displayTotalPages" @click="changePage(currentPage + 1)">下一页</button>
             <button class="page-btn" :disabled="loading || currentPage >= displayTotalPages" @click="changePage(displayTotalPages)">末页</button>
+            <div class="page-jump">
+              <span>跳转到</span>
+              <input
+                v-model="pageJumpInput"
+                class="page-jump-input"
+                type="number"
+                min="1"
+                :max="displayTotalPages"
+                :disabled="loading"
+                @keydown.enter.prevent="jumpToPage"
+              />
+              <span>页</span>
+              <button class="page-btn" :disabled="loading" @click="jumpToPage">跳转</button>
+            </div>
           </div>
         </div>
       </div>
@@ -178,7 +202,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
@@ -193,9 +217,9 @@ const total = ref(0)
 const perPage = ref(50)
 const selectedIds = ref([])
 const deletingId = ref(null)
-const batchRecognizing = ref(false)
-const onlyPendingForBatch = ref(true)
+const batchDeleting = ref(false)
 const selectedDocumentType = ref('all')
+const pageJumpInput = ref('1')
 const selectedDocumentTypeLabel = computed(() => {
   if (selectedDocumentType.value === 'paper') return '论文'
   if (selectedDocumentType.value === 'commission') return '委托单'
@@ -204,22 +228,6 @@ const selectedDocumentTypeLabel = computed(() => {
 
 const currentPageIds = computed(() => files.value.map((item) => Number(item?.id)).filter((id) => Number.isFinite(id)))
 const selectedCount = computed(() => selectedIds.value.length)
-const selectedItems = computed(() => {
-  const selectedIdSet = new Set(selectedIds.value)
-  return files.value.filter((item) => selectedIdSet.has(Number(item?.id)))
-})
-const batchTargetItems = computed(() => (
-  onlyPendingForBatch.value
-    ? selectedItems.value.filter((item) => String(item?.ocr_status || '').toLowerCase() === 'pending')
-    : selectedItems.value
-))
-const batchTargetCount = computed(() => batchTargetItems.value.length)
-const pendingPageIds = computed(() => (
-  files.value
-    .filter((item) => String(item?.ocr_status || '').toLowerCase() === 'pending')
-    .map((item) => Number(item?.id))
-    .filter((id) => Number.isFinite(id))
-))
 const allSelectedOnPage = computed(() => (
   currentPageIds.value.length > 0
   && currentPageIds.value.every((id) => selectedIds.value.includes(id))
@@ -320,11 +328,13 @@ const fetchFiles = async (page = currentPage.value) => {
     totalPages.value = Number(payload?.pages ?? (files.value.length ? 1 : 0))
     currentPage.value = Number(payload?.current_page ?? page)
     perPage.value = Number(payload?.per_page ?? perPage.value)
+    pageJumpInput.value = String(currentPage.value)
     selectedIds.value = []
   } catch (e) {
     files.value = []
     total.value = 0
     totalPages.value = 0
+    pageJumpInput.value = '1'
     selectedIds.value = []
     ElMessage.warning('读取文件列表失败，请先检查 checker 服务状态')
   } finally {
@@ -343,22 +353,13 @@ const switchDocumentType = (documentType) => {
 
 const toggleSelectAllOnPage = (event) => {
   const checked = !!event?.target?.checked
-  const baseIds = onlyPendingForBatch.value ? pendingPageIds.value : currentPageIds.value
   if (checked) {
-    selectedIds.value = [...new Set([...selectedIds.value, ...baseIds])]
+    selectedIds.value = [...new Set([...selectedIds.value, ...currentPageIds.value])]
     return
   }
-  const pageIdSet = new Set(baseIds)
+  const pageIdSet = new Set(currentPageIds.value)
   selectedIds.value = selectedIds.value.filter((id) => !pageIdSet.has(id))
 }
-
-watch(onlyPendingForBatch, (enabled) => {
-  if (!enabled) {
-    return
-  }
-  const pendingIdSet = new Set(pendingPageIds.value)
-  selectedIds.value = selectedIds.value.filter((id) => pendingIdSet.has(id))
-})
 
 const extractErrorMessage = (error) => (
   error?.response?.data?.message
@@ -366,20 +367,24 @@ const extractErrorMessage = (error) => (
   || '请求失败'
 )
 
-const batchRecognizeSelected = async () => {
+const batchDeleteSelected = async () => {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('请先勾选要识别的文件')
+    ElMessage.warning('请先勾选要删除的文件')
     return
   }
 
-  if (batchTargetItems.value.length === 0) {
-    ElMessage.warning('当前勾选中没有待识别文件，请取消过滤或调整勾选')
+  const targetIds = [...new Set(selectedIds.value.map((id) => Number(id)).filter((id) => Number.isFinite(id)))]
+  if (targetIds.length === 0) {
+    ElMessage.warning('未找到可删除的文件')
     return
   }
 
-  batchRecognizing.value = true
-  const targetIds = batchTargetItems.value.map((item) => Number(item.id)).filter((id) => Number.isFinite(id))
-  const results = await Promise.allSettled(targetIds.map((id) => ocrCheckerApi.startRecognize(id)))
+  const confirmed = window.confirm(`确认批量删除已勾选的 ${targetIds.length} 个文件吗？`)
+  if (!confirmed) return
+
+  batchDeleting.value = true
+  const currentPageFileCount = files.value.length
+  const results = await Promise.allSettled(targetIds.map((id) => ocrCheckerApi.deleteFile(id)))
 
   let successCount = 0
   let failedCount = 0
@@ -397,23 +402,38 @@ const batchRecognizeSelected = async () => {
   })
 
   if (successCount > 0 && failedCount === 0) {
-    ElMessage.success(`批量识别任务已提交：${successCount} 个文件`)
+    ElMessage.success(`批量删除成功：${successCount} 个文件`)
   } else if (successCount > 0) {
-    ElMessage.warning(`批量识别部分成功：成功 ${successCount}，失败 ${failedCount}（${firstErrorMessage || '请稍后重试'}）`)
+    ElMessage.warning(`批量删除部分成功：成功 ${successCount}，失败 ${failedCount}（${firstErrorMessage || '请稍后重试'}）`)
   } else {
-    ElMessage.error(`批量识别失败：${firstErrorMessage || '请稍后重试'}`)
+    ElMessage.error(`批量删除失败：${firstErrorMessage || '请稍后重试'}`)
   }
 
   selectedIds.value = []
-  batchRecognizing.value = false
-  await fetchFiles(currentPage.value)
+  batchDeleting.value = false
+  const nextPage = currentPage.value > 1 && successCount > 0 && successCount >= currentPageFileCount
+    ? currentPage.value - 1
+    : currentPage.value
+  await fetchFiles(nextPage)
+}
+
+const jumpToPage = () => {
+  const targetPage = Number.parseInt(String(pageJumpInput.value || '').trim(), 10)
+  if (!Number.isFinite(targetPage) || targetPage < 1) {
+    ElMessage.warning('请输入有效页码')
+    pageJumpInput.value = String(currentPage.value)
+    return
+  }
+  changePage(targetPage)
 }
 
 const changePage = (page) => {
   const targetPage = Math.min(Math.max(Number(page) || 1, 1), displayTotalPages.value)
   if (loading.value || targetPage === currentPage.value) {
+    pageJumpInput.value = String(currentPage.value)
     return
   }
+  pageJumpInput.value = String(targetPage)
   fetchFiles(targetPage)
 }
 
@@ -426,13 +446,14 @@ const goReview = (item) => {
 }
 
 const removeFile = async (item) => {
-  if (!item?.id || deletingId.value) return
+  if (!item?.id || deletingId.value || batchDeleting.value) return
   const confirmed = window.confirm(`确认删除文件《${item.filename}》吗？`)
   if (!confirmed) return
 
   deletingId.value = item.id
   try {
     await ocrCheckerApi.deleteFile(item.id)
+    selectedIds.value = selectedIds.value.filter((id) => Number(id) !== Number(item.id))
     ElMessage.success('文件已删除')
     await fetchFiles(files.value.length === 1 && currentPage.value > 1 ? currentPage.value - 1 : currentPage.value)
   } catch (error) {
@@ -441,6 +462,7 @@ const removeFile = async (item) => {
     deletingId.value = null
   }
 }
+
 onMounted(() => {
   fetchFiles(1)
 })
@@ -456,16 +478,19 @@ onMounted(() => {
 .filter-btn { padding:6px 10px; }
 .filter-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; font-weight:600; }
 .filter-indicator { display:flex; align-items:center; color:#64748b; font-size:13px; padding:0 4px; }
-.check-option { display:flex; align-items:center; gap:6px; color:#475569; font-size:13px; padding:0 4px; user-select:none; }
-.check-option input { margin:0; }
 .btn { border:1px solid #dce4f4; background:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; }
 .btn.primary { background:#6366f1; color:#fff; border-color:#6366f1; }
+.btn.danger-btn { border-color:#fecaca; color:#b91c1c; background:#fff; }
+.btn.danger-btn:hover:not(:disabled) { background:#fef2f2; }
 .btn:disabled { cursor:not-allowed; opacity:.55; }
 .panel { background:#fff; border:1px solid #e8edf7; border-radius:12px; overflow:hidden; }
 .pagination-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid #eef2f7; background:#fbfcfe; }
 .pagination-bar.bottom { border-top:1px solid #eef2f7; border-bottom:none; }
 .pagination-summary { color:#64748b; font-size:13px; }
-.pagination-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.pagination-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; align-items:center; }
+.page-jump { display:flex; align-items:center; gap:6px; color:#64748b; font-size:13px; }
+.page-jump-input { width:72px; border:1px solid #dbe4f0; background:#fff; color:#334155; padding:6px 8px; border-radius:8px; }
+.page-jump-input:disabled { opacity:.6; cursor:not-allowed; }
 .page-btn { min-width:44px; border:1px solid #dbe4f0; background:#fff; color:#334155; padding:6px 10px; border-radius:8px; cursor:pointer; line-height:1.2; }
 .page-btn:hover:not(:disabled) { background:#f8fafc; }
 .page-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; }
