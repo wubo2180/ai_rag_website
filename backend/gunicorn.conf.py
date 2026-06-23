@@ -29,10 +29,10 @@ max_requests = 1000
 max_requests_jitter = 50
 
 # 访问日志文件路径
-accesslog = "/www/wwwlogs/gunicorn_access.log"
+accesslog = "/www/wwwlogs/python/ai_rag_ocr_website/gunicorn_access.log"
 
 # 错误日志文件路径
-errorlog = "/www/wwwlogs/gunicorn_error.log"
+errorlog = "/www/wwwlogs/python/ai_rag_ocr_website/gunicorn_error.log"
 
 # 日志级别
 loglevel = "info"
