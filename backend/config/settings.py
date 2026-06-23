@@ -55,14 +55,14 @@ if DATABASE_TYPE == 'mysql':
         #     },
         # }
         }
-else:
-    # 默认使用SQLite
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+# else:
+#     # 默认使用SQLite
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.sqlite3',
+#             'NAME': BASE_DIR / 'db.sqlite3',
+#         }
+#     }
 # DATABASE_ROUTERS = ['db_router.DatabaseRouter']
 INSTALLED_APPS = [
     'django.contrib.admin',
