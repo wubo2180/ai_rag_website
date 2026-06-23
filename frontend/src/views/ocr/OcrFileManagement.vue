@@ -34,9 +34,20 @@
           <span class="filter-indicator">当前筛选：{{ selectedDocumentTypeLabel }}</span>
           <button class="btn" @click="router.push('/ocr-center')">返回OCR中心</button>
           <button class="btn" @click="fetchFiles(currentPage)">刷新</button>
+          <label class="check-option">
+            <input v-model="onlyPendingForBatch" type="checkbox" />
+            仅识别待识别
+          </label>
+          <button
+            class="btn"
+            :disabled="loading || batchRecognizing || batchDeleting || selectedCount === 0"
+            @click="batchRecognizeSelected"
+          >
+            {{ batchRecognizing ? '批量识别中...' : `批量识别（${batchTargetCount}）` }}
+          </button>
           <button
             class="btn danger-btn"
-            :disabled="loading || batchDeleting || !!deletingId || selectedCount === 0"
+            :disabled="loading || batchRecognizing || batchDeleting || !!deletingId || selectedCount === 0"
             @click="batchDeleteSelected"
           >
             {{ batchDeleting ? '批量删除中...' : `批量删除（${selectedCount}）` }}
@@ -89,7 +100,7 @@
                 <input
                   type="checkbox"
                   :checked="allSelectedOnPage"
-                  :disabled="loading || batchDeleting || files.length === 0"
+                  :disabled="loading || batchRecognizing || batchDeleting || files.length === 0"
                   @change="toggleSelectAllOnPage"
                 />
               </th>
@@ -109,7 +120,7 @@
                   type="checkbox"
                   :value="item.id"
                   v-model="selectedIds"
-                  :disabled="loading || batchDeleting"
+                  :disabled="loading || batchRecognizing || batchDeleting"
                 />
               </td>
               <td>{{ item.id }}</td>
@@ -144,7 +155,7 @@
                   <button class="action-btn" @click="goReview(item)">进入核对</button>
                   <button
                     class="action-btn danger"
-                    :disabled="deletingId === item.id || batchDeleting"
+                    :disabled="deletingId === item.id || batchDeleting || batchRecognizing"
                     @click="removeFile(item)"
                   >
                     {{ deletingId === item.id ? '删除中...' : '删除文件' }}
@@ -217,7 +228,9 @@ const total = ref(0)
 const perPage = ref(50)
 const selectedIds = ref([])
 const deletingId = ref(null)
+const batchRecognizing = ref(false)
 const batchDeleting = ref(false)
+const onlyPendingForBatch = ref(true)
 const selectedDocumentType = ref('all')
 const pageJumpInput = ref('1')
 const selectedDocumentTypeLabel = computed(() => {
@@ -228,6 +241,22 @@ const selectedDocumentTypeLabel = computed(() => {
 
 const currentPageIds = computed(() => files.value.map((item) => Number(item?.id)).filter((id) => Number.isFinite(id)))
 const selectedCount = computed(() => selectedIds.value.length)
+const selectedItems = computed(() => {
+  const selectedIdSet = new Set(selectedIds.value)
+  return files.value.filter((item) => selectedIdSet.has(Number(item?.id)))
+})
+const batchTargetItems = computed(() => (
+  onlyPendingForBatch.value
+    ? selectedItems.value.filter((item) => String(item?.ocr_status || '').toLowerCase() === 'pending')
+    : selectedItems.value
+))
+const batchTargetCount = computed(() => batchTargetItems.value.length)
+const pendingPageIds = computed(() => (
+  files.value
+    .filter((item) => String(item?.ocr_status || '').toLowerCase() === 'pending')
+    .map((item) => Number(item?.id))
+    .filter((id) => Number.isFinite(id))
+))
 const allSelectedOnPage = computed(() => (
   currentPageIds.value.length > 0
   && currentPageIds.value.every((id) => selectedIds.value.includes(id))
@@ -353,11 +382,12 @@ const switchDocumentType = (documentType) => {
 
 const toggleSelectAllOnPage = (event) => {
   const checked = !!event?.target?.checked
+  const baseIds = onlyPendingForBatch.value ? pendingPageIds.value : currentPageIds.value
   if (checked) {
-    selectedIds.value = [...new Set([...selectedIds.value, ...currentPageIds.value])]
+    selectedIds.value = [...new Set([...selectedIds.value, ...baseIds])]
     return
   }
-  const pageIdSet = new Set(currentPageIds.value)
+  const pageIdSet = new Set(baseIds)
   selectedIds.value = selectedIds.value.filter((id) => !pageIdSet.has(id))
 }
 
@@ -366,6 +396,53 @@ const extractErrorMessage = (error) => (
   || error?.message
   || '请求失败'
 )
+
+const batchRecognizeSelected = async () => {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('请先勾选要识别的文件')
+    return
+  }
+
+  if (batchDeleting.value || deletingId.value) {
+    return
+  }
+
+  if (batchTargetItems.value.length === 0) {
+    ElMessage.warning('当前勾选中没有待识别文件，请取消过滤或调整勾选')
+    return
+  }
+
+  batchRecognizing.value = true
+  const targetIds = batchTargetItems.value.map((item) => Number(item.id)).filter((id) => Number.isFinite(id))
+  const results = await Promise.allSettled(targetIds.map((id) => ocrCheckerApi.startRecognize(id)))
+
+  let successCount = 0
+  let failedCount = 0
+  let firstErrorMessage = ''
+
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      successCount += 1
+      return
+    }
+    failedCount += 1
+    if (!firstErrorMessage) {
+      firstErrorMessage = extractErrorMessage(result.reason)
+    }
+  })
+
+  if (successCount > 0 && failedCount === 0) {
+    ElMessage.success(`批量识别任务已提交：${successCount} 个文件`)
+  } else if (successCount > 0) {
+    ElMessage.warning(`批量识别部分成功：成功 ${successCount}，失败 ${failedCount}（${firstErrorMessage || '请稍后重试'}）`)
+  } else {
+    ElMessage.error(`批量识别失败：${firstErrorMessage || '请稍后重试'}`)
+  }
+
+  selectedIds.value = []
+  batchRecognizing.value = false
+  await fetchFiles(currentPage.value)
+}
 
 const batchDeleteSelected = async () => {
   if (selectedIds.value.length === 0) {
@@ -446,7 +523,7 @@ const goReview = (item) => {
 }
 
 const removeFile = async (item) => {
-  if (!item?.id || deletingId.value || batchDeleting.value) return
+  if (!item?.id || deletingId.value || batchDeleting.value || batchRecognizing.value) return
   const confirmed = window.confirm(`确认删除文件《${item.filename}》吗？`)
   if (!confirmed) return
 
@@ -478,6 +555,8 @@ onMounted(() => {
 .filter-btn { padding:6px 10px; }
 .filter-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; font-weight:600; }
 .filter-indicator { display:flex; align-items:center; color:#64748b; font-size:13px; padding:0 4px; }
+.check-option { display:flex; align-items:center; gap:6px; color:#475569; font-size:13px; padding:0 4px; user-select:none; }
+.check-option input { margin:0; }
 .btn { border:1px solid #dce4f4; background:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; }
 .btn.primary { background:#6366f1; color:#fff; border-color:#6366f1; }
 .btn.danger-btn { border-color:#fecaca; color:#b91c1c; background:#fff; }
