@@ -64,6 +64,29 @@
           </div>
         </div>
 
+        <div v-if="duplicateFiles.length > 0" class="duplicate-list">
+          <div class="duplicate-header">
+            <span class="duplicate-title">⚠️ 发现 {{ duplicateFiles.length }} 个重复文件（已跳过）</span>
+          </div>
+          <ul class="duplicate-items">
+            <li v-for="(dup, index) in duplicateFiles" :key="index" class="duplicate-item">
+              <div class="duplicate-info">
+                <span class="duplicate-filename">{{ dup.filename }}</span>
+                <span class="duplicate-reason">
+                  {{ dup.reason === 'duplicate_in_batch' ? '批次内重复' : '库中已存在' }}
+                </span>
+              </div>
+              <div v-if="dup.existing_file_id" class="duplicate-existing">
+                <span class="duplicate-label">库中文件：</span>
+                <span class="duplicate-id">ID: {{ dup.existing_file_id }}</span>
+                <span v-if="dup.existing_filename" class="duplicate-existing-name">
+                  {{ dup.existing_filename }}
+                </span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
         <ul v-if="selectedFiles.length" class="file-list">
           <li
             v-for="item in selectedFiles"
@@ -104,6 +127,7 @@ const isDragActive = ref(false)
 const currentChunkIndex = ref(0)
 const totalChunks = ref(0)
 const uploadedCount = ref(0)
+const duplicateFiles = ref([])
 
 const maxChunkFiles = 40
 const maxChunkBytes = 120 * 1024 * 1024
@@ -216,6 +240,7 @@ const clearFiles = () => {
   currentChunkIndex.value = 0
   totalChunks.value = 0
   uploadedCount.value = 0
+  duplicateFiles.value = []
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
@@ -238,9 +263,11 @@ const upload = async () => {
   currentChunkIndex.value = 0
   totalChunks.value = chunks.length
   uploadedCount.value = 0
+  duplicateFiles.value = []
 
   try {
     let successTotal = 0
+    const allDuplicates = []
 
     for (let index = 0; index < chunks.length; index += 1) {
       currentChunkIndex.value = index + 1
@@ -250,11 +277,25 @@ const upload = async () => {
       const total = Number(payload?.total ?? payload?.data?.total ?? chunk.length)
       successTotal += total
       uploadedCount.value += chunk.length
+
+      const duplicates = payload?.duplicates ?? payload?.data?.duplicates ?? []
+      if (Array.isArray(duplicates)) {
+        allDuplicates.push(...duplicates)
+      }
     }
 
-    ElMessage.success(`上传成功，共入库 ${successTotal} 个文件`)
+    duplicateFiles.value = allDuplicates
+
+    if (allDuplicates.length > 0 && successTotal === 0) {
+      ElMessage.warning(`文件均已存在，未新增（共 ${allDuplicates.length} 个重复文件）`)
+    } else if (allDuplicates.length > 0) {
+      ElMessage.warning(`上传完成，入库 ${successTotal} 个文件，${allDuplicates.length} 个重复文件已跳过`)
+    } else {
+      ElMessage.success(`上传成功，共入库 ${successTotal} 个文件`)
+    }
+
+    // 上传后停留在当前页面，不自动跳转
     clearFiles()
-    router.push('/ocr/files')
   } catch (e) {
     ElMessage.error(e?.response?.data?.message || '上传失败，请检查 checker 服务状态')
   } finally {
@@ -288,6 +329,19 @@ const upload = async () => {
 .progress-header { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; color:#475569; font-size:13px; }
 .progress-track { height:8px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
 .progress-value { height:100%; border-radius:999px; background:#6366f1; transition:width .2s ease; }
+.duplicate-list { margin:0 0 16px; padding:12px; border:1px solid #fbbf24; border-radius:10px; background:#fffbeb; }
+.duplicate-header { margin-bottom:10px; }
+.duplicate-title { color:#92400e; font-size:14px; font-weight:600; }
+.duplicate-items { margin:0; padding:0; list-style:none; }
+.duplicate-item { padding:8px 10px; border-top:1px solid #fde68a; font-size:13px; }
+.duplicate-item:first-child { border-top:none; }
+.duplicate-info { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
+.duplicate-filename { color:#1e293b; word-break:break-all; font-weight:500; }
+.duplicate-reason { flex:0 0 auto; padding:2px 8px; border-radius:4px; background:#fef3c7; color:#92400e; font-size:12px; }
+.duplicate-existing { display:flex; align-items:center; gap:8px; padding:4px 8px; background:#fef9c3; border-radius:6px; font-size:12px; }
+.duplicate-label { color:#78716c; }
+.duplicate-id { color:#dc2626; font-weight:600; font-family:monospace; }
+.duplicate-existing-name { color:#1e40af; word-break:break-all; }
 .file-list { margin:0 0 16px; padding:0; list-style:none; border:1px solid #eef2f7; border-radius:10px; overflow:hidden; }
 .file-item { display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border-top:1px solid #eef2f7; font-size:13px; }
 .file-item:first-child { border-top:none; }
@@ -297,4 +351,11 @@ const upload = async () => {
 .btn { border:1px solid #dce4f4; background:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; }
 .btn.primary { background:#6366f1; color:#fff; border-color:#6366f1; }
 .btn:disabled { opacity:.5; cursor:not-allowed; }
+.duplicate-files { margin-top:16px; }
+.duplicate-title { margin-bottom:8px; color:#334155; font-size:14px; font-weight:600; }
+.duplicate-list { padding:0; list-style:none; border:1px solid #eef2f7; border-radius:10px; overflow:hidden; }
+.duplicate-item { display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border-top:1px solid #eef2f7; font-size:13px; }
+.duplicate-item:first-child { border-top:none; }
+.duplicate-file-id { color:#4f46e5; }
+.duplicate-file-name { color:#1e293b; word-break:break-all; }
 </style>
