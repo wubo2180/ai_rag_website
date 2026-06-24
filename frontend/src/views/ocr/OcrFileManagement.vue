@@ -31,6 +31,18 @@
               委托单
             </button>
           </div>
+          <div class="search-box">
+            <input
+              v-model="searchKeyword"
+              class="search-input"
+              type="text"
+              placeholder="按文件名搜索"
+              :disabled="loading"
+              @keydown.enter.prevent="onSearch"
+            />
+            <button class="btn" :disabled="loading" @click="onSearch">搜索</button>
+            <button class="btn" :disabled="loading || !searchKeyword" @click="onResetSearch">重置</button>
+          </div>
           <span class="filter-indicator">当前筛选：{{ selectedDocumentTypeLabel }}</span>
           <button class="btn" @click="router.push('/ocr-center')">返回OCR中心</button>
           <button class="btn" @click="fetchFiles(currentPage)">刷新</button>
@@ -105,9 +117,13 @@
                 />
               </th>
               <th>ID</th>
-              <th>文件名</th>
+              <th class="sortable" @click="toggleSort('filename')">
+                <span class="sortable-label">文件名 <span class="sort-arrow">{{ sortArrow('filename') }}</span></span>
+              </th>
               <th>类型</th>
-              <th>上传时间</th>
+              <th class="sortable" @click="toggleSort('created_at')">
+                <span class="sortable-label">上传时间 <span class="sort-arrow">{{ sortArrow('created_at') }}</span></span>
+              </th>
               <th>OCR 状态</th>
               <th>核对状态</th>
               <th>操作</th>
@@ -233,6 +249,9 @@ const batchDeleting = ref(false)
 const onlyPendingForBatch = ref(true)
 const selectedDocumentType = ref('all')
 const pageJumpInput = ref('1')
+const searchKeyword = ref('')
+const sortBy = ref('created_at')
+const sortOrder = ref('desc')
 const selectedDocumentTypeLabel = computed(() => {
   if (selectedDocumentType.value === 'paper') return '论文'
   if (selectedDocumentType.value === 'commission') return '委托单'
@@ -343,9 +362,15 @@ const fetchFiles = async (page = currentPage.value) => {
       page,
       per_page: perPage.value,
       view_mode: 'my_files',
+      sort_by: sortBy.value,
+      sort_order: sortOrder.value,
     }
     if (selectedDocumentType.value !== 'all') {
       query.document_type = selectedDocumentType.value
+    }
+    const trimmedKeyword = searchKeyword.value.trim()
+    if (trimmedKeyword) {
+      query.keyword = trimmedKeyword
     }
 
     const data = await ocrCheckerApi.listFiles(query)
@@ -378,6 +403,32 @@ const switchDocumentType = (documentType) => {
   selectedDocumentType.value = documentType
   selectedIds.value = []
   fetchFiles(1)
+}
+
+const onSearch = () => {
+  fetchFiles(1)
+}
+
+const onResetSearch = () => {
+  if (!searchKeyword.value) return
+  searchKeyword.value = ''
+  fetchFiles(1)
+}
+
+const toggleSort = (field) => {
+  if (loading.value) return
+  if (sortBy.value === field) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortBy.value = field
+    sortOrder.value = field === 'created_at' ? 'desc' : 'asc'
+  }
+  fetchFiles(1)
+}
+
+const sortArrow = (field) => {
+  if (sortBy.value !== field) return ''
+  return sortOrder.value === 'asc' ? '▲' : '▼'
 }
 
 const toggleSelectAllOnPage = (event) => {
@@ -555,6 +606,14 @@ onMounted(() => {
 .filter-btn { padding:6px 10px; }
 .filter-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; font-weight:600; }
 .filter-indicator { display:flex; align-items:center; color:#64748b; font-size:13px; padding:0 4px; }
+.search-box { display:flex; align-items:center; gap:6px; }
+.search-input { width:200px; border:1px solid #dbe4f0; background:#fff; color:#334155; padding:6px 10px; border-radius:8px; font-size:13px; }
+.search-input:focus { outline:none; border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.12); }
+.search-input:disabled { opacity:.6; cursor:not-allowed; }
+.table th.sortable { cursor:pointer; user-select:none; }
+.table th.sortable:hover { color:#4338ca; }
+.sortable-label { display:inline-flex; align-items:center; gap:4px; }
+.sort-arrow { font-size:11px; color:#6366f1; }
 .check-option { display:flex; align-items:center; gap:6px; color:#475569; font-size:13px; padding:0 4px; user-select:none; }
 .check-option input { margin:0; }
 .btn { border:1px solid #dce4f4; background:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; }

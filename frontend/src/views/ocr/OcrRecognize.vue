@@ -260,7 +260,7 @@ const startRecognize = async () => {
 
     let transientNotFoundCount = 0
     let completed = false
-    for (let index = 0; index < 120; index += 1) {
+    for (let index = 0; index < 400; index += 1) {
       await sleep(1500)
       let status = ''
 

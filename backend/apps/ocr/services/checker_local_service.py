@@ -412,6 +412,11 @@ class CheckerLocalService(CheckerOcrMixin):
                 },
             }
 
+    _SORT_FIELD_MAP = {
+        'created_at': 'created_at',
+        'filename': 'filename',
+    }
+
     def _list_files(self, request):
         try:
             page = max(int(request.GET.get('page', 1)), 1)
@@ -419,6 +424,14 @@ class CheckerLocalService(CheckerOcrMixin):
             status_filter = request.GET.get('status')
             review_status_filter = request.GET.get('review_status')
             document_type_filter = request.GET.get('document_type')
+            keyword = (request.GET.get('keyword') or request.GET.get('filename') or '').strip()
+            sort_by = (request.GET.get('sort_by') or 'created_at').strip().lower()
+            sort_order = (request.GET.get('sort_order') or 'desc').strip().lower()
+
+            sort_field = self._SORT_FIELD_MAP.get(sort_by, 'created_at')
+            order_prefix = '' if sort_order == 'asc' else '-'
+            order_field = f'{order_prefix}{sort_field}'
+
             queryset = File.objects.filter(is_deleted=False).only(
                 'id',
                 'filename',
@@ -443,7 +456,7 @@ class CheckerLocalService(CheckerOcrMixin):
                 'is_processed',
                 'created_at',
                 'updated_at',
-            ).order_by('-created_at')
+            ).order_by(order_field, '-id')
 
             if status_filter:
                 queryset = queryset.filter(ocr_status=status_filter)
@@ -451,6 +464,8 @@ class CheckerLocalService(CheckerOcrMixin):
                 queryset = queryset.filter(review_status=review_status_filter)
             if document_type_filter:
                 queryset = queryset.filter(document_type_code=document_type_filter)
+            if keyword:
+                queryset = queryset.filter(filename__icontains=keyword)
 
             paginator = Paginator(queryset, per_page)
             page_obj = paginator.get_page(page)
@@ -488,6 +503,9 @@ class CheckerLocalService(CheckerOcrMixin):
                         'pages': paginator.num_pages if paginator.count else 0,
                         'current_page': page,
                         'per_page': per_page,
+                        'keyword': keyword,
+                        'sort_by': sort_field,
+                        'sort_order': sort_order,
                     },
                 },
             }
