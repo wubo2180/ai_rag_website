@@ -15,6 +15,30 @@
       </div>
     </div>
 
+    <!-- 高亮词列表面板 -->
+    <div v-if="normalizedHighlightTerms.length && pages.length" class="highlight-terms-panel">
+      <div class="panel-header">
+        <span class="panel-title">已识别的高亮词 ({{ normalizedHighlightTerms.length }})</span>
+        <el-button text size="small" @click="toggleTermsPanel">
+          {{ showTermsPanel ? '收起' : '展开' }}
+        </el-button>
+      </div>
+      <div v-show="showTermsPanel" class="terms-list">
+        <div
+          v-for="(term, index) in normalizedHighlightTerms"
+          :key="index"
+          class="term-item"
+          :class="{ 'has-match': termMatchCount(term) > 0 }"
+        >
+          <span class="term-text">{{ term }}</span>
+          <span class="term-count" v-if="termMatchCount(term) > 0">
+            命中 {{ termMatchCount(term) }} 处
+          </span>
+          <span class="term-count no-match" v-else>未找到</span>
+        </div>
+      </div>
+    </div>
+
     <div ref="scrollRef" class="content">
       <div v-if="pages.length" class="pages">
         <section v-for="page in pages" :key="page.pageNumber" class="page-card">
@@ -66,6 +90,8 @@ const pdfBytes = ref(null)
 const renderNonce = ref(0)
 const totalHighlights = ref(0)
 const scrollRef = ref(null)
+const showTermsPanel = ref(true)
+const termMatchCounts = ref({})
 
 const minScale = 0.75
 const maxScale = 2.25
@@ -210,6 +236,31 @@ const updateHighlights = () => {
     nextCount += renderPageTextLayer(page)
   })
   totalHighlights.value = nextCount
+
+  // 计算每个高亮词的命中次数（直接计算，不依赖缓存）
+  const counts = {}
+  normalizedHighlightTerms.value.forEach((term) => {
+    if (!term || !pages.value.length) {
+      counts[term] = 0
+      return
+    }
+    const lowerTerm = term.toLowerCase()
+    let count = 0
+    pages.value.forEach((page) => {
+      page.textItems.forEach((item) => {
+        const text = String(item.str || '').toLowerCase()
+        let startIndex = 0
+        while (startIndex < text.length) {
+          const foundAt = text.indexOf(lowerTerm, startIndex)
+          if (foundAt === -1) break
+          count += 1
+          startIndex = foundAt + Math.max(term.length, 1)
+        }
+      })
+    })
+    counts[term] = count
+  })
+  termMatchCounts.value = counts
 }
 
 const renderPageCanvas = async (pdfDocument, pageMeta, token) => {
@@ -324,118 +375,179 @@ const zoomOut = () => {
   scale.value = Math.max(minScale, Number((scale.value - 0.1).toFixed(2)))
 }
 
+const termMatchCount = (term) => {
+  if (!term) return 0
+  return termMatchCounts.value[term] ?? 0
+}
+
+const toggleTermsPanel = () => {
+  showTermsPanel.value = !showTermsPanel.value
+}
+
 watch(() => props.fileId, () => loadPdf(true))
-
-watch(scale, () => {
-  if (pdfBytes.value) {
-    renderDocument()
-  }
-})
-
-watch(
-  () => normalizedHighlightTerms.value,
-  () => {
-    if (highlightTimer) {
-      clearTimeout(highlightTimer)
-    }
-    highlightTimer = setTimeout(() => {
-      updateHighlights()
-    }, 180)
-  },
-  { deep: true },
-)
-
-watch(
-  () => pages.value.length,
-  () => {
-    if (scrollRef.value) {
-      scrollRef.value.scrollTop = 0
-    }
-  },
-)
-
-onMounted(() => loadPdf(true))
-
-onUnmounted(() => {
-  if (highlightTimer) {
-    clearTimeout(highlightTimer)
-  }
-  pages.value = []
-  pdfBytes.value = null
-})
 </script>
 
 <style scoped>
-.pdf-viewer { display:flex; flex-direction:column; height:100%; min-height:0; }
+.pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .toolbar {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:12px;
-  padding:8px 0;
-  flex-wrap:wrap;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  height: 50px;
+  background-color: #f5f7fa;
+  border-bottom: 1px solid #e4e7ec;
 }
-.toolbar-left,
-.toolbar-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.zoom-label { min-width:52px; text-align:center; color:#475569; font-size:12px; }
-.status { color:#dc2626; font-size:12px; }
-.hint { color:#d97706; font-size:12px; }
-.highlight-summary { color:#0369a1; font-size:12px; }
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.zoom-label {
+  margin: 0 10px;
+  font-weight: 500;
+  color: #333;
+}
+
+.status {
+  color: #f56c6c;
+}
+
+.highlight-summary {
+  color: #67c23a;
+}
+
+.hint {
+  color: #909399;
+}
+
+.highlight-terms-panel {
+  background-color: #fff;
+  border-top: 1px solid #e4e7ec;
+  padding: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.panel-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.terms-list {
+  padding-left: 10px;
+}
+
+.term-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.term-text {
+  color: #333;
+}
+
+.term-count {
+  font-size: 12px;
+  color: #999;
+}
+
+.term-count.no-match {
+  color: #f56c6c;
+}
+
 .content {
-  flex:1;
-  min-height:700px;
-  border:1px solid #e2e8f0;
-  border-radius:10px;
-  overflow:auto;
-  background:#f8fafc;
-  padding:16px;
+  flex: 1;
+  overflow-y: auto;
 }
+
 .pages {
-  display:flex;
-  flex-direction:column;
-  gap:18px;
-  align-items:center;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
 }
+
 .page-card {
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  width:100%;
-  align-items:center;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 4px;
 }
+
 .page-label {
-  align-self:flex-start;
-  color:#64748b;
-  font-size:12px;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
 }
+
 .page-stage {
-  position:relative;
-  box-shadow:0 12px 32px rgba(15, 23, 42, 0.08);
-  background:#fff;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e4e7ec;
+  border-radius: 4px;
 }
+
 .page-canvas {
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
+  display: block;
 }
+
 .text-layer {
-  position:absolute;
-  inset:0;
-  color:transparent;
-  user-select:text;
-  pointer-events:auto;
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  user-select: text;
+  pointer-events: auto;
 }
-.text-layer :deep(.text-item) {
-  position:absolute;
-  white-space:pre;
-  line-height:1;
-  color:transparent;
+
+.text-item {
+  position: absolute;
+  white-space: pre;
+  line-height: 1;
+  color: transparent;
+  pointer-events: auto;
 }
-.text-layer :deep(.pdf-highlight) {
-  background:rgba(250, 204, 21, 0.42);
-  color:transparent;
-  border-radius:2px;
-  box-shadow:0 0 0 1px rgba(234, 179, 8, 0.35);
+
+.pdf-highlight {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.5) 0%, rgba(251, 191, 36, 0.6) 100%);
+  color: transparent;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.5), 0 2px 4px rgba(234, 179, 8, 0.3);
+  font-weight: 600;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  animation: highlight-pulse 2s ease-in-out infinite;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.5), 0 2px 4px rgba(234, 179, 8, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.7), 0 2px 6px rgba(234, 179, 8, 0.5);
+  }
 }
 </style>

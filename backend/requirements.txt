@@ -20,7 +20,7 @@ websockets==13.1                   # WebSocket 支持
 # mysqlclient==2.2.6               # Optional: needs system MySQL/MariaDB dev libraries; PyMySQL fallback is enabled
 PyMySQL==1.1.1                     # MySQL 纯Python驱动 (备选)
 aiomysql==0.2.0                    # MySQL 异步驱动
-aiosqlite==0.20.0                  # SQLite 异步驱动 (开发用)
+# aiosqlite==0.20.0                  # SQLite 异步驱动 (开发用)
 
 # 缓存 (异步支持)
 redis==5.2.0                       # Redis 客户端

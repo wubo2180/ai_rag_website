@@ -55,14 +55,14 @@ if DATABASE_TYPE == 'mysql':
         #     },
         # }
         }
-else:
-    # 默认使用SQLite
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+# else:
+#     # 默认使用SQLite
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.sqlite3',
+#             'NAME': BASE_DIR / 'db.sqlite3',
+#         }
+#     }
 # DATABASE_ROUTERS = ['db_router.DatabaseRouter']
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -295,3 +295,7 @@ OCR_PAPER_DIFY_RESPONSE_MODE = os.environ.get('OCR_PAPER_DIFY_RESPONSE_MODE', 'b
 OCR_PAPER_DIFY_TRANSFER_METHOD = os.environ.get('OCR_PAPER_DIFY_TRANSFER_METHOD', 'local_file')
 OCR_PAPER_DIFY_FILE_TYPE = os.environ.get('OCR_PAPER_DIFY_FILE_TYPE', 'document')
 OCR_PAPER_DIFY_TIMEOUT = float(os.environ.get('OCR_PAPER_DIFY_TIMEOUT', str(OCR_PROXY_TIMEOUT)))
+
+# PDF 代理服务器配置（用于本地后端代理远程 PDF 文件）
+PDF_SERVER_BASE_URL = os.environ.get('PDF_SERVER_BASE_URL', '')
+PDF_PROXY_TIMEOUT = float(os.environ.get('PDF_PROXY_TIMEOUT', '120'))
