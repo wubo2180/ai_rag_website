@@ -4,19 +4,98 @@ import re
 import threading
 import uuid
 import json
+import logging
 
 from django.db import close_old_connections
 from django.utils import timezone
 import requests
+from django.conf import settings
 
 from ..models import File, OCRResult
 from .config import get_paper_dify_config, get_service_base_urls, get_timeout
 from .checker_paper_mixin import CheckerPaperMixin
 from .checker_storage_mixin import CheckerStorageMixin
 
+logger = logging.getLogger(__name__)
+
 
 class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
+    @staticmethod
+    def _is_meaningful_document_payload(document_type: str, payload):
+        if not isinstance(payload, dict):
+            return False
+
+        if document_type == 'paper':
+            normalized = CheckerOcrMixin._normalize_paper_payload(payload)
+            basic_info = normalized.get('basic_info') or {}
+            if CheckerOcrMixin._paper_text(basic_info.get('article_id')):
+                return True
+            if CheckerOcrMixin._paper_text(basic_info.get('article_doi')):
+                return True
+            if CheckerOcrMixin._paper_text(basic_info.get('publish_year')):
+                return True
+            if normalized.get('materials'):
+                return True
+            if CheckerOcrMixin._paper_text(normalized.get('preparation_process')):
+                return True
+            if normalized.get('intermediates'):
+                return True
+            properties = normalized.get('properties') or {}
+            if properties.get('columns') or properties.get('rows'):
+                return True
+            if CheckerOcrMixin._paper_text(normalized.get('notes')):
+                return True
+            return False
+
+        basic_info = payload.get('basic_info')
+        if isinstance(basic_info, dict) and len(basic_info) > 0:
+            return True
+        test_items = payload.get('test_items')
+        if isinstance(test_items, list) and len(test_items) > 0:
+            return True
+        special_tests = payload.get('special_tests')
+        if isinstance(special_tests, list) and len(special_tests) > 0:
+            return True
+        return False
+
+    def _get_task_status(self, task_id: str):
+        task = self._tasks.get(task_id)
+        if not task:
+            return {
+                'status_code': 404,
+                'body': {
+                    'success': False,
+                    'message': '任务不存在',
+                    'data': {'task_id': task_id, 'status': 'not_found'},
+                },
+            }
+
+        status = task.get('status', 'unknown')
+        result = task.get('result', {})
+
+        body = {
+            'success': True,
+            'data': {
+                'task_id': task_id,
+                'status': status,
+            },
+        }
+
+        if status == 'completed':
+            body['data']['structured_data'] = result.get('structured_data', {})
+            body['data']['document_type'] = result.get('document_type', '')
+            if result.get('warning'):
+                body['data']['warning'] = result['warning']
+        elif status == 'failed':
+            body['data']['error_message'] = task.get('error_message', '')
+
+        return {
+            'status_code': 200,
+            'body': body,
+        }
+
     def _start_recognize(self, file_id: int):
+        logger.info(f'[_start_recognize] 收到识别请求：file_id={file_id}')
         try:
             file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
             if not file_obj:
@@ -24,6 +103,8 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
 
             task_id = f'local-{file_id}-{uuid.uuid4().hex[:12]}'
             document_type = self._normalize_document_type(file_obj)
+            logger.info(f'[_start_recognize] 创建任务：task_id={task_id}, document_type={document_type}')
+            
             self._tasks[task_id] = {
                 'status': 'processing',
                 'result': {
@@ -31,6 +112,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                     'document_type': document_type,
                 },
             }
+            logger.info(f'[_start_recognize] 任务已存储到 _tasks，当前任务数：{len(self._tasks)}')
 
             file_obj.ocr_status = 'processing'
             file_obj.ocr_started_at = timezone.now()
@@ -42,22 +124,25 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 daemon=True,
             )
             thread.start()
+            logger.info(f'[_start_recognize] 线程已启动：thread_id={thread.ident}, is_alive={thread.is_alive()}')
 
             return {
                 'status_code': 200,
                 'body': {
                     'success': True,
-                    'message': 'OCR识别任务已提交',
+                    'message': 'OCR 识别任务已提交',
                     'data': {'task_id': task_id},
                 },
             }
         except Exception as exc:
+            logger.error(f'[_start_recognize] 启动识别失败：{exc}', exc_info=True)
             return {
                 'status_code': 500,
-                'body': {'success': False, 'message': f'启动识别失败: {exc}'},
+                'body': {'success': False, 'message': f'启动识别失败：{exc}'},
             }
 
     def _run_recognize_task(self, task_id: str, file_id: int):
+        logger.info(f'[_run_recognize_task] 开始执行任务: task_id={task_id}, file_id={file_id}')
         close_old_connections()
         try:
             file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
@@ -65,11 +150,15 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 raise ValueError('文件不存在')
 
             document_type = self._normalize_document_type(file_obj)
+            logger.info(f'[_run_recognize_task] 文档类型: {document_type}')
             fallback_note = None
             try:
+                logger.info(f'[_run_recognize_task] 开始调用上游 OCR...')
                 raw_result = self._call_upstream_ocr(file_obj, document_type)
+                logger.info(f'[_run_recognize_task] 上游 OCR 调用完成')
                 structured_data = self._parse_upstream_ocr_result(raw_result, document_type, file_obj)
             except Exception as upstream_exc:
+                logger.error(f'[_run_recognize_task] 上游 OCR 失败: {upstream_exc}')
                 # paper 场景优先做本地降级，避免上游临时不可用时整单失败。
                 if document_type == 'paper':
                     structured_data = self._build_paper_fallback_payload(file_id, file_obj)
@@ -79,14 +168,14 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                             'message': str(upstream_exc),
                             'source': 'local-cache-or-legacy',
                         }
-                        fallback_note = f'论文OCR上游不可达，已使用本地数据降级填充：{upstream_exc}'
+                        fallback_note = f'论文 OCR 上游不可达，已使用本地数据降级填充：{upstream_exc}'
                     else:
                         raise upstream_exc
                 else:
                     raise upstream_exc
 
             if not self._is_meaningful_document_payload(document_type, structured_data):
-                raise ValueError('OCR服务未返回可用结构化字段')
+                raise ValueError('OCR 服务未返回可用结构化字段')
 
             self._document_data_cache[file_id] = structured_data
             self._store_ocr_payload(file_obj, structured_data, raw_result)
@@ -104,7 +193,9 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                     'warning': fallback_note,
                 },
             }
+            logger.info(f'[_run_recognize_task] 任务完成: task_id={task_id}')
         except Exception as exc:
+            logger.error(f'[_run_recognize_task] 任务失败: task_id={task_id}, error={exc}', exc_info=True)
             try:
                 File.objects.filter(id=file_id).update(
                     ocr_status='failed',
@@ -139,15 +230,49 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         return data
 
     def _read_file_bytes(self, file_obj: File):
+        import time
+
+        # 优先从 MinIO 读取
+        if file_obj.minio_bucket and file_obj.minio_object_key:
+            logger.info(f'[_read_file_bytes] 尝试从 MinIO 读取：{file_obj.minio_bucket}/{file_obj.minio_object_key}')
+            minio_start = time.time()
+            minio_bytes = self._try_download_from_minio(file_obj)
+            minio_duration = time.time() - minio_start
+
+            if minio_bytes is not None:
+                logger.info(f'[_read_file_bytes] MinIO 读取完成：大小={len(minio_bytes)/1024/1024:.2f}MB, 耗时={minio_duration:.2f}秒')
+                return minio_bytes
+            logger.warning(f'[_read_file_bytes] MinIO 读取失败，尝试其他方式')
+
+        # 回退到本地磁盘
         file_path = Path(file_obj.file_path or '')
+        logger.info(f'[_read_file_bytes] 尝试从本地读取：{file_path}')
+
         if file_path.exists() and file_path.is_file():
-            return file_path.read_bytes()
+            read_start = time.time()
+            content = file_path.read_bytes()
+            read_duration = time.time() - read_start
+            logger.info(f'[_read_file_bytes] 本地读取完成：大小={len(content)/1024/1024:.2f}MB, 耗时={read_duration:.2f}秒')
+            return content
 
-        minio_bytes = self._try_download_from_minio(file_obj)
-        if minio_bytes is not None:
-            return minio_bytes
+        # 最后尝试通过 PDF_SERVER_BASE_URL 从远程后端下载
+        remote_url = getattr(settings, 'PDF_SERVER_BASE_URL', '').strip().rstrip('/')
+        if remote_url:
+            logger.info(f'[_read_file_bytes] 本地文件不存在，尝试从远程后端下载：{remote_url}')
+            try:
+                download_start = time.time()
+                download_url = f'{remote_url}/api/ocr/pdf/{file_obj.pk}/download?preview=false'
+                resp = requests.get(download_url, timeout=120)
+                download_duration = time.time() - download_start
+                if resp.status_code == 200:
+                    logger.info(f'[_read_file_bytes] 远程下载完成：大小={len(resp.content)/1024/1024:.2f}MB, 耗时={download_duration:.2f}秒')
+                    return resp.content
+                else:
+                    logger.warning(f'[_read_file_bytes] 远程下载失败：HTTP {resp.status_code}')
+            except requests.RequestException as exc:
+                logger.warning(f'[_read_file_bytes] 远程下载异常：{exc}')
 
-        raise FileNotFoundError('源文件不可读，无法提交OCR识别')
+        raise FileNotFoundError('源文件不可读，无法提交 OCR 识别')
 
     @staticmethod
     def _paper_ocr_additional_inputs(file_obj: File):
@@ -291,6 +416,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         return f"{(base_url or '').rstrip('/')}/{(endpoint or '').lstrip('/')}"
 
     def _call_paper_dify(self, file_obj: File, content: bytes, mime_type: str, additional_inputs: dict):
+        import time
         cfg = get_paper_dify_config()
         base_url = cfg.get('base_url') or ''
         api_key = cfg.get('api_key') or ''
@@ -306,6 +432,11 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         upload_url = self._join_url(base_url, cfg.get('upload_endpoint', '/files/upload'))
         upload_headers = {'Authorization': f'Bearer {api_key}'}
 
+        # 记录文件大小
+        file_size_mb = len(content) / (1024 * 1024)
+        logger.info(f'开始上传文件到 Dify: {filename}, 大小: {file_size_mb:.2f}MB')
+
+        upload_start = time.time()
         try:
             upload_resp = requests.post(
                 upload_url,
@@ -316,6 +447,9 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             )
         except requests.RequestException as exc:
             raise ValueError(f'Dify文件上传失败，无法连接 {upload_url}: {exc}') from exc
+
+        upload_duration = time.time() - upload_start
+        logger.info(f'Dify 文件上传完成，耗时: {upload_duration:.2f}秒')
 
         try:
             upload_payload = upload_resp.json()
@@ -361,15 +495,20 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             'user': user,
         }
 
+        logger.info(f'开始调用 Dify 工作流: {workflow_url}')
+        workflow_start = time.time()
         try:
             workflow_resp = requests.post(
                 workflow_url,
                 headers=workflow_headers,
                 json=workflow_body,
-                timeout=max(timeout, get_timeout()),
+                timeout=30.0,  # 论文识别通常 5-10 秒完成，30 秒足够
             )
         except requests.RequestException as exc:
             raise ValueError(f'Dify工作流调用失败，无法连接 {workflow_url}: {exc}') from exc
+
+        workflow_duration = time.time() - workflow_start
+        logger.info(f'Dify 工作流调用完成，耗时: {workflow_duration:.2f}秒')
 
         try:
             workflow_payload = workflow_resp.json()
@@ -388,15 +527,24 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             )
             raise ValueError(message)
 
+        total_duration = time.time() - upload_start
+        logger.info(f'Dify 论文识别总耗时: {total_duration:.2f}秒 (上传: {upload_duration:.2f}秒, 工作流: {workflow_duration:.2f}秒)')
+
         return workflow_payload
 
     def _call_upstream_ocr(self, file_obj: File, document_type: str):
+        import time
         service = 'paper' if document_type == 'paper' else 'commission'
         base_url = get_service_base_urls().get(service)
         if document_type != 'paper' and not base_url:
-            raise ValueError(f'未配置{service} OCR服务地址')
+            raise ValueError(f'未配置{service} OCR 服务地址')
 
+        logger.info(f'[_call_upstream_ocr] 开始读取文件：file_id={file_obj.pk}, path={file_obj.file_path}')
+        read_start = time.time()
         content = self._read_file_bytes(file_obj)
+        read_duration = time.time() - read_start
+        logger.info(f'[_call_upstream_ocr] 文件读取完成：大小={len(content)/1024/1024:.2f}MB, 耗时={read_duration:.2f}秒')
+
         self._validate_upstream_input_file(file_obj, content, document_type)
         filename = file_obj.filename or file_obj.stored_filename or f'file-{file_obj.pk}.pdf'
         mime_type = file_obj.mime_type or 'application/pdf'
@@ -404,6 +552,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         if document_type == 'paper':
             paper_inputs = self._build_paper_additional_inputs(file_obj)
             if get_paper_dify_config().get('enabled', True):
+                logger.info(f'[_call_upstream_ocr] 使用 Dify 直连模式')
                 return self._call_paper_dify(file_obj, content, mime_type, paper_inputs)
 
         url = f'{base_url}/api/analyze'
@@ -423,22 +572,22 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             )
         except requests.RequestException as exc:
             raise ValueError(
-                f'无法连接{service} OCR服务（{base_url}），请确认对应服务已启动，或在 backend 配置 OCR_{service.upper()}_BASE_URL。原始错误: {exc}'
+                f'无法连接{service} OCR 服务（{base_url}），请确认对应服务已启动，或在 backend 配置 OCR_{service.upper()}_BASE_URL。原始错误：{exc}'
             ) from exc
 
         try:
             payload = response.json()
         except ValueError as exc:
-            raise ValueError(f'OCR服务返回非JSON响应: HTTP {response.status_code}') from exc
+            raise ValueError(f'OCR 服务返回非 JSON 响应：HTTP {response.status_code}') from exc
 
         upstream_error = self._extract_dify_error(payload)
         if upstream_error:
             raise ValueError(upstream_error)
 
         if not (200 <= response.status_code < 300):
-            raise ValueError(payload.get('message') or f'OCR服务调用失败: HTTP {response.status_code}')
+            raise ValueError(payload.get('message') or f'OCR 服务调用失败：HTTP {response.status_code}')
         if payload.get('success') is False:
-            raise ValueError(payload.get('message') or 'OCR服务处理失败')
+            raise ValueError(payload.get('message') or 'OCR 服务处理失败')
 
         return payload
 
@@ -447,10 +596,55 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             return self._parse_paper_ocr_result(raw_result, file_obj)
         return self._parse_commission_ocr_result(raw_result)
 
+    def _parse_paper_ocr_result(self, raw_result, file_obj: File):
+        """解析 Dify 工作流返回的论文 OCR 结果。
+
+        Dify workflow 响应格式:
+        {
+            "data": {
+                "status": "succeeded",
+                "outputs": {
+                    "text": "```json\\n{...paper data...}\\n```"
+                }
+            }
+        }
+        """
+        if not isinstance(raw_result, dict):
+            raise ValueError(f'OCR 服务返回非字典格式: {type(raw_result)}')
+
+        # 提取 data.outputs.text
+        data = raw_result.get('data') or raw_result
+        if isinstance(data, dict):
+            outputs = data.get('outputs') or {}
+            text = outputs.get('text', '')
+        else:
+            text = raw_result.get('text', '')
+
+        if not text:
+            raise ValueError('OCR 服务未返回文本内容')
+
+        # 从 markdown 代码块中提取 JSON
+        text = str(text).strip()
+        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            json_str = text
+
+        try:
+            parsed = json.loads(json_str)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f'OCR 服务返回的 JSON 解析失败: {exc}') from exc
+
+        if not isinstance(parsed, dict):
+            raise ValueError(f'OCR 服务返回的 JSON 不是对象格式: {type(parsed)}')
+
+        return parsed
+
     def _store_ocr_payload(self, file_obj: File, structured_data: dict, raw_result=None):
         try:
             OCRResult.objects.update_or_create(
-                file_id=file_obj.pk,
+                file_id=file_obj.id,
                 page_number=1,
                 defaults={
                     'raw_text': '',
@@ -463,13 +657,14 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                     'review_status': 'pending',
                 },
             )
-        except Exception:
-            pass
+            logger.info(f'[_store_ocr_payload] 保存成功: file_id={file_obj.id}')
+        except Exception as exc:
+            logger.error(f'[_store_ocr_payload] 保存失败: file_id={file_obj.id}, error={exc}', exc_info=True)
 
         try:
             self._persist_structured_document(file_obj, structured_data)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f'[_persist_structured_document] 失败: file_id={file_obj.id}, error={exc}')
 
     @staticmethod
     def _extract_scalar_value(value):
@@ -553,7 +748,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             '\u4e1a\u52a1\u53d7\u7406\u4eba\u7b7e\u540d/\u65e5\u671f': 'business_receiver_signature',
             '\u4e1a\u52a1\u53d7\u8fce\u4eba\u91dc\u5b57/\u65e5\u671f': 'business_receiver_signature',
             '\u7533\u8bf7\u5355\u662f\u5426\u586b\u5199\u5b8c\u6574': 'form_complete',
-            '\u7533\u8bf7\u5355\u662f\u5426\u586b\u5199\u5b8c\u6574\uff1f\u65e0\u7f3a\u9879\u6216\u5c11\u9879\uff1f': 'form_complete',
+            '\u7533\u8bf7\u5355\u662f\u5426\u586b\u5199\u5b8c\u6574\uff1f\u65e5\u671f': 'form_complete',
             '\u6837\u54c1\u5b9e\u7269\u4fe1\u606f\u662f\u5426\u4e00\u81f4': 'sample_info_consistent',
             '\u6837\u54c1\u5b9e\u7269\u4fe1\u606f\u4e0e\u59d4\u6258\u5355\u8868\u8ff0\u662f\u5426\u4e00\u81f4\uff1f': 'sample_info_consistent',
             '\u5176\u4ed6\u68c0\u67e5\u9879': 'other_notes',
@@ -688,7 +883,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         if not table_data:
             return
         if isinstance(table_data, dict):
-            for key in ('test_items', '\u6d4b\u8bd5\u9879\u76ee\u8868'):
+            for key in ('test_items', '\u6d4b\u8bd5\u9879\u76ee'):
                 rows = table_data.get(key)
                 if isinstance(rows, list):
                     for index, row in enumerate(rows):
@@ -711,7 +906,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 elif isinstance(rows, dict):
                     self._parse_commission_table(key, rows, structured)
 
-            handled = {'test_items', '\u6d4b\u8bd5\u9879\u76ee\u8868', 'special_tests', '\u6d4b\u8bd5\u7ed3\u679c\u8868', '\u7279\u6b8a\u6d4b\u8bd5'}
+            handled = {'test_items', '\u6d4b\u8bd5\u9879\u76ee', 'special_tests', '\u6d4b\u8bd5\u7ed3\u679c\u8868', '\u7279\u6b8a\u6d4b\u8bd5'}
             for key, value in table_data.items():
                 if key in handled:
                     continue
@@ -897,149 +1092,3 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
             for key, value in row.items():
                 mapped[mapping.get(key, key)] = value
             structured[target].append(mapped)
-
-    @staticmethod
-    def _jsonish(value):
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
-        if text.startswith('```'):
-            text = re.sub(r'^```(?:json)?', '', text).strip()
-            text = re.sub(r'```$', '', text).strip()
-        if not text or text[0] not in '[{':
-            return value
-        try:
-            return json.loads(text)
-        except Exception:
-            return value
-
-    def _parse_paper_ocr_result(self, raw_result, file_obj: File):
-        best_payload = self._empty_paper_document_payload()
-        best_score = self._paper_payload_score(best_payload)
-        queue = [raw_result]
-        visited = set()
-
-        while queue:
-            current = self._jsonish(queue.pop(0))
-
-            if isinstance(current, (dict, list)):
-                marker = id(current)
-                if marker in visited:
-                    continue
-                visited.add(marker)
-
-            if isinstance(current, list):
-                queue.extend(current)
-                continue
-            if not isinstance(current, dict):
-                continue
-
-            candidates = [current]
-            for key in ('文献', 'paper', 'data', 'outputs', 'result', 'payload', 'content'):
-                nested = current.get(key)
-                if isinstance(nested, dict):
-                    candidates.append(nested)
-                elif isinstance(nested, list):
-                    queue.extend(nested)
-                elif isinstance(nested, str):
-                    queue.append(nested)
-
-            for candidate in candidates:
-                normalized = self._normalize_paper_payload(candidate)
-                score = self._paper_payload_score(normalized)
-                if score > best_score:
-                    best_payload = normalized
-                    best_score = score
-
-            for value in current.values():
-                if isinstance(value, (dict, list, str)):
-                    queue.append(value)
-        return self._normalize_paper_payload(best_payload)
-
-    def _get_task_status(self, task_id: str):
-        task = self._tasks.get(task_id)
-        if not task:
-            # 容错：多进程/重启导致内存任务丢失时，回退到数据库状态，避免前端频繁报“任务不存在”。
-            match = re.fullmatch(r'local-(\d+)-[a-z0-9]+', str(task_id or '').strip().lower())
-            if not match:
-                return {
-                    'status_code': 404,
-                    'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
-                }
-
-            file_id = int(match.group(1))
-            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
-            if not file_obj:
-                return {
-                    'status_code': 404,
-                    'body': {'success': False, 'status': 'not_found', 'message': '任务不存在'},
-                }
-
-            raw_status = str(file_obj.ocr_status or '').strip().lower()
-            status = raw_status if raw_status in {'pending', 'processing', 'completed', 'failed'} else 'processing'
-            if status == 'pending':
-                status = 'processing'
-
-            result_payload = {}
-            if status == 'completed':
-                latest_payload = self._load_latest_ocr_payload(file_id)
-                document_type = self._normalize_document_type(file_obj)
-                if isinstance(latest_payload, dict):
-                    result_payload = {
-                        'structured_data': latest_payload,
-                        'document_type': document_type,
-                    }
-
-            return {
-                'status_code': 200,
-                'body': {
-                    'success': True,
-                    'status': status,
-                    'result': result_payload,
-                    'error_message': file_obj.ocr_error_message if status == 'failed' else None,
-                },
-            }
-
-        return {
-            'status_code': 200,
-            'body': {
-                'success': True,
-                'status': task.get('status', 'completed'),
-                'result': task.get('result', {}),
-                'error_message': task.get('error_message'),
-            },
-        }
-
-    def _save_ocr_result(self, request, file_id: int):
-        try:
-            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
-            if not file_obj:
-                return {'status_code': 404, 'body': {'success': False, 'message': '文件不存在'}}
-
-            payload = self._parse_json_body(request)
-            ocr_result = payload.get('ocr_result', payload)
-            if not isinstance(ocr_result, dict):
-                ocr_result = {}
-            document_type = self._normalize_document_type(file_obj)
-            if document_type == 'paper':
-                ocr_result = self._normalize_paper_payload(ocr_result)
-
-            self._document_data_cache[file_id] = ocr_result
-            self._store_ocr_payload(file_obj, ocr_result, {'source': 'manual-save'})
-
-            file_obj.ocr_status = 'completed'
-            file_obj.save(update_fields=['ocr_status', 'updated_at'])
-
-            return {
-                'status_code': 200,
-                'body': {
-                    'success': True,
-                    'message': 'OCR结果保存成功（Django本地checker）',
-                    'document_type': document_type,
-                },
-            }
-        except Exception as exc:
-            return {
-                'status_code': 500,
-                'body': {'success': False, 'message': f'OCR结果保存失败: {exc}'},
-            }

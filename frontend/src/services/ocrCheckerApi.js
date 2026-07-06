@@ -51,6 +51,10 @@ const ocrCheckerApi = {
     return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}/complete-review`, 'POST')
   },
 
+  markAsUnreviewed(fileId) {
+    return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}/mark-unreviewed`, 'POST')
+  },
+
   getFilePreviewUrl(fileId, expires = 3600) {
     return apiClient.request({
       url: `/ocr/pdf/${fileId}/preview`,

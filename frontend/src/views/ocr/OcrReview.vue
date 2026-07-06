@@ -11,6 +11,7 @@
           <button class="btn" @click="router.push('/ocr/files')">返回列表</button>
           <button class="btn" @click="loadData">刷新</button>
           <button class="btn success" :disabled="saving" @click="saveDraft">保存修改</button>
+          <button class="btn warning" :disabled="saving" @click="markAsUnreviewed">标记未核对</button>
           <button class="btn primary" :disabled="saving" @click="completeReview">完成核对</button>
         </div>
       </div>
@@ -237,6 +238,20 @@ const completeReview = async () => {
   }
 }
 
+const markAsUnreviewed = async () => {
+  saving.value = true
+  try {
+    await ocrCheckerApi.updateDocumentData(fileId, formData.value)
+    await ocrCheckerApi.markAsUnreviewed(fileId)
+    ElMessage.success('已标记为未核对')
+    await loadData()
+  } catch (error) {
+    ElMessage.warning(error?.response?.data?.message || '标记未核对失败')
+  } finally {
+    saving.value = false
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -249,6 +264,7 @@ onMounted(loadData)
 .btn { border:1px solid #dce4f4; background:#fff; padding:6px 12px; border-radius:8px; cursor:pointer; }
 .btn.primary { background:#6366f1; color:#fff; border-color:#6366f1; }
 .btn.success { background:#16a34a; color:#fff; border-color:#16a34a; }
+.btn.warning { background:#f59e0b; color:#fff; border-color:#f59e0b; }
 .panel { background:#fff; border:1px solid #e8edf7; border-radius:12px; padding:14px; margin-bottom:12px; min-width:0; max-width:100%; box-sizing:border-box; }
 .meta-grid { display:grid; grid-template-columns:repeat(2, minmax(220px, 1fr)); gap:8px; font-size:13px; color:#334155; }
 .split {

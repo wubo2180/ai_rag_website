@@ -385,6 +385,10 @@ const toggleTermsPanel = () => {
 }
 
 watch(() => props.fileId, () => loadPdf(true))
+
+onMounted(() => {
+  loadPdf(true)
+})
 </script>
 
 <style scoped>

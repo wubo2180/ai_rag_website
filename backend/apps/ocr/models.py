@@ -62,7 +62,19 @@ class User(models.Model):
             data['password_hash'] = self.password_hash
         return data
 
+class UploadBatch(models.Model):
+    batch_name = models.CharField(max_length=50, unique=True)
+    document_type_code = models.CharField(max_length=20)
 
+    file_count = models.IntegerField(default=0)
+    max_count = models.IntegerField(default=2000)
+
+    status = models.CharField(max_length=20, default="open")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    remark = models.TextField(null=True, blank=True)
 class File(models.Model):
     filename = models.CharField(max_length=255)
     stored_filename = models.CharField(max_length=255)
@@ -76,6 +88,11 @@ class File(models.Model):
 
     uploader = models.ForeignKey(User, on_delete=models.PROTECT, related_name='uploaded_files', db_column='uploader_id')
     upload_batch_id = models.CharField(max_length=36, blank=True, null=True)
+
+    # MinIO 存储信息
+    minio_bucket = models.CharField(max_length=100, blank=True, null=True)
+    minio_object_key = models.CharField(max_length=500, blank=True, null=True)
+    batch_id = models.IntegerField(blank=True, null=True)
 
     ocr_status = models.CharField(max_length=20, default='pending')
     ocr_started_at = models.DateTimeField(blank=True, null=True)
@@ -126,6 +143,9 @@ class File(models.Model):
             'sha256_hash': self.sha256_hash,
             'uploader_id': self.uploader_id,
             'upload_batch_id': self.upload_batch_id,
+            'minio_bucket': self.minio_bucket,
+            'minio_object_key': self.minio_object_key,
+            'batch_id': self.batch_id,
             'ocr_status': self.ocr_status,
             'ocr_started_at': self.ocr_started_at.isoformat() if self.ocr_started_at else None,
             'ocr_completed_at': self.ocr_completed_at.isoformat() if self.ocr_completed_at else None,
