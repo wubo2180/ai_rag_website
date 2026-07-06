@@ -298,10 +298,8 @@ class OcrProxyService:
         if service in self.local_services:
             local_result = self.local_services[service].proxy(request, path)
             if local_result is not None:
-                if local_result.get('status_code', 500) >= 500:
-                    # 本地模式失败时，回退到上游 HTTP 代理
-                    pass
-                elif 'raw_body' in local_result:
+                # 本地模式：直接返回结果，不回退到上游
+                if 'raw_body' in local_result:
                     return {
                         'ok': True,
                         'is_local': True,

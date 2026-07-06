@@ -260,8 +260,8 @@ const startRecognize = async () => {
 
     let transientNotFoundCount = 0
     let completed = false
-    for (let index = 0; index < 400; index += 1) {
-      await sleep(1500)
+    for (let index = 0; index < 60; index += 1) {
+      await sleep(1000)  // 每 1 秒检查一次，论文识别通常 5-10 秒完成
       let status = ''
 
       if (taskId) {
