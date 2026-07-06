@@ -8,7 +8,7 @@
           <p class="sub">fileId: {{ fileId }} | {{ docTypeText }} | {{ fixVersion }}</p>
         </div>
         <div class="actions">
-          <button class="btn" @click="router.push('/ocr/files')">返回列表</button>
+          <button class="btn" @click="router.push({ path: '/ocr/files', query: { page: route.query.page || 1 } })">返回列表</button>
           <button class="btn" @click="loadData">刷新</button>
           <button class="btn success" :disabled="saving" @click="saveDraft">保存修改</button>
           <button class="btn warning" :disabled="saving" @click="markAsUnreviewed">标记未核对</button>

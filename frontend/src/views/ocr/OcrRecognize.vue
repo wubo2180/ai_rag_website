@@ -8,7 +8,7 @@
           <p class="sub">fileId: {{ fileId }} | {{ docTypeText }} | {{ fixVersion }}</p>
         </div>
         <div class="actions">
-          <button class="btn" @click="router.push('/ocr/files')">返回列表</button>
+          <button class="btn" @click="router.push({ path: '/ocr/files', query: { page: route.query.page || 1 } })">返回列表</button>
           <button class="btn" @click="loadAll">刷新</button>
           <button class="btn primary" :disabled="recognizing" @click="startRecognize">
             {{ recognizing ? '识别中...' : '开始识别' }}

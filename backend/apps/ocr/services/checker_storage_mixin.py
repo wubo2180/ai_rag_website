@@ -737,6 +737,12 @@ class CheckerStorageMixin:
 
     @staticmethod
     def _resolve_bucket_and_object(file_obj: File, default_bucket: str):
+        # 优先使用数据库中已存储的 MinIO 信息（上传时写入的 minio_bucket / minio_object_key）
+        stored_bucket = getattr(file_obj, 'minio_bucket', None) or ''
+        stored_object = getattr(file_obj, 'minio_object_key', None) or ''
+        if stored_bucket and stored_object:
+            return stored_bucket.strip(), stored_object.strip()
+
         object_name = (file_obj.file_path or '').strip().replace('\\', '/').lstrip('/')
         bucket_name = default_bucket
 

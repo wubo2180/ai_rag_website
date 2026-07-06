@@ -231,11 +231,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 import ocrCheckerApi from '@/services/ocrCheckerApi'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const files = ref([])
 const currentPage = ref(1)
@@ -566,11 +567,11 @@ const changePage = (page) => {
 }
 
 const goRecognize = (item) => {
-  router.push(`/ocr/recognize/${item.id}`)
+  router.push({ path: `/ocr/recognize/${item.id}`, query: { page: currentPage.value } })
 }
 
 const goReview = (item) => {
-  router.push(`/ocr/review/${item.id}`)
+  router.push({ path: `/ocr/review/${item.id}`, query: { page: currentPage.value } })
 }
 
 const removeFile = async (item) => {
@@ -592,7 +593,8 @@ const removeFile = async (item) => {
 }
 
 onMounted(() => {
-  fetchFiles(1)
+  const pageFromQuery = parseInt(route.query.page) || 1
+  fetchFiles(pageFromQuery)
 })
 </script>
 

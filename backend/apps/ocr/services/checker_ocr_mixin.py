@@ -232,9 +232,9 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
     def _read_file_bytes(self, file_obj: File):
         import time
 
-        # 优先从 MinIO 读取
+        # 1. 优先从 MinIO 读取（批量识别必须走 MinIO）
         if file_obj.minio_bucket and file_obj.minio_object_key:
-            logger.info(f'[_read_file_bytes] 尝试从 MinIO 读取：{file_obj.minio_bucket}/{file_obj.minio_object_key}')
+            logger.info(f'[_read_file_bytes] 从 MinIO 读取：{file_obj.minio_bucket}/{file_obj.minio_object_key}')
             minio_start = time.time()
             minio_bytes = self._try_download_from_minio(file_obj)
             minio_duration = time.time() - minio_start
@@ -244,21 +244,10 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 return minio_bytes
             logger.warning(f'[_read_file_bytes] MinIO 读取失败，尝试其他方式')
 
-        # 回退到本地磁盘
-        file_path = Path(file_obj.file_path or '')
-        logger.info(f'[_read_file_bytes] 尝试从本地读取：{file_path}')
-
-        if file_path.exists() and file_path.is_file():
-            read_start = time.time()
-            content = file_path.read_bytes()
-            read_duration = time.time() - read_start
-            logger.info(f'[_read_file_bytes] 本地读取完成：大小={len(content)/1024/1024:.2f}MB, 耗时={read_duration:.2f}秒')
-            return content
-
-        # 最后尝试通过 PDF_SERVER_BASE_URL 从远程后端下载
+        # 2. 通过 PDF_SERVER_BASE_URL 从远程后端下载
         remote_url = getattr(settings, 'PDF_SERVER_BASE_URL', '').strip().rstrip('/')
         if remote_url:
-            logger.info(f'[_read_file_bytes] 本地文件不存在，尝试从远程后端下载：{remote_url}')
+            logger.info(f'[_read_file_bytes] 尝试从远程后端下载：{remote_url}')
             try:
                 download_start = time.time()
                 download_url = f'{remote_url}/api/ocr/pdf/{file_obj.pk}/download?preview=false'
@@ -271,6 +260,17 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                     logger.warning(f'[_read_file_bytes] 远程下载失败：HTTP {resp.status_code}')
             except requests.RequestException as exc:
                 logger.warning(f'[_read_file_bytes] 远程下载异常：{exc}')
+
+        # 3. 最后回退到本地磁盘
+        file_path = Path(file_obj.file_path or '')
+        logger.info(f'[_read_file_bytes] 回退到本地磁盘：{file_path}')
+
+        if file_path.exists() and file_path.is_file():
+            read_start = time.time()
+            content = file_path.read_bytes()
+            read_duration = time.time() - read_start
+            logger.info(f'[_read_file_bytes] 本地读取完成：大小={len(content)/1024/1024:.2f}MB, 耗时={read_duration:.2f}秒')
+            return content
 
         raise FileNotFoundError('源文件不可读，无法提交 OCR 识别')
 
@@ -643,21 +643,38 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
 
     def _store_ocr_payload(self, file_obj: File, structured_data: dict, raw_result=None):
         try:
-            OCRResult.objects.update_or_create(
-                file_id=file_obj.id,
-                page_number=1,
-                defaults={
-                    'raw_text': '',
-                    'raw_result': {
+            # 手动查询是否存在记录，避免 update_or_create 的 save() 主键问题
+            existing = OCRResult.objects.filter(file_id=file_obj.id, page_number=1).first()
+
+            if existing:
+                # 使用 QuerySet.update() 直接执行 SQL UPDATE，绕过 save()
+                OCRResult.objects.filter(id=existing.id).update(
+                    raw_text='',
+                    raw_result={
                         'structured_data': structured_data,
                         'upstream_raw_result': raw_result or {},
                     },
-                    'form_fields': structured_data,
-                    'ocr_engine': 'upstream-ocr',
-                    'review_status': 'pending',
-                },
-            )
-            logger.info(f'[_store_ocr_payload] 保存成功: file_id={file_obj.id}')
+                    form_fields=structured_data,
+                    ocr_engine='upstream-ocr',
+                    review_status='pending',
+                    updated_at=timezone.now(),
+                )
+                logger.info(f'[_store_ocr_payload] 更新成功: file_id={file_obj.id}, ocr_result_id={existing.id}')
+            else:
+                # 创建新记录
+                OCRResult.objects.create(
+                    file_id=file_obj.id,
+                    page_number=1,
+                    raw_text='',
+                    raw_result={
+                        'structured_data': structured_data,
+                        'upstream_raw_result': raw_result or {},
+                    },
+                    form_fields=structured_data,
+                    ocr_engine='upstream-ocr',
+                    review_status='pending',
+                )
+                logger.info(f'[_store_ocr_payload] 创建成功: file_id={file_obj.id}')
         except Exception as exc:
             logger.error(f'[_store_ocr_payload] 保存失败: file_id={file_obj.id}, error={exc}', exc_info=True)
 
