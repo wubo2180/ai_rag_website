@@ -502,7 +502,7 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 workflow_url,
                 headers=workflow_headers,
                 json=workflow_body,
-                timeout=30.0,  # 论文识别通常 5-10 秒完成，30 秒足够
+                timeout=120.0,  # 增加到 120 秒，避免批量识别时部分文件超时
             )
         except requests.RequestException as exc:
             raise ValueError(f'Dify工作流调用失败，无法连接 {workflow_url}: {exc}') from exc
