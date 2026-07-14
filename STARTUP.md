@@ -17,7 +17,7 @@ You can also call the controller directly:
 ```bash
 ./projectctl.sh start
 ./projectctl.sh status
-./projectctl.sh logs backend
+./projectctl.sh logs backendzZ
 ./projectctl.sh logs frontend
 ./projectctl.sh logs commission
 ./projectctl.sh logs paper
@@ -25,12 +25,12 @@ You can also call the controller directly:
 
 ## Managed Services
 
-| Service | Port | Health check | Log |
-| --- | ---: | --- | --- |
-| OCR commission | 6001 | `http://127.0.0.1:6001/health` | `logs/ocr-commission.log` |
-| OCR paper | 6002 | `http://127.0.0.1:6002/health` | `logs/ocr-paper.log` |
+| Service        | Port | Health check                           | Log                          |
+| -------------- | ---: | -------------------------------------- | ---------------------------- |
+| OCR commission | 6001 | `http://127.0.0.1:6001/health`         | `logs/ocr-commission.log`    |
+| OCR paper      | 6002 | `http://127.0.0.1:6002/health`         | `logs/ocr-paper.log`         |
 | Django backend | 8000 | `http://127.0.0.1:8000/api/ocr/health` | `logs/backend-runserver.log` |
-| Vue frontend | 3001 | `http://127.0.0.1:3001/` | `logs/frontend-vite.log` |
+| Vue frontend   | 3001 | `http://127.0.0.1:3001/`               | `logs/frontend-vite.log`     |
 
 Dify is treated as an external dependency and is not started by this project script. The controller reads `DIFY_API_URL` from `backend/.env` and checks the Dify setup endpoint during `status`.
 
