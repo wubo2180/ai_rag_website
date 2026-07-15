@@ -65,16 +65,26 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
 
     def _get_task_status(self, task_id: str):
         task = self._tasks.get(task_id)
-        if not task:
-            return {
-                'status_code': 404,
-                'body': {
-                    'success': False,
-                    'message': '任务不存在',
-                    'data': {'task_id': task_id, 'status': 'not_found'},
-                },
-            }
+        if task:
+            return self._build_task_status_response(task_id, task)
 
+        # 多进程/多 worker（gunicorn workers>1）场景下，任务可能是由另一个
+        # worker 进程创建的，本进程的内存 _tasks 中并不存在该任务。
+        # 此时回退到数据库中共享的 ocr_status 状态，避免误报“任务不存在”。
+        fallback = self._get_task_status_from_db(task_id)
+        if fallback is not None:
+            return fallback
+
+        return {
+            'status_code': 404,
+            'body': {
+                'success': False,
+                'message': '任务不存在',
+                'data': {'task_id': task_id, 'status': 'not_found'},
+            },
+        }
+
+    def _build_task_status_response(self, task_id: str, task: dict):
         status = task.get('status', 'unknown')
         result = task.get('result', {})
 
@@ -93,6 +103,83 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 body['data']['warning'] = result['warning']
         elif status == 'failed':
             body['data']['error_message'] = task.get('error_message', '')
+
+        return {
+            'status_code': 200,
+            'body': body,
+        }
+
+    @staticmethod
+    def _extract_file_id_from_task_id(task_id: str):
+        # task_id 形如 local-{file_id}-{uuid}
+        if not task_id:
+            return None
+        match = re.match(r'^local-(\d+)-', task_id)
+        if match:
+            try:
+                return int(match.group(1))
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _get_task_status_from_db(self, task_id: str):
+        """在本进程内存中找不到任务时，回退到数据库中共享的 ocr_status。
+
+        用于解决多 worker（gunicorn workers>1）部署下，任务在 A 进程创建、
+        轮询请求被分发到 B/C/D 进程时误报“任务不存在”的问题。
+        """
+        file_id = self._extract_file_id_from_task_id(task_id)
+        if file_id is None:
+            return None
+
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+        except Exception as exc:
+            logger.warning(f'[_get_task_status_from_db] 查询文件失败: task_id={task_id}, error={exc}')
+            return None
+
+        if not file_obj:
+            return None
+
+        ocr_status = (file_obj.ocr_status or '').strip().lower()
+        if ocr_status in ('completed', 'success', 'done'):
+            status = 'completed'
+        elif ocr_status in ('failed', 'error'):
+            status = 'failed'
+        elif ocr_status in ('processing', 'pending', 'running', 'started'):
+            status = 'processing'
+        else:
+            # 状态未知或为空时，无法确认这是一个有效任务，交由上层返回 not_found。
+            return None
+
+        logger.info(
+            f'[_get_task_status_from_db] 内存无任务，使用数据库状态回退: '
+            f'task_id={task_id}, file_id={file_id}, ocr_status={ocr_status} -> {status}'
+        )
+
+        body = {
+            'success': True,
+            'data': {
+                'task_id': task_id,
+                'status': status,
+            },
+        }
+
+        if status == 'completed':
+            document_type = self._normalize_document_type(file_obj)
+            structured_data = {}
+            try:
+                doc_result = self._get_document_data(file_id)
+                if isinstance(doc_result, dict) and doc_result.get('status_code') == 200:
+                    structured_data = (doc_result.get('body') or {}).get('data', {}) or {}
+            except Exception as exc:
+                logger.warning(
+                    f'[_get_task_status_from_db] 读取已完成结果失败: task_id={task_id}, error={exc}'
+                )
+            body['data']['structured_data'] = structured_data
+            body['data']['document_type'] = document_type
+        elif status == 'failed':
+            body['data']['error_message'] = file_obj.ocr_error_message or ''
 
         return {
             'status_code': 200,
