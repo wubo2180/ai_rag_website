@@ -3,6 +3,7 @@ import hashlib
 import mimetypes
 import os
 import re
+import socket
 import uuid
 import json
 import logging
@@ -25,6 +26,7 @@ _MINIO_ENDPOINT = getattr(settings, 'MINIO_ENDPOINT', '172.20.46.18:19000')
 _MINIO_ACCESS_KEY = getattr(settings, 'MINIO_ACCESS_KEY', 'minio')
 _MINIO_SECRET_KEY = getattr(settings, 'MINIO_SECRET_KEY', 'rRRyKSJFSDxfRzeE')
 _MINIO_SECURE = getattr(settings, 'MINIO_SECURE', False)
+_MINIO_CONNECT_TIMEOUT_SECONDS = float(getattr(settings, 'MINIO_CONNECT_TIMEOUT_SECONDS', 1.5))
 
 # 文档类型与 MinIO 桶的映射
 _DOC_TYPE_BUCKET_MAP = {
@@ -39,10 +41,36 @@ _MAX_COUNT_PER_BATCH = 2000
 _minio_client = None
 
 
+def _is_minio_endpoint_reachable():
+    endpoint = (_MINIO_ENDPOINT or '').strip()
+    if not endpoint:
+        return False, 'MinIO endpoint is empty'
+
+    host, port_text = endpoint, '443' if _MINIO_SECURE else '80'
+    if ':' in endpoint:
+        host, port_text = endpoint.rsplit(':', 1)
+
+    try:
+        port = int(port_text)
+    except ValueError:
+        return False, f'Invalid MinIO port: {port_text}'
+
+    try:
+        with socket.create_connection((host, port), timeout=_MINIO_CONNECT_TIMEOUT_SECONDS):
+            return True, ''
+    except OSError as exc:
+        return False, str(exc)
+
+
 def _get_minio_client():
     global _minio_client
     if _minio_client is None:
         try:
+            ok, reason = _is_minio_endpoint_reachable()
+            if not ok:
+                logger.warning(f'MinIO endpoint unreachable, skip client init: {reason}')
+                _minio_client = False
+                return None
             from minio import Minio
             _minio_client = Minio(
                 _MINIO_ENDPOINT,
@@ -385,6 +413,7 @@ class CheckerLocalService(CheckerOcrMixin):
             for uploaded in uploads:
                 try:
                     current_file_id = next_file_id
+                    next_file_id += 1
                     original_name = self._normalize_upload_name(getattr(uploaded, 'name', ''))
                     content_type = getattr(uploaded, 'content_type', '') or mimetypes.guess_type(original_name)[0] or 'application/octet-stream'
                     suffix = self._resolve_upload_suffix(original_name, content_type)
@@ -505,6 +534,7 @@ class CheckerLocalService(CheckerOcrMixin):
                         logger.error(f'[MinIO 上传异常] file_id={current_file_id}: {minio_exc}', exc_info=True)
                     # ===== MinIO 双存储结束 =====
 
+                    saved_files.append(self._serialize_file_summary(file_obj))
                     seen_hash_keys[dedupe_key] = current_file_id
                 except Exception as exc:
                     errors.append({
