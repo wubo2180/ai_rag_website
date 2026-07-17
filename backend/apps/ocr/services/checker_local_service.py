@@ -375,6 +375,13 @@ class CheckerLocalService(CheckerOcrMixin):
             row = cursor.fetchone()
         return int((row[0] if row else 1) or 1)
 
+    @staticmethod
+    def _parse_bool_flag(value):
+        if value is None:
+            return False
+        normalized = str(value).strip().lower()
+        return normalized in {'1', 'true', 'yes', 'y', 'on'}
+
     def _batch_upload(self, request):
         try:
             uploads = request.FILES.getlist('files')
@@ -399,6 +406,7 @@ class CheckerLocalService(CheckerOcrMixin):
             ).strip()
             description = (request.POST.get('description') or '').strip() or None
             tags = (request.POST.get('tags') or '').strip() or None
+            replace_existing = self._parse_bool_flag(request.POST.get('replace_existing'))
             batch_id = str(uuid.uuid4())
 
             upload_dir = Path(settings.MEDIA_ROOT) / 'ocr_uploads' / timezone.localtime().strftime('%Y%m%d')
@@ -450,9 +458,24 @@ class CheckerLocalService(CheckerOcrMixin):
 
                     # 历史文件去重：忽略软删除状态，只要 sha256 相同就认为是重复文件
                     # 这样可以避免软删除后重新上传相同文件导致重复记录
-                    existing = File.objects.filter(
-                        sha256_hash=sha256_hex,
-                    ).only('id', 'filename', 'created_at', 'is_deleted').order_by('-created_at').first()
+                    existing_matches = list(
+                        File.objects.filter(
+                            sha256_hash=sha256_hex,
+                            is_deleted=False,
+                        ).only('id', 'filename', 'created_at', 'is_deleted').order_by('-created_at')
+                    )
+                    existing = existing_matches[0] if existing_matches else None
+
+                    if existing and replace_existing:
+                        replaced_ids = []
+                        for existing_item in existing_matches:
+                            delete_result = self._delete_file(existing_item.pk)
+                            if delete_result.get('status_code') != 200:
+                                error_message = delete_result.get('body', {}).get('message', 'unknown error')
+                                raise RuntimeError(f'删除已存在文件失败: {existing_item.pk} - {error_message}')
+                            replaced_ids.append(existing_item.pk)
+                        logger.info('[重复文件替换] filename=%s replaced_ids=%s', original_name, replaced_ids)
+                        existing = None
 
                     if existing:
                         if disk_path.exists():
