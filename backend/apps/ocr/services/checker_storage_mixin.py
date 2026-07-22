@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import importlib
+import logging
 from datetime import datetime
 
 from django.db import connection
@@ -8,8 +9,11 @@ from django.utils.dateparse import parse_date, parse_datetime
 
 from ..models import CommissionBasic, File, OCRResult, SpecialTest, TestItem
 
+logger = logging.getLogger(__name__)
+
 
 class CheckerStorageMixin:
+    _legacy_ids_checked = False
     @staticmethod
     def _format_date_output(value):
         if not value:
@@ -305,7 +309,65 @@ class CheckerStorageMixin:
 
         return None
 
+    @classmethod
+    def _ensure_legacy_table_ids(cls):
+        if cls._legacy_ids_checked:
+            return
+
+        cls._legacy_ids_checked = True
+
+        if connection.vendor != 'mysql':
+            return
+
+        repair_plan = [
+            ('commission_basic', 'commission_number, created_at'),
+            ('test_items', 'commission_number, sort_order, test_item, created_at'),
+            ('special_tests', 'commission_number, sort_order, test_type, element_name, created_at'),
+        ]
+
+        try:
+            with connection.cursor() as cursor:
+                for index, (table_name, order_by) in enumerate(repair_plan, start=1):
+                    cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE id IS NULL')
+                    row = cursor.fetchone()
+                    missing_count = int((row[0] if row else 0) or 0)
+                    if missing_count <= 0:
+                        continue
+
+                    variable_name = f'legacy_next_id_{index}'
+                    cursor.execute(
+                        f'SET @{variable_name} := (SELECT COALESCE(MAX(id), 0) FROM {table_name})'
+                    )
+                    cursor.execute(
+                        f'''
+                        UPDATE {table_name}
+                        SET id = (@{variable_name} := @{variable_name} + 1)
+                        WHERE id IS NULL
+                        ORDER BY {order_by}
+                        '''
+                    )
+                    logger.warning('[legacy-id-repair] repaired %s rows in %s', missing_count, table_name)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            cls._legacy_ids_checked = False
+            logger.exception('[legacy-id-repair] failed')
+            raise
+
+    @staticmethod
+    def _allocate_legacy_ids(model, count):
+        if count <= 0:
+            return []
+
+        table_name = model._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f'SELECT COALESCE(MAX(id), 0) FROM {table_name}')
+            row = cursor.fetchone()
+            start_id = int((row[0] if row else 0) or 0)
+        return list(range(start_id + 1, start_id + count + 1))
+
     def _persist_structured_document(self, file_obj: File, structured_data):
+        self._ensure_legacy_table_ids()
         document_type = str(file_obj.document_type_code or 'commission').strip().lower()
         if document_type != 'commission' or not isinstance(structured_data, dict):
             return
@@ -360,12 +422,19 @@ class CheckerStorageMixin:
             ),
         }
 
-        commission_obj, _ = CommissionBasic.objects.update_or_create(
-            commission_number=commission_number,
-            defaults=defaults,
-        )
+        commission_queryset = CommissionBasic.objects.filter(commission_number=commission_number)
+        if commission_queryset.exists():
+            commission_queryset.update(**defaults)
+        else:
+            legacy_id = self._allocate_legacy_ids(CommissionBasic, 1)[0]
+            CommissionBasic.objects.create(
+                id=legacy_id,
+                commission_number=commission_number,
+                **defaults,
+            )
 
-        TestItem.objects.filter(commission=commission_obj).delete()
+        TestItem.objects.filter(commission_id=commission_number).delete()
+        test_item_ids = self._allocate_legacy_ids(TestItem, len(test_items))
         test_records = []
         for index, item in enumerate(test_items):
             if not isinstance(item, dict):
@@ -373,7 +442,8 @@ class CheckerStorageMixin:
             test_name = self._safe_text(item.get('test_item')) or f'测试项目{index + 1}'
             test_records.append(
                 TestItem(
-                    commission=commission_obj,
+                    id=test_item_ids[len(test_records)],
+                    commission_id=commission_number,
                     test_item=test_name,
                     test_equipment=self._safe_text(item.get('test_equipment')),
                     test_standard=self._safe_text(item.get('test_standard')),
@@ -389,7 +459,8 @@ class CheckerStorageMixin:
         if test_records:
             TestItem.objects.bulk_create(test_records)
 
-        SpecialTest.objects.filter(commission=commission_obj).delete()
+        SpecialTest.objects.filter(commission_id=commission_number).delete()
+        special_test_ids = self._allocate_legacy_ids(SpecialTest, len(special_tests))
         special_records = []
         for index, item in enumerate(special_tests):
             if not isinstance(item, dict):
@@ -398,7 +469,8 @@ class CheckerStorageMixin:
             element_name = self._safe_text(item.get('element_name')) or f'元素{index + 1}'
             special_records.append(
                 SpecialTest(
-                    commission=commission_obj,
+                    id=special_test_ids[len(special_records)],
+                    commission_id=commission_number,
                     test_type=test_type,
                     element_name=element_name,
                     standard_value=self._safe_text(item.get('standard_value')),
@@ -411,6 +483,7 @@ class CheckerStorageMixin:
             SpecialTest.objects.bulk_create(special_records)
 
     def _load_commission_document_from_business_tables(self, file_obj: File, persisted_payload=None, cached_payload=None):
+        self._ensure_legacy_table_ids()
         default_payload = self._default_document_payload('commission', file_obj)
 
         commission_candidates = []
@@ -485,7 +558,9 @@ class CheckerStorageMixin:
                 'remark': self._safe_text(item.remark),
                 'sort_order': item.sort_order,
             }
-            for item in TestItem.objects.filter(commission=commission_obj).order_by('sort_order', 'id')
+            for item in TestItem.objects.filter(
+                commission_id=commission_obj.commission_number
+            ).order_by('sort_order', 'id')
         ]
 
         special_tests = [
@@ -497,7 +572,9 @@ class CheckerStorageMixin:
                 'remark': self._safe_text(item.remark),
                 'sort_order': item.sort_order,
             }
-            for item in SpecialTest.objects.filter(commission=commission_obj).order_by('sort_order', 'id')
+            for item in SpecialTest.objects.filter(
+                commission_id=commission_obj.commission_number
+            ).order_by('sort_order', 'id')
         ]
 
         return {
