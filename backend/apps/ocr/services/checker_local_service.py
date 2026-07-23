@@ -3,8 +3,10 @@ import hashlib
 import mimetypes
 import os
 import re
+import socket
 import uuid
 import json
+import logging
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -12,11 +14,137 @@ from django.db import connection
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import File, OCRResult
+from ..models import File, OCRResult, UploadBatch
 from .checker_ocr_mixin import CheckerOcrMixin
 
+logger = logging.getLogger(__name__)
 
 _PLACEHOLDER_PDF_BYTES = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 72>>stream\nBT /F1 18 Tf 72 720 Td (PDF preview placeholder - source file unavailable) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000241 00000 n \n0000000363 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n433\n%%EOF\n"
+
+# MinIO 配置
+_MINIO_ENDPOINT = getattr(settings, 'MINIO_ENDPOINT', '172.20.46.18:19000')
+_MINIO_ACCESS_KEY = getattr(settings, 'MINIO_ACCESS_KEY', 'minio')
+_MINIO_SECRET_KEY = getattr(settings, 'MINIO_SECRET_KEY', 'rRRyKSJFSDxfRzeE')
+_MINIO_SECURE = getattr(settings, 'MINIO_SECURE', False)
+_MINIO_CONNECT_TIMEOUT_SECONDS = float(getattr(settings, 'MINIO_CONNECT_TIMEOUT_SECONDS', 1.5))
+
+# 文档类型与 MinIO 桶的映射
+_DOC_TYPE_BUCKET_MAP = {
+    'paper': 'ocr-papers',
+    'commission': 'ocr-test-requests',
+}
+
+# 每个 batch 的最大文件数
+_MAX_COUNT_PER_BATCH = 2000
+
+# MinIO 客户端（延迟初始化）
+_minio_client = None
+
+
+def _is_minio_endpoint_reachable():
+    endpoint = (_MINIO_ENDPOINT or '').strip()
+    if not endpoint:
+        return False, 'MinIO endpoint is empty'
+
+    host, port_text = endpoint, '443' if _MINIO_SECURE else '80'
+    if ':' in endpoint:
+        host, port_text = endpoint.rsplit(':', 1)
+
+    try:
+        port = int(port_text)
+    except ValueError:
+        return False, f'Invalid MinIO port: {port_text}'
+
+    try:
+        with socket.create_connection((host, port), timeout=_MINIO_CONNECT_TIMEOUT_SECONDS):
+            return True, ''
+    except OSError as exc:
+        return False, str(exc)
+
+
+def _get_minio_client():
+    global _minio_client
+    if _minio_client is None:
+        try:
+            ok, reason = _is_minio_endpoint_reachable()
+            if not ok:
+                logger.warning(f'MinIO endpoint unreachable, skip client init: {reason}')
+                _minio_client = False
+                return None
+            from minio import Minio
+            _minio_client = Minio(
+                _MINIO_ENDPOINT,
+                access_key=_MINIO_ACCESS_KEY,
+                secret_key=_MINIO_SECRET_KEY,
+                secure=_MINIO_SECURE,
+            )
+        except Exception as exc:
+            logger.warning(f'MinIO 客户端初始化失败: {exc}')
+            _minio_client = False  # 标记为不可用
+    return _minio_client if _minio_client else None
+
+
+def _ensure_bucket_exists(client, bucket_name: str):
+    if client and not client.bucket_exists(bucket_name):
+        client.make_bucket(bucket_name)
+        logger.info(f'创建 MinIO 桶: {bucket_name}')
+
+
+def _get_or_create_upload_batch(document_type_code: str):
+    """获取或创建 UploadBatch，返回 (batch, is_new)"""
+    batch = UploadBatch.objects.filter(
+        document_type_code=document_type_code,
+        status='open',
+    ).order_by('id').first()
+
+    if batch and batch.file_count < batch.max_count:
+        return batch, False
+
+    # 创建新 batch
+    last_batch = UploadBatch.objects.filter(
+        document_type_code=document_type_code,
+    ).order_by('-id').first()
+
+    if last_batch:
+        last_name = last_batch.batch_name
+        last_num = int(last_name.split('_')[1])
+        new_num = last_num + 1
+    else:
+        new_num = 1
+
+    prefix = 'testRequest' if document_type_code == 'commission' else document_type_code
+    batch_name = f'{prefix}_{new_num:06d}'
+
+    batch = UploadBatch.objects.create(
+        batch_name=batch_name,
+        document_type_code=document_type_code,
+        file_count=0,
+        max_count=_MAX_COUNT_PER_BATCH,
+        status='open',
+    )
+    logger.info(f'[新建 Batch] id={batch.id}, name={batch_name}, type={document_type_code}')
+    return batch, True
+
+
+def _upload_to_minio(client, bucket: str, object_key: str, file_path: str, content_type: str = 'application/pdf'):
+    """上传文件到 MinIO，返回 (success, message)"""
+    if not client:
+        return False, 'MinIO 客户端不可用'
+
+    try:
+        _ensure_bucket_exists(client, bucket)
+        file_size = os.path.getsize(file_path)
+        with open(file_path, 'rb') as f:
+            client.put_object(
+                bucket_name=bucket,
+                object_name=object_key,
+                data=f,
+                length=file_size,
+                content_type=content_type,
+            )
+        return True, f'上传成功 ({file_size / 1024 / 1024:.2f} MB)'
+    except Exception as e:
+        return False, f'上传失败: {e}'
 
 
 class CheckerLocalService(CheckerOcrMixin):
@@ -95,6 +223,11 @@ class CheckerLocalService(CheckerOcrMixin):
         if complete_review_match and request.method == 'POST':
             file_id = int(complete_review_match.group('file_id'))
             return self._complete_review(file_id)
+
+        mark_unreviewed_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/mark-unreviewed', normalized)
+        if mark_unreviewed_match and request.method == 'POST':
+            file_id = int(mark_unreviewed_match.group('file_id'))
+            return self._mark_as_unreviewed(file_id)
 
         preview_match = re.fullmatch(r'(api/)?files/(?P<file_id>\d+)/preview', normalized)
         if preview_match and request.method == 'GET':
@@ -242,6 +375,13 @@ class CheckerLocalService(CheckerOcrMixin):
             row = cursor.fetchone()
         return int((row[0] if row else 1) or 1)
 
+    @staticmethod
+    def _parse_bool_flag(value):
+        if value is None:
+            return False
+        normalized = str(value).strip().lower()
+        return normalized in {'1', 'true', 'yes', 'y', 'on'}
+
     def _batch_upload(self, request):
         try:
             uploads = request.FILES.getlist('files')
@@ -266,6 +406,7 @@ class CheckerLocalService(CheckerOcrMixin):
             ).strip()
             description = (request.POST.get('description') or '').strip() or None
             tags = (request.POST.get('tags') or '').strip() or None
+            replace_existing = self._parse_bool_flag(request.POST.get('replace_existing'))
             batch_id = str(uuid.uuid4())
 
             upload_dir = Path(settings.MEDIA_ROOT) / 'ocr_uploads' / timezone.localtime().strftime('%Y%m%d')
@@ -280,6 +421,7 @@ class CheckerLocalService(CheckerOcrMixin):
             for uploaded in uploads:
                 try:
                     current_file_id = next_file_id
+                    next_file_id += 1
                     original_name = self._normalize_upload_name(getattr(uploaded, 'name', ''))
                     content_type = getattr(uploaded, 'content_type', '') or mimetypes.guess_type(original_name)[0] or 'application/octet-stream'
                     suffix = self._resolve_upload_suffix(original_name, content_type)
@@ -314,18 +456,33 @@ class CheckerLocalService(CheckerOcrMixin):
                         })
                         continue
 
-                    # 历史文件去重：优先 sha256 + size；兼容历史仅 md5 的记录。
-                    existing = File.objects.filter(
-                        is_deleted=False,
-                        file_size=size,
-                    ).filter(
-                        Q(sha256_hash=sha256_hex)
-                        | Q(sha256_hash__isnull=True, md5_hash=md5_hex)
-                    ).only('id', 'filename', 'created_at').order_by('-created_at').first()
+                    # 历史文件去重：忽略软删除状态，只要 sha256 相同就认为是重复文件
+                    # 这样可以避免软删除后重新上传相同文件导致重复记录
+                    existing_matches = list(
+                        File.objects.filter(
+                            sha256_hash=sha256_hex,
+                            is_deleted=False,
+                        ).only('id', 'filename', 'created_at', 'is_deleted').order_by('-created_at')
+                    )
+                    existing = existing_matches[0] if existing_matches else None
+
+                    if existing and replace_existing:
+                        replaced_ids = []
+                        for existing_item in existing_matches:
+                            delete_result = self._delete_file(existing_item.pk)
+                            if delete_result.get('status_code') != 200:
+                                error_message = delete_result.get('body', {}).get('message', 'unknown error')
+                                raise RuntimeError(f'删除已存在文件失败: {existing_item.pk} - {error_message}')
+                            replaced_ids.append(existing_item.pk)
+                        logger.info('[重复文件替换] filename=%s replaced_ids=%s', original_name, replaced_ids)
+                        existing = None
 
                     if existing:
                         if disk_path.exists():
                             disk_path.unlink(missing_ok=True)
+                        
+                        # 如果找到的是已删除的记录，可以选择恢复它或者创建新记录
+                        # 这里选择标记为重复，让用户知道文件已存在（即使是已删除的）
                         duplicates.append({
                             'filename': original_name,
                             'md5_hash': md5_hex,
@@ -335,6 +492,7 @@ class CheckerLocalService(CheckerOcrMixin):
                             'existing_file_id': existing.pk,
                             'existing_filename': existing.filename,
                             'existing_created_at': self._serialize_datetime(existing.created_at),
+                            'is_deleted': existing.is_deleted,  # 标记是否已删除
                         })
                         seen_hash_keys[dedupe_key] = existing.pk
                         continue
@@ -358,9 +516,49 @@ class CheckerLocalService(CheckerOcrMixin):
                         tags=tags,
                     )
 
+                    # ===== MinIO 双存储 =====
+                    try:
+                        minio_client = _get_minio_client()
+                        if minio_client:
+                            bucket = _DOC_TYPE_BUCKET_MAP.get(document_type, 'ocr-test-requests')
+                            upload_batch, _ = _get_or_create_upload_batch(document_type)
+                            object_key = f'{upload_batch.batch_name}/{stored_filename}'
+
+                            ok, msg = _upload_to_minio(
+                                minio_client, bucket, object_key, str(disk_path), content_type,
+                            )
+                            if ok:
+                                # 使用 current_file_id 而不是 file_obj.id（确保 ID 正确）
+                                File.objects.filter(id=current_file_id).update(
+                                    minio_bucket=bucket,
+                                    minio_object_key=object_key,
+                                    batch_id=upload_batch.id,
+                                )
+                                # 同步内存中的对象
+                                file_obj.minio_bucket = bucket
+                                file_obj.minio_object_key = object_key
+                                file_obj.batch_id = upload_batch.id
+
+                                upload_batch.file_count += 1
+                                if upload_batch.file_count >= upload_batch.max_count:
+                                    upload_batch.status = 'full'
+                                upload_batch.save(update_fields=['file_count', 'status', 'updated_at'])
+
+                                logger.info(
+                                    f'[MinIO 上传成功] file_id={current_file_id}, bucket={bucket}, '
+                                    f'key={object_key}, batch={upload_batch.batch_name} '
+                                    f'({upload_batch.file_count}/{upload_batch.max_count})'
+                                )
+                            else:
+                                logger.warning(f'[MinIO 上传失败] file_id={current_file_id}: {msg}')
+                        else:
+                            logger.warning('[MinIO 上传跳过] MinIO 客户端不可用')
+                    except Exception as minio_exc:
+                        logger.error(f'[MinIO 上传异常] file_id={current_file_id}: {minio_exc}', exc_info=True)
+                    # ===== MinIO 双存储结束 =====
+
+                    saved_files.append(self._serialize_file_summary(file_obj))
                     seen_hash_keys[dedupe_key] = current_file_id
-                    next_file_id += 1
-                    saved_files.append(self._serialize_file(file_obj))
                 except Exception as exc:
                     errors.append({
                         'filename': getattr(uploaded, 'name', ''),
@@ -378,14 +576,18 @@ class CheckerLocalService(CheckerOcrMixin):
                     },
                 }
 
-            if duplicates and saved_files and not errors:
-                message = '部分文件上传成功，重复文件已跳过'
-            elif duplicates and not saved_files and not errors:
-                message = '文件均已存在，未新增'
+            # 构建更清晰的消息
+            dup_count = len(duplicates)
+            saved_count = len(saved_files)
+
+            if dup_count > 0 and saved_count == 0 and not errors:
+                message = f'文件均已存在，未新增（{dup_count} 个重复文件已跳过）'
+            elif dup_count > 0 and saved_count > 0 and not errors:
+                message = f'部分文件上传成功（{saved_count} 个新文件，{dup_count} 个重复文件已跳过）'
             elif errors:
-                message = '部分文件上传成功'
+                message = f'部分文件上传成功（{saved_count} 个新文件，{len(errors)} 个失败）'
             else:
-                message = '上传成功'
+                message = f'上传成功，共入库 {saved_count} 个文件'
 
             return {
                 'status_code': 200 if not errors else 207,
@@ -395,9 +597,9 @@ class CheckerLocalService(CheckerOcrMixin):
                     'data': {
                         'batch_id': batch_id,
                         'files': saved_files,
-                        'total': len(saved_files),
+                        'total': saved_count,
                         'duplicates': duplicates,
-                        'duplicate_count': len(duplicates),
+                        'duplicate_count': dup_count,
                         'errors': errors,
                     },
                 },
@@ -412,6 +614,11 @@ class CheckerLocalService(CheckerOcrMixin):
                 },
             }
 
+    _SORT_FIELD_MAP = {
+        'created_at': 'created_at',
+        'filename': 'filename',
+    }
+
     def _list_files(self, request):
         try:
             page = max(int(request.GET.get('page', 1)), 1)
@@ -419,6 +626,14 @@ class CheckerLocalService(CheckerOcrMixin):
             status_filter = request.GET.get('status')
             review_status_filter = request.GET.get('review_status')
             document_type_filter = request.GET.get('document_type')
+            keyword = (request.GET.get('keyword') or request.GET.get('filename') or '').strip()
+            sort_by = (request.GET.get('sort_by') or 'created_at').strip().lower()
+            sort_order = (request.GET.get('sort_order') or 'desc').strip().lower()
+
+            sort_field = self._SORT_FIELD_MAP.get(sort_by, 'created_at')
+            order_prefix = '' if sort_order == 'asc' else '-'
+            order_field = f'{order_prefix}{sort_field}'
+
             queryset = File.objects.filter(is_deleted=False).only(
                 'id',
                 'filename',
@@ -443,7 +658,7 @@ class CheckerLocalService(CheckerOcrMixin):
                 'is_processed',
                 'created_at',
                 'updated_at',
-            ).order_by('-created_at')
+            ).order_by(order_field, '-id')
 
             if status_filter:
                 queryset = queryset.filter(ocr_status=status_filter)
@@ -451,6 +666,8 @@ class CheckerLocalService(CheckerOcrMixin):
                 queryset = queryset.filter(review_status=review_status_filter)
             if document_type_filter:
                 queryset = queryset.filter(document_type_code=document_type_filter)
+            if keyword:
+                queryset = queryset.filter(filename__icontains=keyword)
 
             paginator = Paginator(queryset, per_page)
             page_obj = paginator.get_page(page)
@@ -488,6 +705,9 @@ class CheckerLocalService(CheckerOcrMixin):
                         'pages': paginator.num_pages if paginator.count else 0,
                         'current_page': page,
                         'per_page': per_page,
+                        'keyword': keyword,
+                        'sort_by': sort_field,
+                        'sort_order': sort_order,
                     },
                 },
             }
@@ -513,16 +733,55 @@ class CheckerLocalService(CheckerOcrMixin):
                     },
                 }
 
-            file_obj.is_deleted = True
-            file_obj.deleted_at = timezone.now()
-            file_obj.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
-
+            # 保存删除前的信息
             file_path = (file_obj.file_path or '').strip()
+            minio_bucket = file_obj.minio_bucket
+            minio_object_key = file_obj.minio_object_key
+            batch_id = file_obj.batch_id
+
+            # 硬删除数据库记录
+            file_obj.delete()
+            logger.info(f'[数据库删除] file_id={file_id} 已硬删除')
+
+            # 删除本地磁盘文件
             if file_path:
                 try:
                     Path(file_path).unlink(missing_ok=True)
-                except Exception:
-                    pass
+                    logger.info(f'[本地删除] file_id={file_id}, path={file_path}')
+                except Exception as exc:
+                    logger.warning(f'[本地删除失败] file_id={file_id}: {exc}')
+
+            # 删除 MinIO 中的文件
+            if minio_bucket and minio_object_key:
+                try:
+                    minio_client = _get_minio_client()
+                    if minio_client:
+                        minio_client.remove_object(minio_bucket, minio_object_key)
+                        logger.info(
+                            f'[MinIO 删除成功] file_id={file_id}, '
+                            f'bucket={minio_bucket}, key={minio_object_key}'
+                        )
+                    else:
+                        logger.warning(f'[MinIO 删除跳过] file_id={file_id}: MinIO 客户端不可用')
+                except Exception as minio_exc:
+                    logger.error(f'[MinIO 删除失败] file_id={file_id}: {minio_exc}', exc_info=True)
+
+            # 更新 UploadBatch 的 file_count
+            if batch_id:
+                try:
+                    batch = UploadBatch.objects.filter(id=batch_id).first()
+                    if batch:
+                        batch.file_count = max(0, batch.file_count - 1)
+                        # 如果 file_count 变为 0，将状态改回 open
+                        if batch.file_count == 0:
+                            batch.status = 'open'
+                        batch.save(update_fields=['file_count', 'status', 'updated_at'])
+                        logger.info(
+                            f'[Batch 更新] batch_id={batch_id}, '
+                            f'file_count={batch.file_count}, status={batch.status}'
+                        )
+                except Exception as batch_exc:
+                    logger.warning(f'[Batch 更新失败] batch_id={batch_id}: {batch_exc}')
 
             return {
                 'status_code': 200,
@@ -530,7 +789,7 @@ class CheckerLocalService(CheckerOcrMixin):
                     'success': True,
                     'message': '文件删除成功',
                     'data': {
-                        'id': file_obj.id,
+                        'id': file_id,
                     },
                 },
             }
@@ -539,7 +798,7 @@ class CheckerLocalService(CheckerOcrMixin):
                 'status_code': 500,
                 'body': {
                     'success': False,
-                    'message': f'删除文件失败: {exc}',
+                    'message': f'删除文件失败：{exc}',
                     'service': self.service_name,
                 },
             }
@@ -729,7 +988,34 @@ class CheckerLocalService(CheckerOcrMixin):
             document_type = self._normalize_document_type(file_obj)
             if document_type == 'paper':
                 payload = self._normalize_paper_payload(payload)
+
+            # 保存到内存缓存
             self._document_data_cache[file_id] = payload if isinstance(payload, dict) else {}
+
+            # 同时保存到数据库 ocr_results 表
+            if isinstance(payload, dict):
+                existing = OCRResult.objects.filter(file_id=file_obj.id, page_number=1).first()
+                if existing:
+                    OCRResult.objects.filter(id=existing.id).update(
+                        form_fields=payload,
+                        raw_result={
+                            'structured_data': payload,
+                        },
+                        updated_at=timezone.now(),
+                    )
+                    logger.info(f'[_put_document_data] 更新数据库成功: file_id={file_obj.id}, ocr_result_id={existing.id}')
+                else:
+                    OCRResult.objects.create(
+                        file_id=file_obj.id,
+                        page_number=1,
+                        form_fields=payload,
+                        raw_result={
+                            'structured_data': payload,
+                        },
+                        ocr_engine='upstream-ocr',
+                        review_status='pending',
+                    )
+                    logger.info(f'[_put_document_data] 创建数据库记录成功: file_id={file_obj.id}')
 
             return {
                 'status_code': 200,
@@ -740,6 +1026,7 @@ class CheckerLocalService(CheckerOcrMixin):
                 },
             }
         except Exception as exc:
+            logger.error(f'[_put_document_data] 保存失败: file_id={file_id}, error={exc}', exc_info=True)
             return {
                 'status_code': 500,
                 'body': {'success': False, 'message': f'保存文档数据失败: {exc}'},
@@ -754,9 +1041,11 @@ class CheckerLocalService(CheckerOcrMixin):
                     'body': {'success': False, 'message': '文件不存在'},
                 }
 
-            file_obj.review_status = 'completed'
-            file_obj.review_completed_at = timezone.now()
-            file_obj.save(update_fields=['review_status', 'review_completed_at', 'updated_at'])
+            File.objects.filter(id=file_obj.id).update(
+                review_status='completed',
+                review_completed_at=timezone.now(),
+                updated_at=timezone.now(),
+            )
 
             return {
                 'status_code': 200,
@@ -766,6 +1055,35 @@ class CheckerLocalService(CheckerOcrMixin):
             return {
                 'status_code': 500,
                 'body': {'success': False, 'message': f'完成核对失败: {exc}'},
+            }
+
+    def _mark_as_unreviewed(self, file_id: int):
+        """将文件核对状态重置为待核对"""
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'message': '文件不存在'},
+                }
+
+            File.objects.filter(id=file_obj.id).update(
+                review_status='unassigned',
+                review_completed_at=None,
+                updated_at=timezone.now(),
+            )
+
+            logger.info(f'[_mark_as_unreviewed] 标记未核对成功: file_id={file_obj.id}')
+
+            return {
+                'status_code': 200,
+                'body': {'success': True, 'message': '已标记为未核对'},
+            }
+        except Exception as exc:
+            logger.error(f'[_mark_as_unreviewed] 标记未核对失败: file_id={file_id}, error={exc}', exc_info=True)
+            return {
+                'status_code': 500,
+                'body': {'success': False, 'message': f'标记未核对失败: {exc}'},
             }
 
     def _get_preview_url(self, file_id: int):
@@ -813,26 +1131,41 @@ class CheckerLocalService(CheckerOcrMixin):
             if not file_obj:
                 return {'status_code': 404, 'body': {'success': False, 'message': '文件不存在'}}
 
+            content_type = file_obj.mime_type or 'application/pdf'
+
+            # 优先从 MinIO 读取
+            if file_obj.minio_bucket and file_obj.minio_object_key:
+                try:
+                    minio_client = _get_minio_client()
+                    if minio_client:
+                        response = minio_client.get_object(file_obj.minio_bucket, file_obj.minio_object_key)
+                        try:
+                            content = response.read()
+                        finally:
+                            response.close()
+                            response.release_conn()
+                        logger.info(f'[PDF 下载] 从 MinIO 读取成功: file_id={file_id}, bucket={file_obj.minio_bucket}, key={file_obj.minio_object_key}')
+                        return {
+                            'status_code': 200,
+                            'raw_body': content,
+                            'content_type': content_type,
+                        }
+                except Exception as minio_exc:
+                    logger.warning(f'[PDF 下载] MinIO 读取失败: file_id={file_id}, error={minio_exc}')
+
+            # 回退到本地磁盘
             file_path = Path(file_obj.file_path or '')
             if file_path.exists() and file_path.is_file():
                 content = file_path.read_bytes()
-                content_type = file_obj.mime_type or 'application/octet-stream'
+                logger.info(f'[PDF 下载] 从本地磁盘读取成功: file_id={file_id}')
                 return {
                     'status_code': 200,
                     'raw_body': content,
                     'content_type': content_type,
                 }
 
-            # 本地文件不存在时，尝试从 MinIO 拉取真实内容。
-            minio_bytes = self._try_download_from_minio(file_obj)
-            if minio_bytes is not None:
-                return {
-                    'status_code': 200,
-                    'raw_body': minio_bytes,
-                    'content_type': file_obj.mime_type or 'application/pdf',
-                }
-
-            # MinIO对象键场景下如果仍不可读，返回占位PDF避免前端404报错与白屏。
+            # 都没有，返回占位 PDF
+            logger.warning(f'[PDF 下载] 文件不可用: file_id={file_id}, path={file_obj.file_path}, minio={file_obj.minio_bucket}/{file_obj.minio_object_key}')
             return {
                 'status_code': 200,
                 'raw_body': _PLACEHOLDER_PDF_BYTES,
@@ -842,5 +1175,76 @@ class CheckerLocalService(CheckerOcrMixin):
             return {
                 'status_code': 500,
                 'body': {'success': False, 'message': f'下载失败: {exc}'},
+            }
+
+   
+
+    def _save_ocr_result(self, request, file_id: int):
+        """保存 OCR 识别结果到数据库"""
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+            if not file_obj:
+                return {
+                    'status_code': 404,
+                    'body': {'success': False, 'message': '文件不存在'},
+                }
+
+            payload = self._parse_json_body(request)
+            ocr_result = payload.get('ocr_result') or payload
+
+            if not ocr_result:
+                return {
+                    'status_code': 400,
+                    'body': {'success': False, 'message': 'OCR 结果为空'},
+                }
+
+            # 手动查询是否存在记录，避免 update_or_create 的 save() 主键问题
+            existing = OCRResult.objects.filter(file_id=file_obj.id, page_number=1).first()
+
+            if existing:
+                # 使用 QuerySet.update() 直接执行 SQL UPDATE，绕过 save()
+                OCRResult.objects.filter(id=existing.id).update(
+                    form_fields=ocr_result,
+                    raw_result={
+                        'structured_data': ocr_result,
+                    },
+                    ocr_engine='upstream-ocr',
+                    review_status='pending',
+                    updated_at=timezone.now(),
+                )
+                logger.info(f'[_save_ocr_result] 更新成功: file_id={file_obj.id}, ocr_result_id={existing.id}')
+            else:
+                # 创建新记录
+                OCRResult.objects.create(
+                    file_id=file_obj.id,
+                    page_number=1,
+                    form_fields=ocr_result,
+                    raw_result={
+                        'structured_data': ocr_result,
+                    },
+                    ocr_engine='upstream-ocr',
+                    review_status='pending',
+                )
+                logger.info(f'[_save_ocr_result] 创建成功: file_id={file_obj.id}')
+
+            # 更新文件状态
+            File.objects.filter(id=file_obj.id).update(
+                ocr_status='completed',
+                ocr_completed_at=timezone.now(),
+                updated_at=timezone.now(),
+            )
+
+            return {
+                'status_code': 200,
+                'body': {
+                    'success': True,
+                    'message': '保存成功',
+                },
+            }
+        except Exception as exc:
+            logger.error(f'[_save_ocr_result] 保存失败: file_id={file_id}, error={exc}', exc_info=True)
+            return {
+                'status_code': 500,
+                'body': {'success': False, 'message': f'保存失败: {exc}'},
             }
 

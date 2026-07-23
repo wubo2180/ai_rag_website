@@ -28,8 +28,10 @@ backend/logs/*
 !backend/logs/.gitkeep
 logs/
 runtime/
+/.venv/
+backend/.venv/
 backend/media/
-
+/backend/db.sqlite3
 staticfiles/
 static_collected/
 *.css.map

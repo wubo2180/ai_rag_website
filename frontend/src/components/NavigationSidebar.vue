@@ -70,7 +70,7 @@
       <li>
         <a href="#" @click.prevent="navigateToOCRCenter"
           ><img
-            src="../assets/talk page/talk@3X_63.png"
+            src="../assets/talk page/talk@3X_73.png"
             class="menu-icon"
           /><span class="menu-text"> OCR中心</span
           ><span class="tooltip">OCR中心</span></a
@@ -106,7 +106,7 @@
       <li v-if="isAdmin">
         <a href="#" @click.prevent="navigateToUserManagement"
           ><img
-            src="../assets/talk page/talk@3X_10.png"
+            src="../assets/talk page/talk@3X_74.png"
             class="menu-icon"
           /><span class="menu-text"> 用户管理</span
           ><span class="tooltip">用户管理</span></a

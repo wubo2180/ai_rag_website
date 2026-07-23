@@ -51,13 +51,21 @@ const ocrCheckerApi = {
     return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}/complete-review`, 'POST')
   },
 
+  markAsUnreviewed(fileId) {
+    return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}/mark-unreviewed`, 'POST')
+  },
+
   getFilePreviewUrl(fileId, expires = 3600) {
-    return ocrGatewayAPI.proxyRequest(SERVICE, `api/files/${fileId}/preview`, 'GET', null, { expires })
+    return apiClient.request({
+      url: `/ocr/pdf/${fileId}/preview`,
+      method: 'GET',
+      params: { expires },
+    }).then((response) => response.data)
   },
 
   async downloadFileBlob(fileId, preview = true) {
     const response = await apiClient.request({
-      url: `/ocr/${SERVICE}/api/files/${fileId}/download`,
+      url: `/ocr/pdf/${fileId}/download`,
       method: 'GET',
       params: { preview: preview ? 'true' : 'false' },
       responseType: 'blob',

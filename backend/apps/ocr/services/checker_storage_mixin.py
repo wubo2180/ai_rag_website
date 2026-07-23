@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import importlib
+import logging
 from datetime import datetime
 
 from django.db import connection
@@ -8,8 +9,11 @@ from django.utils.dateparse import parse_date, parse_datetime
 
 from ..models import CommissionBasic, File, OCRResult, SpecialTest, TestItem
 
+logger = logging.getLogger(__name__)
+
 
 class CheckerStorageMixin:
+    _legacy_ids_checked = False
     @staticmethod
     def _format_date_output(value):
         if not value:
@@ -60,10 +64,74 @@ class CheckerStorageMixin:
         secondary_score = cls._commission_payload_score(secondary_normalized)
 
         if secondary_score >= primary_score and secondary_score >= 0:
-            return secondary_normalized
-        if primary_score >= 0:
-            return primary_normalized
-        return secondary_normalized if isinstance(secondary_normalized, dict) else primary_normalized
+            preferred = secondary_normalized
+            fallback = primary_normalized
+        elif primary_score >= 0:
+            preferred = primary_normalized
+            fallback = secondary_normalized
+        else:
+            preferred = secondary_normalized if isinstance(secondary_normalized, dict) else primary_normalized
+            fallback = primary_normalized if preferred is secondary_normalized else secondary_normalized
+
+        if not isinstance(preferred, dict):
+            return preferred
+        if not isinstance(fallback, dict):
+            return preferred
+
+        merged = dict(preferred)
+        preferred_basic = preferred.get('basic_info') if isinstance(preferred.get('basic_info'), dict) else {}
+        fallback_basic = fallback.get('basic_info') if isinstance(fallback.get('basic_info'), dict) else {}
+        merged_basic = dict(preferred_basic)
+        for key, value in fallback_basic.items():
+            if not cls._safe_text(merged_basic.get(key)) and cls._safe_text(value):
+                merged_basic[key] = value
+        merged['basic_info'] = merged_basic
+        merged['test_items'] = cls._merge_commission_rows(
+            preferred.get('test_items'),
+            fallback.get('test_items'),
+        )
+        merged['special_tests'] = cls._merge_commission_rows(
+            preferred.get('special_tests'),
+            fallback.get('special_tests'),
+        )
+        return merged
+
+    @classmethod
+    def _merge_commission_rows(cls, preferred_rows, fallback_rows):
+        merged = []
+        seen = set()
+
+        def append_rows(rows):
+            if not isinstance(rows, list):
+                return
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                signature = cls._commission_row_signature(row)
+                if signature in seen:
+                    continue
+                seen.add(signature)
+                merged.append(dict(row))
+
+        append_rows(preferred_rows)
+        append_rows(fallback_rows)
+        return merged
+
+    @classmethod
+    def _commission_row_signature(cls, row):
+        if not isinstance(row, dict):
+            return ''
+        parts = []
+        for key in sorted(row.keys()):
+            if key == 'sort_order':
+                continue
+            value = row.get(key)
+            text = cls._safe_text(value)
+            if text:
+                parts.append(f'{key}={text}')
+        if parts:
+            return '|'.join(parts)
+        return f'row:{id(row)}'
 
     @staticmethod
     def _safe_text(value):
@@ -118,12 +186,26 @@ class CheckerStorageMixin:
             '\u9001\u6837\u4eba\u7b7e\u540d',
             '\u9001\u6837\u4eba\u7b7e\u540d/\u65e5\u671f',
         )
+        fill_basic('commission_number', 'order_number', '\u59d4\u6258\u5355\u53f7', '\u8ba2\u5355\u7f16\u53f7')
+        fill_basic('commissioner', 'client_name', '\u5ba2\u6237\u540d\u79f0', '\u59d4\u6258\u4eba')
+        fill_basic('commission_date', 'order_date', '\u4e0b\u5355\u65e5\u671f', '\u59d4\u6258\u65e5\u671f')
+        fill_basic('need_report', 'report_submitted', '\u662f\u5426\u63d0\u4ea4\u62a5\u544a')
+        fill_basic('sample_weight', 'sample_spec_weight', '\u6837\u54c1\u89c4\u683c/\u91cd\u91cf')
+        fill_basic('delivery_time', 'sample_arrival_time', '\u6837\u54c1\u5230\u8fbe\u65f6\u95f4')
+        fill_basic('sample_batch', 'sample_batch_number', '\u6837\u54c1\u6279\u53f7')
+        fill_basic('sample_disposal', 'sample_handling', '\u6837\u54c1\u5904\u7406')
+        fill_basic('required_time', 'deadline', '\u8981\u6c42\u5b8c\u6210\u65f6\u95f4')
+        fill_basic('test_description', 'test_remarks', '\u6d4b\u8bd5\u5907\u6ce8', '\u6d4b\u8bd5\u8bf4\u660e')
+        fill_basic('data_reviewer', 'report_reviewer', '\u62a5\u544a\u5ba1\u6838')
+        fill_basic('review_date', 'report_date', '\u62a5\u544a\u65e5\u671f')
 
         test_item_aliases = {
+            'item': 'test_item',
             '\u6d4b\u8bd5\u9879\u76ee': 'test_item',
             'test_item': 'test_item',
             '\u6d4b\u8bd5\u8bbe\u5907': 'test_equipment',
             'test_equipment': 'test_equipment',
+            'standard': 'test_standard',
             '\u6d4b\u8bd5\u6807\u51c6': 'test_standard',
             'test_standard': 'test_standard',
             '\u6d4b\u8bd5\u6761\u4ef6': 'test_condition',
@@ -133,6 +215,7 @@ class CheckerStorageMixin:
             'product_standard': 'product_standard',
             '\u5355\u4f4d': 'unit',
             'unit': 'unit',
+            'result': 'test_result',
             '\u6d4b\u8bd5\u7ed3\u679c': 'test_result',
             'test_result': 'test_result',
             '\u6d4b\u8bd5\u5458': 'tester',
@@ -144,11 +227,14 @@ class CheckerStorageMixin:
         special_test_aliases = {
             '\u6d4b\u8bd5\u7c7b\u578b': 'test_type',
             'test_type': 'test_type',
+            'element': 'element_name',
             '\u5143\u7d20\u540d\u79f0': 'element_name',
             'element_name': 'element_name',
+            'standard_ppm': 'standard_value',
             '\u6807\u51c6\u503c': 'standard_value',
             '\u6807\u51c6': 'standard_value',
             'standard_value': 'standard_value',
+            'result_ppm': 'measured_value',
             '\u5b9e\u6d4b\u503c': 'measured_value',
             '\u5b9e\u6d4b': 'measured_value',
             '\u6d4b\u8bd5\u503c': 'measured_value',
@@ -168,12 +254,16 @@ class CheckerStorageMixin:
                 for source_key, target_key in aliases.items():
                     if source_key in row and not cls._safe_text(row.get(target_key)):
                         row[target_key] = row.get(source_key)
+                if aliases is special_test_aliases and not cls._safe_text(row.get('test_type')):
+                    row['test_type'] = '元素分析'
                 normalized_rows.append(row)
             return normalized_rows
 
         normalized['basic_info'] = basic_info
         normalized['test_items'] = normalize_rows(normalized.get('test_items'), test_item_aliases)
-        normalized['special_tests'] = normalize_rows(normalized.get('special_tests'), special_test_aliases)
+        special_tests = normalize_rows(normalized.get('special_tests'), special_test_aliases)
+        special_tests.extend(normalize_rows(normalized.get('element_analysis'), special_test_aliases))
+        normalized['special_tests'] = special_tests
         return normalized
 
     @staticmethod
@@ -219,7 +309,65 @@ class CheckerStorageMixin:
 
         return None
 
+    @classmethod
+    def _ensure_legacy_table_ids(cls):
+        if cls._legacy_ids_checked:
+            return
+
+        cls._legacy_ids_checked = True
+
+        if connection.vendor != 'mysql':
+            return
+
+        repair_plan = [
+            ('commission_basic', 'commission_number, created_at'),
+            ('test_items', 'commission_number, sort_order, test_item, created_at'),
+            ('special_tests', 'commission_number, sort_order, test_type, element_name, created_at'),
+        ]
+
+        try:
+            with connection.cursor() as cursor:
+                for index, (table_name, order_by) in enumerate(repair_plan, start=1):
+                    cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE id IS NULL')
+                    row = cursor.fetchone()
+                    missing_count = int((row[0] if row else 0) or 0)
+                    if missing_count <= 0:
+                        continue
+
+                    variable_name = f'legacy_next_id_{index}'
+                    cursor.execute(
+                        f'SET @{variable_name} := (SELECT COALESCE(MAX(id), 0) FROM {table_name})'
+                    )
+                    cursor.execute(
+                        f'''
+                        UPDATE {table_name}
+                        SET id = (@{variable_name} := @{variable_name} + 1)
+                        WHERE id IS NULL
+                        ORDER BY {order_by}
+                        '''
+                    )
+                    logger.warning('[legacy-id-repair] repaired %s rows in %s', missing_count, table_name)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            cls._legacy_ids_checked = False
+            logger.exception('[legacy-id-repair] failed')
+            raise
+
+    @staticmethod
+    def _allocate_legacy_ids(model, count):
+        if count <= 0:
+            return []
+
+        table_name = model._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f'SELECT COALESCE(MAX(id), 0) FROM {table_name}')
+            row = cursor.fetchone()
+            start_id = int((row[0] if row else 0) or 0)
+        return list(range(start_id + 1, start_id + count + 1))
+
     def _persist_structured_document(self, file_obj: File, structured_data):
+        self._ensure_legacy_table_ids()
         document_type = str(file_obj.document_type_code or 'commission').strip().lower()
         if document_type != 'commission' or not isinstance(structured_data, dict):
             return
@@ -274,12 +422,19 @@ class CheckerStorageMixin:
             ),
         }
 
-        commission_obj, _ = CommissionBasic.objects.update_or_create(
-            commission_number=commission_number,
-            defaults=defaults,
-        )
+        commission_queryset = CommissionBasic.objects.filter(commission_number=commission_number)
+        if commission_queryset.exists():
+            commission_queryset.update(**defaults)
+        else:
+            legacy_id = self._allocate_legacy_ids(CommissionBasic, 1)[0]
+            CommissionBasic.objects.create(
+                id=legacy_id,
+                commission_number=commission_number,
+                **defaults,
+            )
 
-        TestItem.objects.filter(commission=commission_obj).delete()
+        TestItem.objects.filter(commission_id=commission_number).delete()
+        test_item_ids = self._allocate_legacy_ids(TestItem, len(test_items))
         test_records = []
         for index, item in enumerate(test_items):
             if not isinstance(item, dict):
@@ -287,7 +442,8 @@ class CheckerStorageMixin:
             test_name = self._safe_text(item.get('test_item')) or f'测试项目{index + 1}'
             test_records.append(
                 TestItem(
-                    commission=commission_obj,
+                    id=test_item_ids[len(test_records)],
+                    commission_id=commission_number,
                     test_item=test_name,
                     test_equipment=self._safe_text(item.get('test_equipment')),
                     test_standard=self._safe_text(item.get('test_standard')),
@@ -303,7 +459,8 @@ class CheckerStorageMixin:
         if test_records:
             TestItem.objects.bulk_create(test_records)
 
-        SpecialTest.objects.filter(commission=commission_obj).delete()
+        SpecialTest.objects.filter(commission_id=commission_number).delete()
+        special_test_ids = self._allocate_legacy_ids(SpecialTest, len(special_tests))
         special_records = []
         for index, item in enumerate(special_tests):
             if not isinstance(item, dict):
@@ -312,7 +469,8 @@ class CheckerStorageMixin:
             element_name = self._safe_text(item.get('element_name')) or f'元素{index + 1}'
             special_records.append(
                 SpecialTest(
-                    commission=commission_obj,
+                    id=special_test_ids[len(special_records)],
+                    commission_id=commission_number,
                     test_type=test_type,
                     element_name=element_name,
                     standard_value=self._safe_text(item.get('standard_value')),
@@ -325,6 +483,7 @@ class CheckerStorageMixin:
             SpecialTest.objects.bulk_create(special_records)
 
     def _load_commission_document_from_business_tables(self, file_obj: File, persisted_payload=None, cached_payload=None):
+        self._ensure_legacy_table_ids()
         default_payload = self._default_document_payload('commission', file_obj)
 
         commission_candidates = []
@@ -399,7 +558,9 @@ class CheckerStorageMixin:
                 'remark': self._safe_text(item.remark),
                 'sort_order': item.sort_order,
             }
-            for item in TestItem.objects.filter(commission=commission_obj).order_by('sort_order', 'id')
+            for item in TestItem.objects.filter(
+                commission_id=commission_obj.commission_number
+            ).order_by('sort_order', 'id')
         ]
 
         special_tests = [
@@ -411,7 +572,9 @@ class CheckerStorageMixin:
                 'remark': self._safe_text(item.remark),
                 'sort_order': item.sort_order,
             }
-            for item in SpecialTest.objects.filter(commission=commission_obj).order_by('sort_order', 'id')
+            for item in SpecialTest.objects.filter(
+                commission_id=commission_obj.commission_number
+            ).order_by('sort_order', 'id')
         ]
 
         return {
@@ -429,7 +592,16 @@ class CheckerStorageMixin:
             raw_result = result.raw_result
             structured = raw_result.get('structured_data')
             if isinstance(structured, dict):
-                return self._normalize_commission_payload(structured)
+                payload = self._normalize_commission_payload(structured)
+                extractor = getattr(self, '_extract_dify_output_payload', None)
+                if callable(extractor):
+                    workflow_payload = extractor(raw_result)
+                    if isinstance(workflow_payload, dict):
+                        payload = self._select_richer_commission_payload(
+                            payload,
+                            self._normalize_commission_payload(workflow_payload),
+                        )
+                return payload
 
             if self._is_meaningful_document_payload('paper', raw_result):
                 return raw_result
@@ -737,6 +909,12 @@ class CheckerStorageMixin:
 
     @staticmethod
     def _resolve_bucket_and_object(file_obj: File, default_bucket: str):
+        # 优先使用数据库中已存储的 MinIO 信息（上传时写入的 minio_bucket / minio_object_key）
+        stored_bucket = getattr(file_obj, 'minio_bucket', None) or ''
+        stored_object = getattr(file_obj, 'minio_object_key', None) or ''
+        if stored_bucket and stored_object:
+            return stored_bucket.strip(), stored_object.strip()
+
         object_name = (file_obj.file_path or '').strip().replace('\\', '/').lstrip('/')
         bucket_name = default_bucket
 
