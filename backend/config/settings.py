@@ -251,6 +251,7 @@ DIFY_API_KEY = os.environ.get('DIFY_API_KEY')
 #     raise ValueError("DIFY_API_KEY must be set in environment variables (.env file)")
 
 DIFY_API_URL = os.environ.get('DIFY_API_URL', 'http://localhost:8088/v1')
+DIFY_API_KEY_requestTesting = os.environ.get('DIFY_API_KEY_requestTesting')
 DIFY_DEFAULT_MODEL = os.environ.get('DIFY_DEFAULT_MODEL', 'deepseek深度思考')  # 默认模型
 
 AVAILABLE_AI_MODELS = os.environ.get('AVAILABLE_AI_MODELS', 'deepseek深度思考,通义千问,腾讯混元,豆包,Kimi,GPT-5,Claude4,Gemini2.5,Grok-4,Llama4').split(',')
@@ -300,6 +301,17 @@ OCR_PAPER_DIFY_RESPONSE_MODE = os.environ.get('OCR_PAPER_DIFY_RESPONSE_MODE', 'b
 OCR_PAPER_DIFY_TRANSFER_METHOD = os.environ.get('OCR_PAPER_DIFY_TRANSFER_METHOD', 'local_file')
 OCR_PAPER_DIFY_FILE_TYPE = os.environ.get('OCR_PAPER_DIFY_FILE_TYPE', 'document')
 OCR_PAPER_DIFY_TIMEOUT = float(os.environ.get('OCR_PAPER_DIFY_TIMEOUT', str(OCR_PROXY_TIMEOUT)))
+
+OCR_COMMISSION_DIRECT_DIFY_ENABLED = os.environ.get('OCR_COMMISSION_DIRECT_DIFY_ENABLED', 'false').lower() == 'true'
+OCR_COMMISSION_DIFY_BASE_URL = os.environ.get('OCR_COMMISSION_DIFY_BASE_URL', DIFY_API_URL)
+OCR_COMMISSION_DIFY_API_KEY = os.environ.get('OCR_COMMISSION_DIFY_API_KEY', DIFY_API_KEY_requestTesting or '')
+OCR_COMMISSION_DIFY_DEFAULT_USER = os.environ.get('OCR_COMMISSION_DIFY_DEFAULT_USER', 'bowuchn@163.com')
+OCR_COMMISSION_DIFY_UPLOAD_ENDPOINT = os.environ.get('OCR_COMMISSION_DIFY_UPLOAD_ENDPOINT', '/files/upload')
+OCR_COMMISSION_DIFY_WORKFLOW_ENDPOINT = os.environ.get('OCR_COMMISSION_DIFY_WORKFLOW_ENDPOINT', '/workflows/run')
+OCR_COMMISSION_DIFY_RESPONSE_MODE = os.environ.get('OCR_COMMISSION_DIFY_RESPONSE_MODE', 'blocking')
+OCR_COMMISSION_DIFY_TRANSFER_METHOD = os.environ.get('OCR_COMMISSION_DIFY_TRANSFER_METHOD', 'local_file')
+OCR_COMMISSION_DIFY_FILE_TYPE = os.environ.get('OCR_COMMISSION_DIFY_FILE_TYPE', 'document')
+OCR_COMMISSION_DIFY_TIMEOUT = float(os.environ.get('OCR_COMMISSION_DIFY_TIMEOUT', str(OCR_PROXY_TIMEOUT)))
 
 # PDF 代理服务器配置（用于本地后端代理远程 PDF 文件）
 PDF_SERVER_BASE_URL = os.environ.get('PDF_SERVER_BASE_URL', '')

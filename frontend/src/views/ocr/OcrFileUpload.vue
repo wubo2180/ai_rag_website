@@ -40,8 +40,8 @@
             @dragleave.prevent="onDragLeave"
             @drop.prevent="onDrop"
           >
-            <div class="dropzone-title">拖拽一批 PDF 到这里</div>
-            <div class="dropzone-subtitle">也可以点击这里，一次框选多个文件</div>
+            <div class="dropzone-title">拖拽 PDF 到这里</div>
+            <div class="dropzone-subtitle">也可以点击此区域，一次选择多个文件</div>
             <div class="dropzone-meta">
               <span>仅支持 PDF</span>
               <span>已选 {{ selectedFiles.length }} 个</span>
@@ -50,7 +50,7 @@
             </div>
           </div>
           <div class="field-tip">
-            一次选择很多文件也没关系，系统会自动拆成多批上传并入库。
+            选择很多文件也没关系，系统会自动拆成多批上传。若检测到已存在文件，会让你选择删除原文件后重传，或取消该重复文件的上传。
           </div>
         </div>
 
@@ -66,7 +66,7 @@
 
         <div v-if="duplicateFiles.length > 0" class="duplicate-list">
           <div class="duplicate-header">
-            <span class="duplicate-title">⚠️ 发现 {{ duplicateFiles.length }} 个重复文件（已跳过）</span>
+            <span class="duplicate-title">发现 {{ duplicateFiles.length }} 个未完成处理的重复文件</span>
           </div>
           <ul class="duplicate-items">
             <li v-for="(dup, index) in duplicateFiles" :key="index" class="duplicate-item">
@@ -77,7 +77,7 @@
                 </span>
               </div>
               <div v-if="dup.existing_file_id" class="duplicate-existing">
-                <span class="duplicate-label">库中文件：</span>
+                <span class="duplicate-label">已有文件</span>
                 <span class="duplicate-id">ID: {{ dup.existing_file_id }}</span>
                 <span v-if="dup.existing_filename" class="duplicate-existing-name">
                   {{ dup.existing_filename }}
@@ -114,7 +114,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import NavigationSidebar from '@/components/NavigationSidebar.vue'
 import ocrCheckerApi from '@/services/ocrCheckerApi'
 
@@ -133,6 +133,8 @@ const maxChunkFiles = 40
 const maxChunkBytes = 120 * 1024 * 1024
 
 const fileKey = (file) => `${file.name}__${file.size}__${file.lastModified}`
+const duplicateMatchKey = (item) => `${item.filename}__${Number(item.file_size || 0)}`
+const selectedFileMatchKey = (file) => `${file.name}__${Number(file.size || 0)}`
 
 const formatSize = (size) => {
   const value = Number(size || 0)
@@ -147,6 +149,8 @@ const totalSizeText = computed(() => {
   return formatSize(total)
 })
 
+const documentTypeLabel = computed(() => (documentType.value === 'paper' ? '论文' : '委托单'))
+
 const canUpload = computed(() => Boolean(selectedFiles.value.length && documentType.value && !uploading.value))
 
 const progressPercent = computed(() => {
@@ -156,7 +160,7 @@ const progressPercent = computed(() => {
 
 const uploadButtonText = computed(() => {
   if (uploading.value) {
-    return `上传中... (${uploadedCount.value}/${selectedFiles.value.length})`
+    return `上传中 (${uploadedCount.value}/${selectedFiles.value.length})`
   }
   return `批量上传并入库 (${selectedFiles.value.length})`
 })
@@ -206,8 +210,8 @@ const openFilePicker = () => {
   fileInputRef.value?.click()
 }
 
-const onPick = (e) => {
-  mergeFiles(e.target.files)
+const onPick = (event) => {
+  mergeFiles(event.target.files)
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
@@ -221,87 +225,194 @@ const onDragOver = () => {
   isDragActive.value = true
 }
 
-const onDragLeave = (e) => {
-  const currentTarget = e.currentTarget
-  const relatedTarget = e.relatedTarget
+const onDragLeave = (event) => {
+  const currentTarget = event.currentTarget
+  const relatedTarget = event.relatedTarget
   if (!currentTarget || !relatedTarget || !currentTarget.contains(relatedTarget)) {
     isDragActive.value = false
   }
 }
 
-const onDrop = (e) => {
+const onDrop = (event) => {
   isDragActive.value = false
-  mergeFiles(e.dataTransfer?.files)
+  mergeFiles(event.dataTransfer?.files)
 }
 
-const clearFiles = () => {
-  selectedFiles.value = []
-  isDragActive.value = false
+const resetProgressState = () => {
   currentChunkIndex.value = 0
   totalChunks.value = 0
   uploadedCount.value = 0
-  duplicateFiles.value = []
+}
+
+const clearSelectedFiles = () => {
+  selectedFiles.value = []
+  isDragActive.value = false
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
 }
 
-const uploadChunk = async (files) => {
-  const fd = new FormData()
+const clearFiles = () => {
+  clearSelectedFiles()
+  resetProgressState()
+  duplicateFiles.value = []
+}
+
+const uploadChunk = async (files, replaceExisting = false) => {
+  const formData = new FormData()
   files.forEach((item) => {
-    fd.append('files', item)
+    formData.append('files', item)
   })
-  fd.append('document_type_code', documentType.value)
-  return ocrCheckerApi.batchUpload(fd)
+  formData.append('document_type_code', documentType.value)
+  if (replaceExisting) {
+    formData.append('replace_existing', '1')
+  }
+  return ocrCheckerApi.batchUpload(formData)
+}
+
+const performUpload = async (files, options = {}) => {
+  const { replaceExisting = false } = options
+  const chunks = buildChunks(files)
+  let savedCount = 0
+  const duplicates = []
+  const errors = []
+
+  currentChunkIndex.value = 0
+  totalChunks.value = chunks.length
+  uploadedCount.value = 0
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    currentChunkIndex.value = index + 1
+    const chunk = chunks[index]
+    const response = await uploadChunk(chunk, replaceExisting)
+    const payload = response?.data && typeof response.data === 'object' ? response.data : response
+    const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload
+
+    savedCount += Number(data?.total ?? 0)
+    uploadedCount.value += chunk.length
+
+    if (Array.isArray(data?.duplicates)) {
+      duplicates.push(...data.duplicates)
+    }
+
+    if (Array.isArray(data?.errors)) {
+      errors.push(...data.errors)
+    }
+  }
+
+  return {
+    savedCount,
+    duplicates,
+    errors,
+  }
+}
+
+const pickFilesForDuplicates = (duplicates, sourceFiles) => {
+  const fileBuckets = new Map()
+
+  sourceFiles.forEach((file) => {
+    const key = selectedFileMatchKey(file)
+    if (!fileBuckets.has(key)) {
+      fileBuckets.set(key, [])
+    }
+    fileBuckets.get(key).push(file)
+  })
+
+  return duplicates.reduce((matchedFiles, duplicate) => {
+    const bucket = fileBuckets.get(duplicateMatchKey(duplicate)) || []
+    const nextFile = bucket.shift()
+    if (nextFile) {
+      matchedFiles.push(nextFile)
+    }
+    return matchedFiles
+  }, [])
+}
+
+const showUploadSummary = ({ createdCount, replacedCount, batchDuplicateCount, cancelledCount, errorCount }) => {
+  const summaryParts = []
+  if (createdCount > 0) summaryParts.push(`新增 ${createdCount} 个`)
+  if (replacedCount > 0) summaryParts.push(`替换 ${replacedCount} 个`)
+  if (batchDuplicateCount > 0) summaryParts.push(`批内重复跳过 ${batchDuplicateCount} 个`)
+  if (cancelledCount > 0) summaryParts.push(`取消 ${cancelledCount} 个`)
+  if (errorCount > 0) summaryParts.push(`失败 ${errorCount} 个`)
+
+  const summaryText = summaryParts.length > 0 ? summaryParts.join('，') : '没有文件被处理'
+
+  if (errorCount > 0 || cancelledCount > 0 || batchDuplicateCount > 0) {
+    ElMessage.warning(`上传完成：${summaryText}`)
+    return
+  }
+
+  ElMessage.success(`上传成功：${summaryText}`)
 }
 
 const upload = async () => {
   if (!canUpload.value) return
 
-  const chunks = buildChunks(selectedFiles.value)
-  uploading.value = true
-  currentChunkIndex.value = 0
-  totalChunks.value = chunks.length
-  uploadedCount.value = 0
+  const filesSnapshot = [...selectedFiles.value]
   duplicateFiles.value = []
+  uploading.value = true
 
   try {
-    let successTotal = 0
-    const allDuplicates = []
+    const initialResult = await performUpload(filesSnapshot)
+    const initialDuplicates = Array.isArray(initialResult.duplicates) ? initialResult.duplicates : []
+    const historyDuplicates = initialDuplicates.filter((item) => item.reason === 'duplicate_in_history')
+    const batchDuplicates = initialDuplicates.filter((item) => item.reason === 'duplicate_in_batch')
 
-    for (let index = 0; index < chunks.length; index += 1) {
-      currentChunkIndex.value = index + 1
-      const chunk = chunks[index]
-      const resp = await uploadChunk(chunk)
-      const payload = resp?.data && typeof resp.data === 'object' ? resp.data : resp
-      const total = Number(payload?.total ?? payload?.data?.total ?? chunk.length)
-      successTotal += total
-      uploadedCount.value += chunk.length
+    let replacedCount = 0
+    let finalErrors = [...initialResult.errors]
+    let unresolvedHistoryDuplicates = [...historyDuplicates]
+    let finalDuplicateFiles = [...initialDuplicates]
 
-      const duplicates = payload?.duplicates ?? payload?.data?.duplicates ?? []
-      if (Array.isArray(duplicates)) {
-        allDuplicates.push(...duplicates)
+    if (historyDuplicates.length > 0) {
+      const duplicateTargets = pickFilesForDuplicates(historyDuplicates, filesSnapshot)
+
+      if (duplicateTargets.length > 0) {
+        try {
+          await ElMessageBox.confirm(
+            `检测到 ${historyDuplicates.length} 个已存在的${documentTypeLabel.value}文件。是否删除原文件后重新上传？`,
+            '发现重复文件',
+            {
+              type: 'warning',
+              confirmButtonText: '删除原文件并重传',
+              cancelButtonText: '取消上传',
+              distinguishCancelAndClose: true,
+            },
+          )
+
+          const replaceResult = await performUpload(duplicateTargets, { replaceExisting: true })
+          replacedCount = replaceResult.savedCount
+          finalErrors = [...finalErrors, ...replaceResult.errors]
+
+          const replaceDuplicates = Array.isArray(replaceResult.duplicates) ? replaceResult.duplicates : []
+          unresolvedHistoryDuplicates = replaceDuplicates.filter((item) => item.reason === 'duplicate_in_history')
+          finalDuplicateFiles = [...batchDuplicates, ...replaceDuplicates]
+        } catch (action) {
+          if (action === 'cancel' || action === 'close') {
+            ElMessage.info('已取消重复文件的上传')
+          } else {
+            throw action
+          }
+        }
       }
     }
 
-    duplicateFiles.value = allDuplicates
+    duplicateFiles.value = finalDuplicateFiles
 
-    if (allDuplicates.length > 0 && successTotal === 0) {
-      ElMessage.warning(`文件均已存在，未新增（共 ${allDuplicates.length} 个重复文件）`)
-    } else if (allDuplicates.length > 0) {
-      ElMessage.warning(`上传完成，入库 ${successTotal} 个文件，${allDuplicates.length} 个重复文件已跳过`)
-    } else {
-      ElMessage.success(`上传成功，共入库 ${successTotal} 个文件`)
-    }
+    showUploadSummary({
+      createdCount: initialResult.savedCount,
+      replacedCount,
+      batchDuplicateCount: batchDuplicates.length,
+      cancelledCount: unresolvedHistoryDuplicates.length,
+      errorCount: finalErrors.length,
+    })
 
-    // 上传后停留在当前页面，不自动跳转
-    clearFiles()
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '上传失败，请检查 checker 服务状态')
+    clearSelectedFiles()
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.message || '上传失败，请检查 checker 服务状态')
   } finally {
     uploading.value = false
-    currentChunkIndex.value = 0
-    totalChunks.value = 0
+    resetProgressState()
   }
 }
 </script>

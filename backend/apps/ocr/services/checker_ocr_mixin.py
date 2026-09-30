@@ -12,7 +12,12 @@ import requests
 from django.conf import settings
 
 from ..models import File, OCRResult
-from .config import get_paper_dify_config, get_service_base_urls, get_timeout
+from .config import (
+    get_commission_dify_config,
+    get_paper_dify_config,
+    get_service_base_urls,
+    get_timeout,
+)
 from .checker_paper_mixin import CheckerPaperMixin
 from .checker_storage_mixin import CheckerStorageMixin
 
@@ -60,16 +65,26 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
 
     def _get_task_status(self, task_id: str):
         task = self._tasks.get(task_id)
-        if not task:
-            return {
-                'status_code': 404,
-                'body': {
-                    'success': False,
-                    'message': '任务不存在',
-                    'data': {'task_id': task_id, 'status': 'not_found'},
-                },
-            }
+        if task:
+            return self._build_task_status_response(task_id, task)
 
+        # 多进程/多 worker（gunicorn workers>1）场景下，任务可能是由另一个
+        # worker 进程创建的，本进程的内存 _tasks 中并不存在该任务。
+        # 此时回退到数据库中共享的 ocr_status 状态，避免误报“任务不存在”。
+        fallback = self._get_task_status_from_db(task_id)
+        if fallback is not None:
+            return fallback
+
+        return {
+            'status_code': 404,
+            'body': {
+                'success': False,
+                'message': '任务不存在',
+                'data': {'task_id': task_id, 'status': 'not_found'},
+            },
+        }
+
+    def _build_task_status_response(self, task_id: str, task: dict):
         status = task.get('status', 'unknown')
         result = task.get('result', {})
 
@@ -88,6 +103,83 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 body['data']['warning'] = result['warning']
         elif status == 'failed':
             body['data']['error_message'] = task.get('error_message', '')
+
+        return {
+            'status_code': 200,
+            'body': body,
+        }
+
+    @staticmethod
+    def _extract_file_id_from_task_id(task_id: str):
+        # task_id 形如 local-{file_id}-{uuid}
+        if not task_id:
+            return None
+        match = re.match(r'^local-(\d+)-', task_id)
+        if match:
+            try:
+                return int(match.group(1))
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _get_task_status_from_db(self, task_id: str):
+        """在本进程内存中找不到任务时，回退到数据库中共享的 ocr_status。
+
+        用于解决多 worker（gunicorn workers>1）部署下，任务在 A 进程创建、
+        轮询请求被分发到 B/C/D 进程时误报“任务不存在”的问题。
+        """
+        file_id = self._extract_file_id_from_task_id(task_id)
+        if file_id is None:
+            return None
+
+        try:
+            file_obj = File.objects.filter(id=file_id, is_deleted=False).first()
+        except Exception as exc:
+            logger.warning(f'[_get_task_status_from_db] 查询文件失败: task_id={task_id}, error={exc}')
+            return None
+
+        if not file_obj:
+            return None
+
+        ocr_status = (file_obj.ocr_status or '').strip().lower()
+        if ocr_status in ('completed', 'success', 'done'):
+            status = 'completed'
+        elif ocr_status in ('failed', 'error'):
+            status = 'failed'
+        elif ocr_status in ('processing', 'pending', 'running', 'started'):
+            status = 'processing'
+        else:
+            # 状态未知或为空时，无法确认这是一个有效任务，交由上层返回 not_found。
+            return None
+
+        logger.info(
+            f'[_get_task_status_from_db] 内存无任务，使用数据库状态回退: '
+            f'task_id={task_id}, file_id={file_id}, ocr_status={ocr_status} -> {status}'
+        )
+
+        body = {
+            'success': True,
+            'data': {
+                'task_id': task_id,
+                'status': status,
+            },
+        }
+
+        if status == 'completed':
+            document_type = self._normalize_document_type(file_obj)
+            structured_data = {}
+            try:
+                doc_result = self._get_document_data(file_id)
+                if isinstance(doc_result, dict) and doc_result.get('status_code') == 200:
+                    structured_data = (doc_result.get('body') or {}).get('data', {}) or {}
+            except Exception as exc:
+                logger.warning(
+                    f'[_get_task_status_from_db] 读取已完成结果失败: task_id={task_id}, error={exc}'
+                )
+            body['data']['structured_data'] = structured_data
+            body['data']['document_type'] = document_type
+        elif status == 'failed':
+            body['data']['error_message'] = file_obj.ocr_error_message or ''
 
         return {
             'status_code': 200,
@@ -415,6 +507,162 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
     def _join_url(base_url: str, endpoint: str):
         return f"{(base_url or '').rstrip('/')}/{(endpoint or '').lstrip('/')}"
 
+    @staticmethod
+    def _extract_dify_output_payload(raw_result):
+        if not isinstance(raw_result, dict):
+            return None
+
+        candidates = [raw_result]
+        for key in ('upstream_raw_result', 'workflow_payload', 'data'):
+            value = raw_result.get(key)
+            if isinstance(value, dict):
+                candidates.append(value)
+
+        for candidate in candidates:
+            data = candidate.get('data') if isinstance(candidate.get('data'), dict) else candidate
+            if not isinstance(data, dict):
+                continue
+
+            outputs = data.get('outputs')
+            if not isinstance(outputs, dict):
+                continue
+
+            text = outputs.get('text')
+            if not text:
+                continue
+
+            text = str(text).strip()
+            if not text:
+                continue
+
+            json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+            json_str = json_match.group(1).strip() if json_match else text
+
+            try:
+                parsed = json.loads(json_str)
+            except json.JSONDecodeError:
+                continue
+
+            if isinstance(parsed, dict):
+                return parsed
+
+        return None
+
+    def _call_commission_dify(self, file_obj: File, content: bytes, mime_type: str):
+        import time
+
+        cfg = get_commission_dify_config()
+        base_url = cfg.get('base_url') or ''
+        api_key = cfg.get('api_key') or ''
+        if not base_url:
+            raise ValueError('未配置 OCR_COMMISSION_DIFY_BASE_URL（或 DIFY_API_URL），无法直连 Dify 委托单识别')
+        if not api_key:
+            raise ValueError('未配置 OCR_COMMISSION_DIFY_API_KEY，无法直连 Dify 委托单识别')
+
+        filename = file_obj.filename or file_obj.stored_filename or f'file-{file_obj.pk}.pdf'
+        user = cfg.get('default_user') or 'bowuchn@163.com'
+        timeout = max(float(cfg.get('timeout', get_timeout())), 30.0)
+
+        upload_url = self._join_url(base_url, cfg.get('upload_endpoint', '/files/upload'))
+        upload_headers = {'Authorization': f'Bearer {api_key}'}
+
+        file_size_mb = len(content) / (1024 * 1024)
+        logger.info(f'开始上传委托单到 Dify: {filename}, 大小: {file_size_mb:.2f}MB')
+
+        upload_start = time.time()
+        try:
+            upload_resp = requests.post(
+                upload_url,
+                headers=upload_headers,
+                files={'file': (filename, content, mime_type or 'application/pdf')},
+                data={'user': user},
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            raise ValueError(f'Dify委托单文件上传失败，无法连接 {upload_url}: {exc}') from exc
+
+        upload_duration = time.time() - upload_start
+        logger.info(f'Dify 委托单文件上传完成，耗时: {upload_duration:.2f}秒')
+
+        try:
+            upload_payload = upload_resp.json()
+        except ValueError as exc:
+            content_type = upload_resp.headers.get('Content-Type', '')
+            body_preview = (upload_resp.text or '')[:200].replace('\n', ' ').strip()
+            raise ValueError(
+                f'Dify委托单文件上传返回非JSON: HTTP {upload_resp.status_code}, url={upload_url}, '
+                f'content_type={content_type}, body={body_preview}'
+            ) from exc
+
+        if not (200 <= upload_resp.status_code < 300):
+            message = (
+                upload_payload.get('message')
+                or upload_payload.get('error')
+                or f'Dify委托单文件上传失败: HTTP {upload_resp.status_code}'
+            )
+            raise ValueError(message)
+
+        upload_file_id = (
+            upload_payload.get('id')
+            or (upload_payload.get('data') or {}).get('id')
+            or (upload_payload.get('data') or {}).get('file_id')
+        )
+        if not upload_file_id:
+            raise ValueError('Dify委托单文件上传成功但未返回文件ID')
+
+        workflow_url = self._join_url(base_url, cfg.get('workflow_endpoint', '/workflows/run'))
+        workflow_headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        }
+        workflow_body = {
+            'inputs': {
+                'file': {
+                    'transfer_method': cfg.get('transfer_method', 'local_file'),
+                    'upload_file_id': upload_file_id,
+                    'type': cfg.get('file_type', 'document'),
+                },
+            },
+            'response_mode': cfg.get('response_mode', 'blocking'),
+            'user': user,
+        }
+
+        logger.info(f'开始调用 Dify 委托单工作流: {workflow_url}')
+        workflow_start = time.time()
+        try:
+            workflow_resp = requests.post(
+                workflow_url,
+                headers=workflow_headers,
+                json=workflow_body,
+                timeout=120.0,
+            )
+        except requests.RequestException as exc:
+            raise ValueError(f'Dify委托单工作流调用失败，无法连接 {workflow_url}: {exc}') from exc
+
+        workflow_duration = time.time() - workflow_start
+        logger.info(f'Dify 委托单工作流调用完成，耗时: {workflow_duration:.2f}秒')
+
+        try:
+            workflow_payload = workflow_resp.json()
+        except ValueError as exc:
+            raise ValueError(f'Dify委托单工作流返回非JSON: HTTP {workflow_resp.status_code}') from exc
+
+        workflow_error = self._extract_dify_error(workflow_payload)
+        if workflow_error:
+            raise ValueError(workflow_error)
+
+        if not (200 <= workflow_resp.status_code < 300):
+            message = (
+                workflow_payload.get('message')
+                or workflow_payload.get('error')
+                or f'Dify委托单工作流调用失败: HTTP {workflow_resp.status_code}'
+            )
+            raise ValueError(message)
+
+        total_duration = time.time() - upload_start
+        logger.info(f'Dify 委托单识别总耗时: {total_duration:.2f}秒 (上传: {upload_duration:.2f}秒, 工作流: {workflow_duration:.2f}秒)')
+        return workflow_payload
+
     def _call_paper_dify(self, file_obj: File, content: bytes, mime_type: str, additional_inputs: dict):
         import time
         cfg = get_paper_dify_config()
@@ -548,6 +796,10 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         self._validate_upstream_input_file(file_obj, content, document_type)
         filename = file_obj.filename or file_obj.stored_filename or f'file-{file_obj.pk}.pdf'
         mime_type = file_obj.mime_type or 'application/pdf'
+
+        if document_type == 'commission':
+            logger.info('[_call_upstream_ocr] Using commission Dify direct mode')
+            return self._call_commission_dify(file_obj, content, mime_type)
 
         if document_type == 'paper':
             paper_inputs = self._build_paper_additional_inputs(file_obj)
@@ -778,6 +1030,10 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
         if not isinstance(raw_result, dict):
             return structured
 
+        workflow_payload = self._extract_dify_output_payload(raw_result)
+        if isinstance(workflow_payload, dict):
+            raw_result = {'workflow_payload': raw_result, **workflow_payload}
+
         data = raw_result.get('data', raw_result) if isinstance(raw_result.get('data', raw_result), dict) else {}
 
         def merge_direct_payload(source):
@@ -789,6 +1045,8 @@ class CheckerOcrMixin(CheckerStorageMixin, CheckerPaperMixin):
                 structured['test_items'].extend(source.get('test_items') or [])
             if isinstance(source.get('special_tests'), list):
                 structured['special_tests'].extend(source.get('special_tests') or [])
+            if isinstance(source.get('element_analysis'), list):
+                structured['special_tests'].extend(source.get('element_analysis') or [])
             if isinstance(source.get('extracted_fields'), dict):
                 self._merge_commission_fields(source.get('extracted_fields'), structured, field_name_mapping)
             elif isinstance(source.get('extracted_fields'), list):
