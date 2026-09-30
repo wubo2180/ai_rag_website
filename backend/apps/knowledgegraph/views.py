@@ -578,11 +578,16 @@ class KnowledgeGraphViewSet(viewsets.ViewSet):
         force_demo = request.query_params.get('demo', '').lower() in ['1', 'true', 'yes']
         fill_demo = request.query_params.get('fill_demo', '1').lower() in ['1', 'true', 'yes']
 
-        # 获取所有实体
+        # 获取所有实体（过滤掉形如扫描件文件名的无效配方，避免图谱里出现大量垃圾节点）
+        junk_name_pattern = re.compile(
+            r'\.(pdf|docx?|xlsx?|png|jpe?g|tiff?)$'
+            r'|测试中心|品质部|检验报告|检测报告|扫描件|^scan|^img[_\-]?\d|^image\d|^微信图片|^\d{4}年\d{1,2}月',
+            re.IGNORECASE,
+        )
         raw_materials = RawMaterial.objects.all()
         intermediates = Intermediate.objects.prefetch_related('raw_materials').all()
-        formulas = Formula.objects.prefetch_related('intermediates').all()
-        performances = Performance.objects.select_related('formula').all()
+        formulas = Formula.objects.exclude(name__iregex=junk_name_pattern.pattern).prefetch_related('intermediates').all()
+        performances = Performance.objects.filter(formula__in=formulas).select_related('formula').all()
 
         if force_demo or (not raw_materials.exists() and not intermediates.exists() and not formulas.exists() and not performances.exists()):
             demo_result = self._build_demo_graph_data()
@@ -1143,3 +1148,260 @@ class ProcessCSVDocumentsAPIView(APIView):
             })
         
         return performances
+
+
+class ProcessOcrResultsToKGAPIView(APIView):
+    """将OCR识别（论文提取）结果导入知识图谱
+
+    从 apps.ocr 的 OCRResult.raw_result['structured_data'] 中读取
+    "原材料/中间体/配方/性能" 结构化数据，写入知识图谱的四张表。
+    """
+    permission_classes = [IsAuthenticated]
+
+    # 扫描件文件名常带有的噪声关键词/后缀，命中即认为不是真实的论文/配方名称
+    JUNK_NAME_PATTERN = re.compile(
+        r'\.(pdf|docx?|xlsx?|png|jpe?g|tiff?)$'
+        r'|测试中心|品质部|检验报告|检测报告|扫描件|^scan|^img[_\-]?\d|^image\d|^微信图片|^\d{4}年\d{1,2}月',
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _is_junk_name(cls, name: str) -> bool:
+        name = (name or '').strip()
+        if not name:
+            return True
+        return bool(cls.JUNK_NAME_PATTERN.search(name))
+
+    def post(self, request):
+        from apps.ocr.models import OCRResult, File
+        from apps.ocr.services.checker_paper_mixin import CheckerPaperMixin
+
+        file_ids = request.data.get('file_ids') or []
+        ocr_result_ids = request.data.get('ocr_result_ids') or []
+        import_all = bool(request.data.get('import_all'))
+
+        queryset = OCRResult.objects.all().order_by('-updated_at')
+        if ocr_result_ids:
+            queryset = queryset.filter(id__in=ocr_result_ids)
+        elif file_ids:
+            queryset = queryset.filter(file_id__in=file_ids)
+        elif not import_all:
+            return Response(
+                {'error': '请提供 file_ids 或 ocr_result_ids，或设置 import_all=true 导入全部'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        results = []
+        for ocr_result in queryset:
+            try:
+                result = self._process_single_ocr_result(ocr_result, request.user, CheckerPaperMixin)
+                results.append(result)
+            except Exception as exc:
+                logger.error(f"处理OCR结果 {ocr_result.id} 转知识图谱失败: {exc}", exc_info=True)
+                results.append({
+                    'ocr_result_id': ocr_result.id,
+                    'file_id': ocr_result.file_id,
+                    'success': False,
+                    'error': str(exc),
+                })
+
+        total_processed = len(results)
+        successful = sum(1 for r in results if r.get('success'))
+
+        return Response({
+            'message': f'处理完成，共处理{total_processed}条OCR结果，成功{successful}个',
+            'total_processed': total_processed,
+            'successful': successful,
+            'results': results,
+        })
+
+    def _process_single_ocr_result(self, ocr_result, user, paper_mixin):
+        import uuid
+        import datetime
+        from apps.ocr.models import File
+
+        raw_result = ocr_result.raw_result or {}
+        structured_data = raw_result.get('structured_data') if isinstance(raw_result, dict) else None
+        if not isinstance(structured_data, dict):
+            structured_data = ocr_result.form_fields or {}
+
+        normalized = paper_mixin._normalize_paper_payload(structured_data)
+
+        basic_info = normalized.get('basic_info') or {}
+        materials_data = normalized.get('materials') or []
+        intermediates_data = normalized.get('intermediates') or []
+        preparation_process = normalized.get('preparation_process') or ''
+        properties = normalized.get('properties') or {}
+        notes = normalized.get('notes') or ''
+
+        created_by_user = user if hasattr(user, 'id') and user.id else None
+
+        materials_created = []
+        intermediates_created = []
+        formulas_created = []
+        performances_created = []
+
+        with transaction.atomic():
+            # 1. 原材料
+            raw_material_objs = []
+            for row in materials_data:
+                name = (row.get('material_name') or '').strip()
+                if not name:
+                    continue
+                code = (row.get('material_id') or '').strip() or f"RM_{uuid.uuid4().hex[:8]}"
+                raw_material, created = RawMaterial.objects.get_or_create(
+                    name=name,
+                    defaults={
+                        'code': code,
+                        'material_type': 'other',
+                        'cas_number': row.get('cas_number') or '',
+                        'properties': {'characteristic': row.get('material_characteristic') or ''},
+                        'created_by': created_by_user,
+                    }
+                )
+                raw_material_objs.append(raw_material)
+                if created:
+                    materials_created.append(raw_material)
+
+            # 2. 中间体
+            intermediate_objs = []
+            for row in intermediates_data:
+                formula_desc = (row.get('formula') or '').strip()
+                iid = (row.get('intermediate_id') or '').strip()
+                name = iid or formula_desc or f"中间体_{uuid.uuid4().hex[:6]}"
+                code = iid or f"INT_{uuid.uuid4().hex[:8]}"
+                intermediate, created = Intermediate.objects.get_or_create(
+                    code=code,
+                    defaults={
+                        'name': name,
+                        'intermediate_type': 'other',
+                        'preparation_method': preparation_process or formula_desc,
+                        'properties': {'formula': formula_desc},
+                        'created_by': created_by_user,
+                    }
+                )
+                intermediate_objs.append(intermediate)
+                if created:
+                    intermediates_created.append(intermediate)
+                    # 关联原材料（简单地把本文档解析出的所有原材料都挂到中间体下）
+                    for order, rm in enumerate(raw_material_objs, start=1):
+                        IntermediateComposition.objects.get_or_create(
+                            intermediate=intermediate,
+                            raw_material=rm,
+                            defaults={'weight_ratio': 0, 'addition_order': order}
+                        )
+
+            # 3. 配方（每个OCR结果对应一个配方）
+            article_name = basic_info.get('article_name') or ''
+            file_name = ''
+            if ocr_result.file_id:
+                file_obj = File.objects.filter(id=ocr_result.file_id).first()
+                if file_obj:
+                    file_name = file_obj.filename
+
+            # 如果没有解析出有效的文献名称，且只能退回到形如
+            # "测试中心品质部原材料（OA）2024年7月份 59.pdf" 这种扫描件文件名，
+            # 则视为无效数据，跳过配方/性能的创建（避免图谱里出现大量垃圾节点）。
+            if not article_name and self._is_junk_name(file_name):
+                return {
+                    'ocr_result_id': ocr_result.id,
+                    'file_id': ocr_result.file_id,
+                    'success': True,
+                    'skipped': True,
+                    'skip_reason': '无有效文献名称（疑似扫描件文件名），已跳过配方/性能创建',
+                    'materials_created': len(materials_created),
+                    'intermediates_created': len(intermediates_created),
+                    'formulas_created': 0,
+                    'performances_created': 0,
+                    'details': {
+                        'materials': [m.name for m in materials_created[:5]],
+                        'intermediates': [i.name for i in intermediates_created[:5]],
+                        'formulas': [],
+                    }
+                }
+
+            formula_name = article_name or file_name or f"配方_{ocr_result.id}"
+            formula_code = f"FML_OCR_{ocr_result.id}"
+            formula, created = Formula.objects.get_or_create(
+                code=formula_code,
+                defaults={
+                    'name': formula_name,
+                    'application_type': 'other',
+                    'process_description': preparation_process,
+                    'properties': {
+                        'article_id': basic_info.get('article_id') or '',
+                        'article_doi': basic_info.get('article_doi') or '',
+                        'publish_year': basic_info.get('publish_year') or '',
+                    },
+                    'description': notes,
+                    'created_by': created_by_user,
+                }
+            )
+            if created:
+                formulas_created.append(formula)
+                for order, inter in enumerate(intermediate_objs, start=1):
+                    FormulaComposition.objects.get_or_create(
+                        formula=formula,
+                        component_type='intermediate',
+                        intermediate=inter,
+                        defaults={'weight_ratio': 0, 'addition_order': order}
+                    )
+
+            # 4. 性能数据
+            columns = properties.get('columns') or []
+            rows = properties.get('rows') or []
+            for row in rows:
+                values = row.get('values') or {}
+                if not values:
+                    continue
+                numeric_fields = {}
+                additional_properties = {}
+                col_name_by_key = {c.get('key'): c.get('name') for c in columns}
+                for key, value in values.items():
+                    if value in (None, ''):
+                        continue
+                    label = (col_name_by_key.get(key) or key or '').lower()
+                    try:
+                        value_float = float(value)
+                    except (TypeError, ValueError):
+                        value_float = None
+                    if value_float is not None and any(k in label for k in ['拉伸', '强度', 'tensile']):
+                        numeric_fields['tensile_strength'] = value_float
+                    elif value_float is not None and any(k in label for k in ['伸长', 'elongation']):
+                        numeric_fields['elongation_at_break'] = value_float
+                    elif value_float is not None and any(k in label for k in ['硬度']):
+                        numeric_fields['hardness'] = value_float
+                    elif value_float is not None and any(k in label for k in ['密度', 'density']):
+                        numeric_fields['density'] = value_float
+                    elif value_float is not None and any(k in label for k in ['粘度', 'viscosity']):
+                        numeric_fields['viscosity'] = value_float
+                    else:
+                        additional_properties[col_name_by_key.get(key) or key] = value
+
+                perf_kwargs = {
+                    'formula': formula,
+                    'test_batch': (row.get('product_name') or f'batch_{ocr_result.id}')[:50],
+                    'test_date': datetime.date.today(),
+                    'test_method': 'other',
+                    'test_conditions': {},
+                    'additional_properties': additional_properties,
+                    'tested_by': created_by_user,
+                }
+                perf_kwargs.update(numeric_fields)
+                performance = Performance.objects.create(**perf_kwargs)
+                performances_created.append(performance)
+
+        return {
+            'ocr_result_id': ocr_result.id,
+            'file_id': ocr_result.file_id,
+            'success': True,
+            'materials_created': len(materials_created),
+            'intermediates_created': len(intermediates_created),
+            'formulas_created': len(formulas_created),
+            'performances_created': len(performances_created),
+            'details': {
+                'materials': [m.name for m in materials_created[:5]],
+                'intermediates': [i.name for i in intermediates_created[:5]],
+                'formulas': [f.name for f in formulas_created[:5]],
+            }
+        }

@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RawMaterialViewSet, IntermediateViewSet,
     FormulaViewSet, PerformanceViewSet, KnowledgeGraphViewSet,
-    ProcessCSVDocumentsAPIView
+    ProcessCSVDocumentsAPIView, ProcessOcrResultsToKGAPIView
 )
 
 # 创建路由器
@@ -23,4 +23,5 @@ router.register(r'graph', KnowledgeGraphViewSet, basename='knowledge-graph')
 urlpatterns = [
     path('', include(router.urls)),
     path('process-csv-documents/', ProcessCSVDocumentsAPIView.as_view(), name='process-csv-documents'),
+    path('process-ocr-results/', ProcessOcrResultsToKGAPIView.as_view(), name='process-ocr-results'),
 ]

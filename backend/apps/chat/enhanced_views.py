@@ -25,7 +25,8 @@ class StreamChatAPIView(APIView):
         validated_data = serializer.validated_data
         message = validated_data['message']
         session_id = validated_data.get('session_id')
-        model = validated_data.get('model', 'deepseek')
+        # 模型由 Dify 应用编排决定，不从客户端选择或注入模型。
+        model = None
         deep_thinking = request.data.get('deep_thinking', False)
 
         # 获取或创建会话 - 支持匿名用户
@@ -87,24 +88,11 @@ class StreamChatAPIView(APIView):
             if not api_key:
                 raise ValueError("DIFY_API_KEY not configured")
             
-            # 模型映射
-            model_mapping = {
-                'deepseek': '通义千问',
-                'doubao': '豆包',
-                'gpt5': 'GPT-5', 
-                '通义千问': '通义千问',
-                'claude4': 'Claude4'
-            }
-
-            if model == 'deepseek' and deep_thinking:
-                large_model = 'deepseek深度思考'
-            else:
-                large_model = model_mapping.get(model, '通义千问')
-
             # 构建请求体
             request_body = {
                 "inputs": {
-                    "largeModel": large_model
+                    "webSearch": "yes" if request.data.get('web_search') else "no",
+                    "Aggregation": "no",
                 },
                 "query": message,
                 "user": f"user_{request.user.id if request and hasattr(request, 'user') and request.user.is_authenticated else 'anonymous'}",
@@ -122,9 +110,9 @@ class StreamChatAPIView(APIView):
 
             # 动态超时配置
             model_timeouts = getattr(settings, 'AI_MODEL_TIMEOUTS', {})
-            timeout_duration = model_timeouts.get(large_model, model_timeouts.get('default', 90))
+            timeout_duration = model_timeouts.get('default', 90)
             
-            print(f"🕐 使用模型 {large_model},超时时间: {timeout_duration}秒")
+            print(f"🕐 使用Dify应用默认模型, 超时时间: {timeout_duration}秒")
             
             # 调用外部API - 禁用requests的流式缓冲
             response = requests.post(

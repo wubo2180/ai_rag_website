@@ -61,7 +61,14 @@
             <div v-if="message.sender === 'user'">{{ message.content }}</div>
             <div v-else class="ai-message-content">
               <!-- 思考中加载状态 -->
-              <div v-if="message._isLoading" class="thinking-indicator">
+              <div
+                v-if="
+                  message._isLoading &&
+                  !message.content &&
+                  !message.thinkingContent
+                "
+                class="thinking-indicator"
+              >
                 <div class="thinking-dots">
                   <span class="thinking-text">{{
                     message._stageText || '🤔 思考中'
@@ -85,7 +92,40 @@
               </div>
               <!-- 正常消息内容 -->
               <div v-else class="ai-text-content">
-                <span v-html="renderMarkdown(message.content)"></span>
+                <details v-if="message.thinkingContent" class="think-block">
+                  <summary class="think-summary">
+                    🧠 AI 思考过程...点击展开
+                  </summary>
+                  <div
+                    class="think-content"
+                    v-html="renderMarkdown(message.thinkingContent)"
+                  ></div>
+                </details>
+                <div v-html="renderMarkdown(message.content)"></div>
+                <div
+                  v-if="
+                    message.sourcesReady &&
+                    message.sources &&
+                    message.sources.length
+                  "
+                  class="web-sources"
+                >
+                  <div class="web-sources-title">🌐 参考网页</div>
+                  <a
+                    v-for="(source, sourceIndex) in message.sources"
+                    :key="`${source.url}-${sourceIndex}`"
+                    class="web-source-item"
+                    :href="source.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span class="web-source-index">{{ sourceIndex + 1 }}</span>
+                    <span class="web-source-title">{{
+                      source.title || source.url
+                    }}</span>
+                    <span class="web-source-url">{{ source.url }}</span>
+                  </a>
+                </div>
                 <span
                   v-if="
                     isLoading &&
@@ -158,27 +198,15 @@
             </div>
             <div class="input-toolbar">
               <div class="toolbar-left">
-                <div class="all-button-container">
-                  <button class="tool-btn" @click="toggleAllDropdown">
-                    <span>{{ selectedOption }}</span>
-                    <img
-                      class="all-icon"
-                      src="@/assets/talk%20page/home@3_06.png"
-                      alt="全部"
-                      :class="{ rotated: isAllIconRotated }"
-                    />
-                  </button>
-                  <div v-if="isAllDropdownVisible" class="dropdown-menu">
-                    <div
-                      v-for="option in options"
-                      :key="option"
-                      class="dropdown-item"
-                      @click="selectOption(option)"
-                    >
-                      {{ option }}
-                    </div>
-                  </div>
-                </div>
+                <button
+                  class="tool-btn"
+                  :class="{ highlighted: isAggregateMode }"
+                  @click="toggleAggregateMode"
+                  title="启用后由Dify聚合编排处理（默认关闭）"
+                  :aria-pressed="isAggregateMode"
+                >
+                  <span>聚合模式</span>
+                </button>
                 <button
                   class="tool-btn"
                   :class="{ highlighted: isDeepThinkingActive }"
@@ -195,6 +223,28 @@
                     alt="深度思考"
                   />
                   <span>深度思考</span>
+                </button>
+
+                <!-- 联网搜索开关（默认关闭） -->
+                <button
+                  class="tool-btn"
+                  :class="{ highlighted: isWebSearchActive }"
+                  @click="toggleWebSearch"
+                  title="启用后AI将尝试联网检索外部信息（默认关闭）"
+                >
+                  <svg
+                    class="web-search-icon"
+                    viewBox="0 0 24 24"
+                    role="img"
+                    :aria-label="
+                      isWebSearchActive ? '联网搜索开启' : '联网搜索关闭'
+                    "
+                  >
+                    <circle cx="10.5" cy="10.5" r="6.5" />
+                    <path d="M15.5 15.5 21 21" />
+                    <path d="M4 10.5h13M10.5 4a10.5 10.5 0 0 1 0 13" />
+                  </svg>
+                  <span>联网搜索</span>
                 </button>
               </div>
               <div class="toolbar-right">
@@ -254,11 +304,10 @@
       const headerText = ref('新的对话')
       const headerLocked = ref(false) // 仅首次消息后锁定顶部标签
       const isLoading = ref(false) // AI 回复进行中时禁用发送
-      const isAllDropdownVisible = ref(false)
-      const isAllIconRotated = ref(false)
       const isDeepThinkingActive = ref(false)
-      const options = ['全部', '内部数据库', '外部数据库', '聚合模式']
-      const selectedOption = ref('全部')
+      const isWebSearchActive = ref(false)
+      // 聚合模式与联网搜索一样是独立开关，默认关闭即普通问答。
+      const isAggregateMode = ref(false)
       // 对话上下文ID（用于后端记忆）
       const currentChatId = ref(null)
       // 历史记录状态
@@ -346,6 +395,10 @@
           // 立即添加一个"思考中"的占位消息
           messages.value.push({
             content: '',
+            thinkingContent: '',
+            _rawContent: '',
+            sources: [],
+            sourcesReady: false,
             sender: 'ai',
             _isLoading: true,
           })
@@ -357,15 +410,17 @@
           try {
             isLoading.value = true
 
-            const isAggregateMode = selectedOption.value === '聚合模式'
-            const streamUrl = isAggregateMode
+            const aggregateMode = isAggregateMode.value
+            const streamUrl = aggregateMode
               ? '/api/chat/aggregate/stream/'
               : '/api/chat/wechat/stream/'
 
-            const payload = isAggregateMode
+            const payload = aggregateMode
               ? {
                   message: text,
                   user_id: localStorage.getItem('user_id') || 'web_anonymous',
+                  web_search: isWebSearchActive.value,
+                  Aggregation: 'yes',
                   ...(currentChatId.value &&
                   !String(currentChatId.value).startsWith('temp_')
                     ? {
@@ -377,7 +432,7 @@
                 }
               : {
                   message: text,
-                  model: chatStore.selectedModel || 'deepseek',
+                  web_search: isWebSearchActive.value,
                   user_id: localStorage.getItem('user_id') || 'web_anonymous',
                   ...(currentChatId.value &&
                   !String(currentChatId.value).startsWith('temp_')
@@ -393,7 +448,7 @@
               'SSE 请求 payload:',
               payload,
               '聚合模式:',
-              isAggregateMode,
+              aggregateMode,
             )
 
             const response = await fetch(streamUrl, {
@@ -442,7 +497,9 @@
                     continue
                   }
 
-                  if (isAggregateMode) {
+                  // 使用本次请求开始时固定的布尔值，不能直接判断 Vue ref；
+                  // ref 对象本身始终为真，会导致普通 SSE 被误判为聚合 SSE。
+                  if (aggregateMode) {
                     // ---- 聚合模式 SSE 处理 ----
                     if (data.stage === 'collecting') {
                       if (data.session_id)
@@ -463,35 +520,72 @@
                     } else if (data.stage === 'summarizing') {
                       messages.value[aiMessageIndex]._isLoading = false
                       messages.value[aiMessageIndex]._stageText =
-                        '🧠 DeepSeek 正在汇总所有答案...'
+                        '🔄 正在优化汇总...'
                     } else if (data.stage === 'answer') {
+                      if (
+                        aggregateMode &&
+                        ['yes', 'no', 'true', 'false', 'null'].includes(
+                          String(data.content || '')
+                            .trim()
+                            .toLowerCase(),
+                        )
+                      ) {
+                        continue
+                      }
                       if (!receivedFirstContent) {
                         receivedFirstContent = true
                         messages.value[aiMessageIndex]._stageText = ''
                         messages.value[aiMessageIndex].content = ''
                       }
-                      messages.value[aiMessageIndex].content += data.content
+                      appendStreamContent(
+                        messages.value[aiMessageIndex],
+                        data.content,
+                      )
                       if (isAtBottom.value) scrollToBottom()
                     } else if (data.stage === 'done') {
                       if (data.session_id)
                         currentChatId.value = String(data.session_id)
+                    }
+                    if (Array.isArray(data.sources)) {
+                      messages.value[aiMessageIndex].sources = mergeSources(
+                        messages.value[aiMessageIndex].sources,
+                        data.sources,
+                      )
                     }
                   } else {
                     // ---- 普通模式 SSE 处理（原有逻辑）----
                     if (data.session_id && !data.content && !data.done) {
                       currentChatId.value = String(data.session_id)
                     }
-                    if (data.content) {
+                    // 普通模式正文由后端统一转成 content；同时兼容旧接口
+                    // 直接返回 answer/text/output 的情况。
+                    const streamContent = extractSseContent(data)
+                    if (streamContent) {
                       if (!receivedFirstContent) {
                         receivedFirstContent = true
                         messages.value[aiMessageIndex]._isLoading = false
                         messages.value[aiMessageIndex].content = ''
                       }
-                      messages.value[aiMessageIndex].content += data.content
+                      appendStreamContent(
+                        messages.value[aiMessageIndex],
+                        typeof streamContent === 'string'
+                          ? streamContent
+                          : JSON.stringify(streamContent),
+                      )
                       if (isAtBottom.value) scrollToBottom()
+                    }
+                    if (Array.isArray(data.sources)) {
+                      messages.value[aiMessageIndex].sources = mergeSources(
+                        messages.value[aiMessageIndex].sources,
+                        data.sources,
+                      )
                     }
                     if (data.done && data.session_id) {
                       currentChatId.value = String(data.session_id)
+                    }
+                    if (data.done) {
+                      messages.value[aiMessageIndex]._isLoading = false
+                      messages.value[aiMessageIndex]._stageText = ''
                     }
                   }
                 } catch (e) {
@@ -500,7 +594,49 @@
               }
             }
 
-            if (!messages.value[aiMessageIndex].content) {
+            // reader 结束时可能还有一条没有以换行符结尾的 SSE 数据。
+            // 这里补处理最后的 data 行，避免正文只出现在 Network 而未进入页面。
+            const lastLine = buffer.trim()
+            if (lastLine.startsWith('data: ')) {
+              const dataStr = lastLine.slice(6).trim()
+              if (dataStr && dataStr !== '[DONE]') {
+                try {
+                  const data = JSON.parse(dataStr)
+                  if (!aggregateMode && !data.error) {
+                    const streamContent = extractSseContent(data)
+                    if (streamContent) {
+                      receivedFirstContent = true
+                      messages.value[aiMessageIndex]._isLoading = false
+                      appendStreamContent(
+                        messages.value[aiMessageIndex],
+                        typeof streamContent === 'string'
+                          ? streamContent
+                          : JSON.stringify(streamContent),
+                      )
+                    }
+                    if (data.done && data.session_id) {
+                      currentChatId.value = String(data.session_id)
+                    }
+                  }
+                } catch (e) {
+                  console.debug('解析 SSE 末尾数据失败:', lastLine, e)
+                }
+              }
+            }
+
+            const finalContent = messages.value[aiMessageIndex].content || ''
+            messages.value[aiMessageIndex].sources = mergeSources(
+              messages.value[aiMessageIndex].sources,
+              extractSourcesFromText(finalContent),
+            )
+            messages.value[aiMessageIndex].sourcesReady = true
+
+            if (
+              !messages.value[aiMessageIndex].content &&
+              !messages.value[aiMessageIndex].thinkingContent &&
+              !messages.value[aiMessageIndex]._rawContent &&
+              !receivedFirstContent
+            ) {
               messages.value[aiMessageIndex]._isLoading = false
               messages.value[aiMessageIndex]._stageText = ''
               messages.value[aiMessageIndex].content =
@@ -523,15 +659,90 @@
         }
       }
 
-      const toggleAllDropdown = () => {
-        isAllDropdownVisible.value = !isAllDropdownVisible.value
-        isAllIconRotated.value = !isAllIconRotated.value
+      const toggleWebSearch = () => {
+        isWebSearchActive.value = !isWebSearchActive.value
       }
 
-      const selectOption = (option) => {
-        selectedOption.value = option
-        isAllDropdownVisible.value = false
-        isAllIconRotated.value = false
+      // 兼容不同 Dify 应用返回的正文位置。
+      const extractSseContent = (data) => {
+        if (!data || typeof data !== 'object') return ''
+        const directValue =
+          data.content ?? data.answer ?? data.text ?? data.output
+        if (typeof directValue === 'string' && directValue) return directValue
+        if (directValue && typeof directValue !== 'object') {
+          return String(directValue)
+        }
+        if (typeof data.message === 'string' && data.message) {
+          return data.message
+        }
+        const nested = data.outputs ?? data.data ?? data.message
+        if (nested && typeof nested === 'object') {
+          return extractSseContent(nested)
+        }
+        return ''
+      }
+
+      const appendStreamContent = (message, chunk) => {
+        if (!chunk) return
+        message._rawContent = `${message._rawContent || ''}${chunk}`
+        const raw = message._rawContent
+        const openTag = '<think>'
+        const closeTag = '</think>'
+        const openIndex = raw.indexOf(openTag)
+        const closeIndex = raw.indexOf(closeTag)
+
+        if (openIndex >= 0) {
+          const endIndex = closeIndex >= openIndex ? closeIndex : raw.length
+          message.thinkingContent = raw.slice(
+            openIndex + openTag.length,
+            endIndex,
+          )
+          message.content =
+            closeIndex >= openIndex
+              ? raw.slice(closeIndex + closeTag.length)
+              : ''
+          return
+        }
+
+        // Some Dify streams omit the opening tag but still emit </think>.
+        if (closeIndex >= 0) {
+          message.thinkingContent = raw.slice(0, closeIndex)
+          message.content = raw.slice(closeIndex + closeTag.length)
+          return
+        }
+
+        message.content = raw
+      }
+
+      const mergeSources = (existing = [], incoming = []) => {
+        const merged = [...existing, ...incoming].filter(
+          (source) => source && source.url,
+        )
+        return Array.from(
+          new Map(merged.map((source) => [source.url, source])).values(),
+        )
+      }
+
+      const extractSourcesFromText = (text = '') => {
+        const sources = []
+        const markdownLinkPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
+        const urlPattern = /https?:\/\/[^\s<>)\]"']+/g
+        let match
+
+        while ((match = markdownLinkPattern.exec(text))) {
+          sources.push({ title: match[1].trim(), url: match[2] })
+        }
+        while ((match = urlPattern.exec(text))) {
+          const url = match[0].replace(/[.,;:!?，。；：！？]+$/, '')
+          if (!sources.some((source) => source.url === url)) {
+            sources.push({ title: url, url })
+          }
+        }
+        return sources
+      }
+
+      const toggleAggregateMode = () => {
+        isAggregateMode.value = !isAggregateMode.value
       }
 
       const toggleDeepThinking = () => {
@@ -830,12 +1041,33 @@
       })
 
       // Markdown 渲染与安全过滤
-      marked.setOptions({ gfm: true, breaks: true })
+      marked.setOptions({
+        gfm: true,
+        breaks: true,
+        pedantic: false,
+      })
       const renderMarkdown = (text) => {
         if (!text) return ''
 
+        // 来源统一由底部“参考网页”区域展示，避免正文和来源区域重复。
+        const answerOnlyText = String(text).replace(
+          /(?:^|\n)\s*(?:#{1,6}\s*)?(?:参考网页|参考来源|来源|sources|references)\s*:?\s*[\s\S]*$/i,
+          '',
+        )
+
+        // Dify/模型输出中偶尔会生成 "####标题"，标准 Markdown 要求标题符号后有空格。
+        // 同时统一换行，避免流式分片造成标题和段落粘连。
+        let normalizedText = answerOnlyText
+          .replace(/\r\n?/g, '\n')
+          .replace(/^(#{1,6})(?!#)([^\s#])/gm, '$1 $2')
+          .replace(/^(\s*[-*])(?=\S)/gm, '$1 ')
+        normalizedText = normalizedText.replace(
+          /([^\n])\n(?=#{1,6} |[-*] |\d+\. )/g,
+          '$1\n\n',
+        )
+
         // 处理 <think> 标签，将其转换为可折叠的思考过程区块
-        let processedText = text.replace(
+        let processedText = normalizedText.replace(
           /<think>([\s\S]*?)<\/think>/g,
           (match, thinkContent) => {
             const thinkId = 'think-' + Math.random().toString(36).substr(2, 9)
@@ -848,8 +1080,14 @@
           },
         )
 
-        const safe = DOMPurify.sanitize(marked.parse(processedText))
+        // DOMPurify 保留 GFM 生成的 table、strong、code 等安全标签。
+        // 为表格加可横向滚动的容器，避免宽表格在聊天区域被挤压成不可读内容。
+        const safe = DOMPurify.sanitize(marked.parse(processedText), {
+          USE_PROFILES: { html: true },
+        })
         return safe
+          .replace(/<table>/g, '<div class="markdown-table-wrap"><table>')
+          .replace(/<\/table>/g, '</table></div>')
       }
 
       onMounted(() => {
@@ -876,11 +1114,9 @@
           if (route?.query?.deep === '1') {
             isDeepThinkingActive.value = true
           }
-          // 数据源选择：all/internal/external 映射到标签
+          // 仅允许通过首页参数显式开启聚合模式，其他来源均保持关闭。
           const src = route?.query?.source
-          if (src === 'internal') selectedOption.value = '内部数据库'
-          else if (src === 'external') selectedOption.value = '外部数据库'
-          else selectedOption.value = '全部'
+          isAggregateMode.value = src === 'aggregate'
           // 发送并让AI回复
           nextTick(() => {
             sendMessage()
@@ -961,11 +1197,8 @@
         isLoading,
         messagesArea,
         isAtBottom,
-        isAllDropdownVisible,
-        isAllIconRotated,
         isDeepThinkingActive,
-        options,
-        selectedOption,
+        isAggregateMode,
         suggestions,
         selectedIndex,
         questionTextarea,
@@ -976,9 +1209,10 @@
         scrollToBottom,
         onMessagesScroll,
         copyAiMessage,
-        toggleAllDropdown,
-        selectOption,
+        toggleAggregateMode,
         toggleDeepThinking,
+        isWebSearchActive,
+        toggleWebSearch,
         handleKeydown,
         handleInput,
         fetchSuggestions,
@@ -986,6 +1220,7 @@
         clearSuggestions,
         highlightQuery,
         renderMarkdown,
+        mergeSources,
         groupedHistory,
         router,
       }
@@ -1303,6 +1538,17 @@
       transform 0.3s ease,
       filter 0.3s ease;
   }
+
+  .tool-btn .web-search-icon {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+    transition: transform 0.3s ease;
+  }
   .tool-btn .all-icon {
     width: 21.6px; /* 24px * 0.9 */
     height: 21.6px; /* 24px * 0.9 */
@@ -1617,9 +1863,257 @@
     }
   }
 
-  /* 打字机光标效果 */
+  /* 回答 Markdown 排版：普通模式与聚合模式共用同一渲染区域。 */
   .ai-text-content {
-    display: inline;
+    display: block;
+    width: 100%;
+    color: #1f2937;
+    font-size: 15px;
+    line-height: 1.85;
+    letter-spacing: 0.01em;
+  }
+
+  :deep(.ai-text-content > div) {
+    display: block;
+    color: #1f2937;
+    line-height: inherit;
+    overflow-wrap: anywhere;
+  }
+
+  :deep(.ai-text-content h1),
+  :deep(.ai-text-content h2),
+  :deep(.ai-text-content h3),
+  :deep(.ai-text-content h4),
+  :deep(.ai-text-content h5),
+  :deep(.ai-text-content h6) {
+    color: #172033;
+    line-height: 1.35;
+    font-weight: 750;
+    letter-spacing: 0;
+  }
+
+  :deep(.ai-text-content h1) {
+    margin: 26px 0 14px;
+    font-size: 1.55em;
+  }
+
+  :deep(.ai-text-content h2) {
+    margin: 23px 0 12px;
+    padding-bottom: 7px;
+    font-size: 1.32em;
+    border-bottom: 1px solid #dbe4f0;
+  }
+
+  :deep(.ai-text-content h3) {
+    margin: 20px 0 10px;
+    font-size: 1.15em;
+  }
+
+  :deep(.ai-text-content h4),
+  :deep(.ai-text-content h5),
+  :deep(.ai-text-content h6) {
+    margin: 16px 0 8px;
+    font-size: 1em;
+  }
+
+  :deep(.ai-text-content p) {
+    margin: 0 0 14px;
+  }
+
+  :deep(.ai-text-content ul),
+  :deep(.ai-text-content ol) {
+    margin: 8px 0 16px;
+    padding-left: 28px;
+  }
+
+  :deep(.ai-text-content li) {
+    margin: 5px 0;
+    padding-left: 3px;
+  }
+
+  :deep(.ai-text-content li::marker) {
+    color: #2563eb;
+    font-weight: 700;
+  }
+
+  :deep(.ai-text-content strong) {
+    color: #0f3e7a;
+    font-weight: 750;
+  }
+
+  :deep(.ai-text-content em) {
+    color: #374151;
+  }
+
+  :deep(.ai-text-content a) {
+    color: #2563eb;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: #93c5fd;
+    text-underline-offset: 3px;
+  }
+
+  :deep(.ai-text-content a:hover) {
+    color: #1d4ed8;
+    text-decoration-color: currentColor;
+  }
+
+  :deep(.ai-text-content blockquote) {
+    margin: 16px 0;
+    padding: 10px 14px;
+    color: #475569;
+    background: #f8fafc;
+    border-left: 4px solid #60a5fa;
+    border-radius: 0 8px 8px 0;
+  }
+
+  :deep(.ai-text-content blockquote p:last-child) {
+    margin-bottom: 0;
+  }
+
+  :deep(.ai-text-content code) {
+    padding: 2px 6px;
+    color: #be123c;
+    font-family: 'Cascadia Code', Consolas, monospace;
+    font-size: 0.88em;
+    background: #fff1f2;
+    border: 1px solid #ffe4e6;
+    border-radius: 5px;
+  }
+
+  :deep(.ai-text-content pre) {
+    margin: 16px 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    color: #e2e8f0;
+    background: #172033;
+    border-radius: 10px;
+  }
+
+  :deep(.ai-text-content pre code) {
+    padding: 0;
+    color: inherit;
+    font-size: 0.88em;
+    line-height: 1.65;
+    white-space: pre;
+    background: transparent;
+    border: 0;
+  }
+
+  :deep(.ai-text-content hr) {
+    height: 1px;
+    margin: 22px 0;
+    background: #dbe4f0;
+    border: 0;
+  }
+
+  :deep(.ai-text-content .markdown-table-wrap) {
+    width: 100%;
+    margin: 18px 0;
+    overflow-x: auto;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  }
+
+  :deep(.ai-text-content table) {
+    width: 100%;
+    min-width: 520px;
+    border-spacing: 0;
+    border-collapse: collapse;
+    color: #243044;
+    font-size: 0.94em;
+    line-height: 1.6;
+  }
+
+  :deep(.ai-text-content th) {
+    padding: 10px 13px;
+    color: #183b69;
+    font-weight: 750;
+    text-align: left;
+    white-space: nowrap;
+    background: #edf5ff;
+    border-bottom: 1px solid #cdddf1;
+  }
+
+  :deep(.ai-text-content td) {
+    padding: 10px 13px;
+    vertical-align: top;
+    border-bottom: 1px solid #e5edf6;
+  }
+
+  :deep(.ai-text-content tr:last-child td) {
+    border-bottom: 0;
+  }
+
+  :deep(.ai-text-content tbody tr:nth-child(even)) {
+    background: #f8fbff;
+  }
+
+  :deep(.ai-text-content tbody tr:hover) {
+    background: #eff6ff;
+  }
+
+  :deep(.ai-text-content img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 16px 0;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+  }
+
+  .web-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .web-sources-title {
+    color: #374151;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .web-source-item {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 5px 7px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    color: #2563eb;
+    background: #f8fafc;
+    text-decoration: none;
+  }
+
+  .web-source-item:hover {
+    background: #eff6ff;
+  }
+
+  .web-source-index {
+    grid-row: span 2;
+    color: #64748b;
+    font-size: 12px;
+  }
+
+  .web-source-title {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .web-source-url {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .typing-cursor {
