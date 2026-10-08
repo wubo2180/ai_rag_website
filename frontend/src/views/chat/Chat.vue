@@ -1085,9 +1085,15 @@
         const safe = DOMPurify.sanitize(marked.parse(processedText), {
           USE_PROFILES: { html: true },
         })
-        return safe
-          .replace(/<table>/g, '<div class="markdown-table-wrap"><table>')
-          .replace(/<\/table>/g, '</table></div>')
+        return (
+          safe
+            // Dify 有时用 ~~内容~~ 标注重点；GFM 会渲染为 <del>，造成文字
+            // 被横线划掉的误解。聊天回答中统一按强调文本展示。
+            .replace(/<del>/g, '<strong class="markdown-emphasis">')
+            .replace(/<\/del>/g, '</strong>')
+            .replace(/<table>/g, '<div class="markdown-table-wrap"><table>')
+            .replace(/<\/table>/g, '</table></div>')
+        )
       }
 
       onMounted(() => {
@@ -1899,9 +1905,9 @@
 
   :deep(.ai-text-content h2) {
     margin: 23px 0 12px;
-    padding-bottom: 7px;
+    padding-left: 10px;
     font-size: 1.32em;
-    border-bottom: 1px solid #dbe4f0;
+    border-left: 3px solid #60a5fa;
   }
 
   :deep(.ai-text-content h3) {
@@ -1937,6 +1943,17 @@
   }
 
   :deep(.ai-text-content strong) {
+    color: #0f3e7a;
+    font-weight: 750;
+  }
+
+  :deep(.ai-text-content del) {
+    color: #0f3e7a;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  :deep(.ai-text-content .markdown-emphasis) {
     color: #0f3e7a;
     font-weight: 750;
   }
