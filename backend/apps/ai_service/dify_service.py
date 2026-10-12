@@ -18,9 +18,8 @@ class DifyAPIService:
     
     def __init__(self):
         self.api_url = settings.DIFY_API_URL
-        # 直接从环境变量获取，避免Django settings缓存问题
-        import os
-        self.api_key = os.environ.get('DIFY_API_KEY_data4line', settings.DIFY_API_KEY)
+        # 所有通用 Dify 请求统一使用主 API Key，避免旧的 data4line Key 被优先读取
+        self.api_key = settings.DIFY_API_KEY
         self.session = requests.Session()
         
         # 设置请求头

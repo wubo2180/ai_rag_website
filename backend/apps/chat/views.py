@@ -19,6 +19,47 @@ from rest_framework.pagination import PageNumberPagination
 
 logger = logging.getLogger(__name__)
 
+
+def _extract_dify_sources(value):
+    """Extract public web URLs from Dify metadata/output for frontend display."""
+    sources = []
+
+    def walk(item):
+        if isinstance(item, dict):
+            url = item.get('url') or item.get('source_url') or item.get('link')
+            if isinstance(url, str) and url.startswith(('http://', 'https://')):
+                title = item.get('title') or item.get('name') or item.get('document_name') or url
+                source = {'url': url, 'title': str(title)}
+                if source not in sources:
+                    sources.append(source)
+            for child in item.values():
+                walk(child)
+        elif isinstance(item, list):
+            for child in item:
+                walk(child)
+
+    walk(value)
+    return sources
+
+
+def _extract_dify_content(value):
+    """Extract answer text from the various Dify SSE output shapes."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, dict):
+        for key in ('answer', 'content', 'text', 'output'):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate:
+                return candidate
+        for key in ('outputs', 'data', 'message'):
+            candidate = value.get(key)
+            content = _extract_dify_content(candidate)
+            if content:
+                return content
+    return ''
+
 from .models import ChatSession, ChatMessage
 from apps.ai_service.services import ai_service
 
@@ -57,6 +98,7 @@ def chat_api(request):
         message = data.get('message', '').strip()
         session_id = data.get('session_id')
         model = data.get('model')  # 获取用户选择的模型
+        web_search = bool(data.get('web_search'))
         
         if not message:
             return JsonResponse({'error': '消息不能为空'}, status=400)
@@ -91,7 +133,8 @@ def chat_api(request):
             message=message,
             user_id=user_id,
             session_id=session.dify_conversation_id,  # 使用Dify的conversation_id
-            model=model
+            model=model,
+            web_search=web_search,
         )
         
         # 获取AI响应内容
@@ -531,8 +574,8 @@ class WeChatMiniProgramSSEAPIView(APIView):
         # 获取请求参数
         message = request.data.get('message', '').strip()
         session_id = request.data.get('session_id')
-        model = request.data.get('model')
         wechat_user_id = request.data.get('user_id', 'wechat_anonymous')
+        web_search = bool(request.data.get('web_search'))
         
         # 验证消息
         if not message:
@@ -553,9 +596,9 @@ class WeChatMiniProgramSSEAPIView(APIView):
             response = StreamingHttpResponse(
                 self._generate_sse_stream(
                     message=message,
-                    model=model,
                     session=session,
-                    wechat_user_id=wechat_user_id
+                    wechat_user_id=wechat_user_id,
+                    web_search=web_search
                 ),
                 content_type='text/event-stream'
             )
@@ -626,7 +669,7 @@ class WeChatMiniProgramSSEAPIView(APIView):
         logger.info(f"📱 创建新会话 {session.id}, 用户: {user.id if user else 'anonymous'}")
         return session
     
-    def _generate_sse_stream(self, message, model, session, wechat_user_id):
+    def _generate_sse_stream(self, message, session, wechat_user_id, web_search=False):
         """
         生成符合微信小程序要求的SSE流
         
@@ -652,45 +695,12 @@ class WeChatMiniProgramSSEAPIView(APIView):
                 yield "data: [DONE]\n\n"
                 return
             
-            # Dify支持的模型列表
-            valid_models = [
-                'deepseek深度思考', '通义千问', '腾讯混元', '豆包', 
-                'Kimi', 'GPT-5', 'Claude4', 'Gemini2.5', 'Grok-4', 'Llama4'
-            ]
-            
-            # 模型映射 - 将前端传的模型名映射到Dify支持的模型名
-            model_mapping = {
-                'deepseek': '通义千问',
-                'qianwen': '通义千问',
-                'tongyi': '通义千问',
-                'hunyuan': '腾讯混元',
-                'doubao': '豆包',
-                'kimi': 'Kimi',
-                'gpt': 'GPT-5',
-                'gpt-5': 'GPT-5',
-                'claude': 'Claude4',
-                'claude4': 'Claude4',
-                'gemini': 'Gemini2.5',
-                'grok': 'Grok-4',
-                'llama': 'Llama4',
-            }
-            
-            # 获取有效的模型名
-            default_model = getattr(settings, 'DIFY_DEFAULT_MODEL', '通义千问')
-            if not model:
-                large_model = default_model
-            elif model in valid_models:
-                large_model = model
-            elif model.lower() in model_mapping:
-                large_model = model_mapping[model.lower()]
-            else:
-                # 如果模型名无效，使用默认模型
-                logger.warning(f"⚠️ 无效的模型名: {model}，使用默认模型: {default_model}")
-                large_model = default_model
-            
             # 构建请求体
             request_body = {
-                "inputs": {"largeModel": large_model},
+                "inputs": {
+                    "webSearch": "yes" if web_search else "no",
+                    "Aggregation": "no",
+                },
                 "query": message,
                 "user": wechat_user_id,
                 "response_mode": "streaming"
@@ -707,9 +717,9 @@ class WeChatMiniProgramSSEAPIView(APIView):
             
             # 获取超时配置
             model_timeouts = getattr(settings, 'AI_MODEL_TIMEOUTS', {})
-            timeout_duration = model_timeouts.get(large_model, model_timeouts.get('default', 90))
+            timeout_duration = model_timeouts.get('default', 90)
             
-            logger.info(f"📱 微信小程序调用Dify API, 模型: {large_model}, 超时: {timeout_duration}秒")
+            logger.info(f"📱 微信小程序调用Dify API（不覆盖模型）, 超时: {timeout_duration}秒")
             
             # 调用Dify API
             response = requests.post(
@@ -731,6 +741,7 @@ class WeChatMiniProgramSSEAPIView(APIView):
             ai_content = ""
             dify_conversation_id = None
             dify_message_id = None
+            emitted_sources = []
             
             for line in response.iter_lines():
                 if line:
@@ -743,10 +754,25 @@ class WeChatMiniProgramSSEAPIView(APIView):
                         try:
                             data = json.loads(data_str)
                             event = data.get('event', '')
+
+                            discovered_sources = _extract_dify_sources(data)
+                            new_sources = [
+                                source for source in discovered_sources
+                                if source['url'] not in {item['url'] for item in emitted_sources}
+                            ]
+                            if new_sources:
+                                emitted_sources.extend(new_sources)
+                                yield f"data: {json.dumps({'sources': new_sources}, ensure_ascii=False)}\n\n"
                             
-                            # 处理消息事件
-                            if event == 'message' or 'answer' in data:
-                                content = data.get('answer', '')
+                            # 处理消息事件。不同版本/类型的 Dify 应用可能使用
+                            # message、agent_message，或返回 content/text/output。
+                            if event in ('message', 'agent_message') or any(
+                                key in data for key in ('answer', 'content', 'text', 'output')
+                            ):
+                                content = _extract_dify_content(data)
+                                if isinstance(content, (dict, list)):
+                                    content = json.dumps(content, ensure_ascii=False)
+                                content = content or ''
                                 if content:
                                     ai_content += content
                                     # 发送内容块 - 符合微信小程序SSE格式

@@ -7,7 +7,9 @@
         <p class="subtitle">原材料 → 中间体 → 配方 → 性能 四级关联数据链</p>
         <div class="system-summary">
           <span class="summary-pill">当前体系：{{ activeSystemLabel }}</span>
-          <span class="summary-pill summary-pill-soft">支持单体系图谱与总图谱切换</span>
+          <span class="summary-pill summary-pill-soft"
+            >支持单体系图谱与总图谱切换</span
+          >
         </div>
       </div>
 
@@ -53,6 +55,13 @@
             </el-button>
             <el-button @click="resetView">
               <i class="el-icon-refresh-right"></i> 重置视图
+            </el-button>
+            <el-button
+              type="success"
+              @click="importOcrResults"
+              :loading="importing"
+            >
+              <i class="el-icon-upload"></i> 导入OCR识别数据
             </el-button>
             <el-select
               v-model="viewMode"
@@ -133,7 +142,7 @@
               @input="handleSearch"
               size="small"
             />
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px">
               <el-select
                 v-model="currentTab"
                 placeholder="选择数据类型"
@@ -146,11 +155,7 @@
                 <el-option label="配方" value="formula"></el-option>
                 <el-option label="性能数据" value="performance"></el-option>
               </el-select>
-              <el-button
-                type="primary"
-                @click="handleSearch"
-                size="small"
-              >
+              <el-button type="primary" @click="handleSearch" size="small">
                 搜索
               </el-button>
             </div>
@@ -189,351 +194,367 @@
                 ></el-table-column>
                 <el-table-column prop="type" label="类型" width="100">
                   <template #default="scope">
-                    <el-tag :type="getNodeTypeColor(scope.row.type)" size="small">
+                    <el-tag
+                      :type="getNodeTypeColor(scope.row.type)"
+                      size="small"
+                    >
                       {{ getNodeTypeLabel(scope.row.type) }}
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="data" label="详细信息" min-width="150" show-overflow-tooltip>
-                <template #default="scope">
-                  <div v-if="scope.row.type === 'raw_material'">
-                    {{ scope.row.data.supplier || '-' }}
-                  </div>
-                  <div v-else-if="scope.row.type === 'intermediate'">
-                    {{ scope.row.data.intermediate_type || '-' }}
-                  </div>
-                  <div v-else-if="scope.row.type === 'formula'">
-                    {{ scope.row.data.application_type || '-' }}
-                  </div>
-                  <div v-else-if="scope.row.type === 'performance'">
-                    评分: {{ scope.row.data.rating || '-' }}
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="80">
-                <template #default="scope">
-                  <el-button type="text" @click="viewNodeDetails(scope.row)">
-                    详情
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-tab-pane>
-          <el-tab-pane label="原材料" name="raw_material">
-            <el-table
-              :data="filteredRawMaterials"
-              style="width: 100%"
-              @row-click="handleRowClick"
-            >
-              <el-table-column
-                prop="id"
-                label="ID"
-                width="180"
-              ></el-table-column>
-              <el-table-column
-                prop="name"
-                label="名称"
-                width="200"
-              ></el-table-column>
-              <el-table-column
-                prop="code"
-                label="编号"
-                width="150"
-              ></el-table-column>
-              <el-table-column
-                prop="data.material_type"
-                label="材料类型"
-                width="120"
-              ></el-table-column>
-              <el-table-column
-                prop="data.supplier"
-                label="供应商"
-                width="150"
-              ></el-table-column>
-              <el-table-column prop="data.density" label="密度" width="100">
-                <template #default="scope">
-                  {{ scope.row.data.density || '-' }} g/cm³
-                </template>
-              </el-table-column>
-              <el-table-column prop="data.unit_price" label="单价" width="100">
-                <template #default="scope">
-                  ¥{{ scope.row.data.unit_price || '-' }}/kg
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="80">
-                <template #default="scope">
-                  <el-button type="text" @click="viewNodeDetails(scope.row)">
-                    详情
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-tab-pane>
-          <el-tab-pane label="中间体" name="intermediate">
-            <el-table
-              :data="filteredIntermediates"
-              style="width: 100%"
-              @row-click="handleRowClick"
-            >
-              <el-table-column
-                prop="id"
-                label="ID"
-                width="180"
-              ></el-table-column>
-              <el-table-column
-                prop="name"
-                label="名称"
-                width="200"
-              ></el-table-column>
-              <el-table-column
-                prop="code"
-                label="编号"
-                width="150"
-              ></el-table-column>
-              <el-table-column
-                prop="data.intermediate_type"
-                label="中间体类型"
-                width="150"
-              ></el-table-column>
-              <el-table-column prop="data.viscosity" label="粘度" width="100">
-                <template #default="scope">
-                  {{ scope.row.data.viscosity || '-' }} cps
-                </template>
-              </el-table-column>
-              <el-table-column
-                prop="data.solid_content"
-                label="固含量"
-                width="100"
+                <el-table-column
+                  prop="data"
+                  label="详细信息"
+                  min-width="150"
+                  show-overflow-tooltip
+                >
+                  <template #default="scope">
+                    <div v-if="scope.row.type === 'raw_material'">
+                      {{ scope.row.data.supplier || '-' }}
+                    </div>
+                    <div v-else-if="scope.row.type === 'intermediate'">
+                      {{ scope.row.data.intermediate_type || '-' }}
+                    </div>
+                    <div v-else-if="scope.row.type === 'formula'">
+                      {{ scope.row.data.application_type || '-' }}
+                    </div>
+                    <div v-else-if="scope.row.type === 'performance'">
+                      评分: {{ scope.row.data.rating || '-' }}
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="scope">
+                    <el-button type="text" @click="viewNodeDetails(scope.row)">
+                      详情
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="原材料" name="raw_material">
+              <el-table
+                :data="filteredRawMaterials"
+                style="width: 100%"
+                @row-click="handleRowClick"
               >
-                <template #default="scope">
-                  {{ scope.row.data.solid_content || '-' }}%
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="80">
-                <template #default="scope">
-                  <el-button type="text" @click="viewNodeDetails(scope.row)">
-                    详情
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-tab-pane>
-          <el-tab-pane label="配方" name="formula">
-            <el-table
-              :data="filteredFormulas"
-              style="width: 100%"
-              @row-click="handleRowClick"
-            >
-              <el-table-column
-                prop="id"
-                label="ID"
-                width="180"
-              ></el-table-column>
-              <el-table-column
-                prop="name"
-                label="名称"
-                width="200"
-              ></el-table-column>
-              <el-table-column
-                prop="code"
-                label="编号"
-                width="150"
-              ></el-table-column>
-              <el-table-column
-                prop="data.version"
-                label="版本"
-                width="100"
-              ></el-table-column>
-              <el-table-column
-                prop="data.status"
-                label="状态"
-                width="100"
-              ></el-table-column>
-              <el-table-column
-                prop="data.application_type"
-                label="应用类型"
-                width="150"
-              ></el-table-column>
-              <el-table-column label="操作" width="80">
-                <template #default="scope">
-                  <el-button type="text" @click="viewNodeDetails(scope.row)">
-                    详情
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-tab-pane>
-          <el-tab-pane label="性能数据" name="performance">
-            <el-table
-              :data="filteredPerformances"
-              style="width: 100%"
-              @row-click="handleRowClick"
-            >
-              <el-table-column
-                prop="id"
-                label="ID"
-                width="180"
-              ></el-table-column>
-              <el-table-column
-                prop="name"
-                label="批次名称"
-                width="200"
-              ></el-table-column>
-              <el-table-column
-                prop="data.test_batch"
-                label="测试批次"
-                width="150"
-              ></el-table-column>
-              <el-table-column
-                prop="data.test_date"
-                label="测试日期"
-                width="150"
-              ></el-table-column>
-              <el-table-column
-                prop="data.tensile_strength"
-                label="拉伸强度"
-                width="120"
+                <el-table-column
+                  prop="id"
+                  label="ID"
+                  width="180"
+                ></el-table-column>
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  width="200"
+                ></el-table-column>
+                <el-table-column
+                  prop="code"
+                  label="编号"
+                  width="150"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.material_type"
+                  label="材料类型"
+                  width="120"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.supplier"
+                  label="供应商"
+                  width="150"
+                ></el-table-column>
+                <el-table-column prop="data.density" label="密度" width="100">
+                  <template #default="scope">
+                    {{ scope.row.data.density || '-' }} g/cm³
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="data.unit_price"
+                  label="单价"
+                  width="100"
+                >
+                  <template #default="scope">
+                    ¥{{ scope.row.data.unit_price || '-' }}/kg
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="scope">
+                    <el-button type="text" @click="viewNodeDetails(scope.row)">
+                      详情
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="中间体" name="intermediate">
+              <el-table
+                :data="filteredIntermediates"
+                style="width: 100%"
+                @row-click="handleRowClick"
               >
-                <template #default="scope">
-                  {{ scope.row.data.tensile_strength || '-' }} MPa
-                </template>
-              </el-table-column>
-              <el-table-column
-                prop="data.elongation"
-                label="断裂伸长率"
-                width="120"
+                <el-table-column
+                  prop="id"
+                  label="ID"
+                  width="180"
+                ></el-table-column>
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  width="200"
+                ></el-table-column>
+                <el-table-column
+                  prop="code"
+                  label="编号"
+                  width="150"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.intermediate_type"
+                  label="中间体类型"
+                  width="150"
+                ></el-table-column>
+                <el-table-column prop="data.viscosity" label="粘度" width="100">
+                  <template #default="scope">
+                    {{ scope.row.data.viscosity || '-' }} cps
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="data.solid_content"
+                  label="固含量"
+                  width="100"
+                >
+                  <template #default="scope">
+                    {{ scope.row.data.solid_content || '-' }}%
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="scope">
+                    <el-button type="text" @click="viewNodeDetails(scope.row)">
+                      详情
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="配方" name="formula">
+              <el-table
+                :data="filteredFormulas"
+                style="width: 100%"
+                @row-click="handleRowClick"
               >
-                <template #default="scope">
-                  {{ scope.row.data.elongation || '-' }}%
-                </template>
-              </el-table-column>
-              <el-table-column prop="data.hardness" label="硬度" width="100">
-                <template #default="scope">
-                  {{ scope.row.data.hardness || '-' }} Shore A
-                </template>
-              </el-table-column>
-              <el-table-column prop="data.rating" label="评分" width="80">
-                <template #default="scope">
-                  <el-rate
-                    :value="Number(scope.row.data.rating) || 0"
-                    disabled
-                    :max="5"
-                  ></el-rate>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="80">
-                <template #default="scope">
-                  <el-button type="text" @click="viewNodeDetails(scope.row)">
-                    详情
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-tab-pane>
-        </el-tabs>
-      </el-card>
+                <el-table-column
+                  prop="id"
+                  label="ID"
+                  width="180"
+                ></el-table-column>
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  width="200"
+                ></el-table-column>
+                <el-table-column
+                  prop="code"
+                  label="编号"
+                  width="150"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.version"
+                  label="版本"
+                  width="100"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.status"
+                  label="状态"
+                  width="100"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.application_type"
+                  label="应用类型"
+                  width="150"
+                ></el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="scope">
+                    <el-button type="text" @click="viewNodeDetails(scope.row)">
+                      详情
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="性能数据" name="performance">
+              <el-table
+                :data="filteredPerformances"
+                style="width: 100%"
+                @row-click="handleRowClick"
+              >
+                <el-table-column
+                  prop="id"
+                  label="ID"
+                  width="180"
+                ></el-table-column>
+                <el-table-column
+                  prop="name"
+                  label="批次名称"
+                  width="200"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.test_batch"
+                  label="测试批次"
+                  width="150"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.test_date"
+                  label="测试日期"
+                  width="150"
+                ></el-table-column>
+                <el-table-column
+                  prop="data.tensile_strength"
+                  label="拉伸强度"
+                  width="120"
+                >
+                  <template #default="scope">
+                    {{ scope.row.data.tensile_strength || '-' }} MPa
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="data.elongation"
+                  label="断裂伸长率"
+                  width="120"
+                >
+                  <template #default="scope">
+                    {{ scope.row.data.elongation || '-' }}%
+                  </template>
+                </el-table-column>
+                <el-table-column prop="data.hardness" label="硬度" width="100">
+                  <template #default="scope">
+                    {{ scope.row.data.hardness || '-' }} Shore A
+                  </template>
+                </el-table-column>
+                <el-table-column prop="data.rating" label="评分" width="80">
+                  <template #default="scope">
+                    <el-rate
+                      :value="Number(scope.row.data.rating) || 0"
+                      disabled
+                      :max="5"
+                    ></el-rate>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="scope">
+                    <el-button type="text" @click="viewNodeDetails(scope.row)">
+                      详情
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+          </el-tabs>
+        </el-card>
 
-      <!-- 详细信息面板 -->
-      <el-drawer
-        v-model="drawerVisible"
-        :title="selectedNode ? selectedNode.name : '节点详情'"
-        direction="rtl"
-        size="40%"
-      >
-        <div v-if="selectedNode" class="node-details">
-          <el-descriptions :column="1" border>
-            <el-descriptions-item label="编号">{{
-              selectedNode.code
-            }}</el-descriptions-item>
-            <el-descriptions-item label="名称">{{
-              selectedNode.name
-            }}</el-descriptions-item>
-            <el-descriptions-item label="类型">
-              <el-tag :type="getNodeTypeColor(selectedNode.type)">
-                {{ getNodeTypeLabel(selectedNode.type) }}
-              </el-tag>
-            </el-descriptions-item>
-          </el-descriptions>
+        <!-- 详细信息面板 -->
+        <el-drawer
+          v-model="drawerVisible"
+          :title="selectedNode ? selectedNode.name : '节点详情'"
+          direction="rtl"
+          size="40%"
+        >
+          <div v-if="selectedNode" class="node-details">
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="编号">{{
+                selectedNode.code
+              }}</el-descriptions-item>
+              <el-descriptions-item label="名称">{{
+                selectedNode.name
+              }}</el-descriptions-item>
+              <el-descriptions-item label="类型">
+                <el-tag :type="getNodeTypeColor(selectedNode.type)">
+                  {{ getNodeTypeLabel(selectedNode.type) }}
+                </el-tag>
+              </el-descriptions-item>
+            </el-descriptions>
 
-          <div v-if="selectedNode.type === 'raw_material'" class="extra-info">
-            <h3>原材料信息</h3>
-            <p>
-              <strong>材料类型:</strong> {{ selectedNode.material_type || '-' }}
-            </p>
-            <p>
-              <strong>分子量:</strong>
-              {{ selectedNode.molecular_weight || '-' }}
-            </p>
-            <p>
-              <strong>密度:</strong> {{ selectedNode.density || '-' }} g/cm³
-            </p>
-            <p><strong>供应商:</strong> {{ selectedNode.supplier || '-' }}</p>
-            <p>
-              <strong>单价:</strong> ¥{{ selectedNode.unit_price || '-' }}/kg
-            </p>
+            <div v-if="selectedNode.type === 'raw_material'" class="extra-info">
+              <h3>原材料信息</h3>
+              <p>
+                <strong>材料类型:</strong>
+                {{ selectedNode.material_type || '-' }}
+              </p>
+              <p>
+                <strong>分子量:</strong>
+                {{ selectedNode.molecular_weight || '-' }}
+              </p>
+              <p>
+                <strong>密度:</strong> {{ selectedNode.density || '-' }} g/cm³
+              </p>
+              <p><strong>供应商:</strong> {{ selectedNode.supplier || '-' }}</p>
+              <p>
+                <strong>单价:</strong> ¥{{ selectedNode.unit_price || '-' }}/kg
+              </p>
+            </div>
+
+            <div v-if="selectedNode.type === 'intermediate'" class="extra-info">
+              <h3>中间体信息</h3>
+              <p>
+                <strong>中间体类型:</strong>
+                {{ selectedNode.intermediate_type || '-' }}
+              </p>
+              <p>
+                <strong>粘度:</strong> {{ selectedNode.viscosity || '-' }} cps
+              </p>
+              <p>
+                <strong>固含量:</strong>
+                {{ selectedNode.solid_content || '-' }}%
+              </p>
+            </div>
+
+            <div v-if="selectedNode.type === 'formula'" class="extra-info">
+              <h3>配方信息</h3>
+              <p><strong>版本:</strong> {{ selectedNode.version || '-' }}</p>
+              <p><strong>状态:</strong> {{ selectedNode.status || '-' }}</p>
+              <p>
+                <strong>应用类型:</strong>
+                {{ selectedNode.application_type || '-' }}
+              </p>
+              <p>
+                <strong>混合温度:</strong>
+                {{ selectedNode.mixing_temperature || '-' }}°C
+              </p>
+              <p>
+                <strong>固化时间:</strong>
+                {{ selectedNode.curing_time || '-' }}h
+              </p>
+            </div>
+
+            <div v-if="selectedNode.type === 'performance'" class="extra-info">
+              <h3>性能测试数据</h3>
+              <p>
+                <strong>测试批次:</strong> {{ selectedNode.test_batch || '-' }}
+              </p>
+              <p>
+                <strong>测试日期:</strong> {{ selectedNode.test_date || '-' }}
+              </p>
+              <p>
+                <strong>拉伸强度:</strong>
+                {{ selectedNode.tensile_strength || '-' }} MPa
+              </p>
+              <p>
+                <strong>断裂伸长率:</strong>
+                {{ selectedNode.elongation_at_break || '-' }}%
+              </p>
+              <p>
+                <strong>撕裂强度:</strong>
+                {{ selectedNode.tear_strength || '-' }} kN/m
+              </p>
+              <p>
+                <strong>硬度:</strong> {{ selectedNode.hardness || '-' }} Shore
+                A
+              </p>
+              <p>
+                <strong>综合评分:</strong>
+                {{ selectedNode.overall_rating || '-' }}/5
+              </p>
+            </div>
           </div>
-
-          <div v-if="selectedNode.type === 'intermediate'" class="extra-info">
-            <h3>中间体信息</h3>
-            <p>
-              <strong>中间体类型:</strong>
-              {{ selectedNode.intermediate_type || '-' }}
-            </p>
-            <p>
-              <strong>粘度:</strong> {{ selectedNode.viscosity || '-' }} cps
-            </p>
-            <p>
-              <strong>固含量:</strong> {{ selectedNode.solid_content || '-' }}%
-            </p>
-          </div>
-
-          <div v-if="selectedNode.type === 'formula'" class="extra-info">
-            <h3>配方信息</h3>
-            <p><strong>版本:</strong> {{ selectedNode.version || '-' }}</p>
-            <p><strong>状态:</strong> {{ selectedNode.status || '-' }}</p>
-            <p>
-              <strong>应用类型:</strong>
-              {{ selectedNode.application_type || '-' }}
-            </p>
-            <p>
-              <strong>混合温度:</strong>
-              {{ selectedNode.mixing_temperature || '-' }}°C
-            </p>
-            <p>
-              <strong>固化时间:</strong> {{ selectedNode.curing_time || '-' }}h
-            </p>
-          </div>
-
-          <div v-if="selectedNode.type === 'performance'" class="extra-info">
-            <h3>性能测试数据</h3>
-            <p>
-              <strong>测试批次:</strong> {{ selectedNode.test_batch || '-' }}
-            </p>
-            <p>
-              <strong>测试日期:</strong> {{ selectedNode.test_date || '-' }}
-            </p>
-            <p>
-              <strong>拉伸强度:</strong>
-              {{ selectedNode.tensile_strength || '-' }} MPa
-            </p>
-            <p>
-              <strong>断裂伸长率:</strong>
-              {{ selectedNode.elongation_at_break || '-' }}%
-            </p>
-            <p>
-              <strong>撕裂强度:</strong>
-              {{ selectedNode.tear_strength || '-' }} kN/m
-            </p>
-            <p>
-              <strong>硬度:</strong> {{ selectedNode.hardness || '-' }} Shore A
-            </p>
-            <p>
-              <strong>综合评分:</strong>
-              {{ selectedNode.overall_rating || '-' }}/5
-            </p>
-          </div>
-        </div>
-      </el-drawer>
+        </el-drawer>
 
         <!-- 右侧：图谱可视化区域 -->
         <el-card class="graph-card" v-loading="loading">
@@ -550,10 +571,17 @@
 
 <script>
   import NavigationSidebar from '@/components/NavigationSidebar.vue'
-  import { ref, onMounted, onUnmounted, reactive, nextTick, computed } from 'vue'
+  import {
+    ref,
+    onMounted,
+    onUnmounted,
+    reactive,
+    nextTick,
+    computed,
+  } from 'vue'
   import * as echarts from 'echarts'
   import apiClient from '@/utils/api'
-  import { ElMessage } from 'element-plus'
+  import { ElMessage, ElMessageBox } from 'element-plus'
 
   export default {
     name: 'KnowledgeGraph',
@@ -563,12 +591,13 @@
     setup() {
       const graphContainer = ref(null)
       const loading = ref(false)
+      const importing = ref(false)
       const drawerVisible = ref(false)
       const selectedNode = ref(null)
       const viewMode = ref('full')
-  const selectedAdhesiveSystem = ref('all')
+      const selectedAdhesiveSystem = ref('all')
       let chartInstance = null
-  let resizeHandler = null
+      let resizeHandler = null
 
       const stats = reactive({
         rawMaterials: 0,
@@ -593,13 +622,24 @@
           value: 'thermal',
           label: '导热胶',
           enLabel: 'Thermally Conductive Adhesive',
-          keywords: ['导热胶', 'thermally conductive adhesive', 'thermal conductive', '导热'],
+          keywords: [
+            '导热胶',
+            'thermally conductive adhesive',
+            'thermal conductive',
+            '导热',
+          ],
         },
         {
           value: 'potting',
           label: '灌封胶',
           enLabel: 'Potting Compound / Potting Adhesive',
-          keywords: ['灌封胶', 'potting compound', 'potting adhesive', 'potting', '灌封'],
+          keywords: [
+            '灌封胶',
+            'potting compound',
+            'potting adhesive',
+            'potting',
+            '灌封',
+          ],
         },
         {
           value: 'sealing',
@@ -623,9 +663,11 @@
 
       const activeSystemLabel = computed(() => {
         const current = adhesiveSystems.find(
-          (item) => item.value === selectedAdhesiveSystem.value
+          (item) => item.value === selectedAdhesiveSystem.value,
         )
-        return current ? `${current.label} / ${current.enLabel}` : '总图谱 / All Systems'
+        return current
+          ? `${current.label} / ${current.enLabel}`
+          : '总图谱 / All Systems'
       })
 
       // 搜索和表格相关数据
@@ -680,7 +722,8 @@
       }
 
       const detectAdhesiveSystem = (node) => {
-        const explicitSystem = node?.data?.adhesive_system || node?.adhesive_system
+        const explicitSystem =
+          node?.data?.adhesive_system || node?.adhesive_system
         if (explicitSystem && explicitSystem !== 'mixed') {
           return explicitSystem
         }
@@ -705,16 +748,20 @@
         }
 
         const formulaNodes = graphData.nodes.filter(
-          (node) => node.type === 'formula' && detectAdhesiveSystem(node) === systemValue
+          (node) =>
+            node.type === 'formula' &&
+            detectAdhesiveSystem(node) === systemValue,
         )
 
         if (formulaNodes.length === 0) {
           const fallbackNodes = graphData.nodes.filter(
-            (node) => detectAdhesiveSystem(node) === systemValue
+            (node) => detectAdhesiveSystem(node) === systemValue,
           )
           const fallbackNodeIds = new Set(fallbackNodes.map((node) => node.id))
           const fallbackEdges = graphData.edges.filter(
-            (edge) => fallbackNodeIds.has(edge.source) && fallbackNodeIds.has(edge.target)
+            (edge) =>
+              fallbackNodeIds.has(edge.source) &&
+              fallbackNodeIds.has(edge.target),
           )
           return { nodes: fallbackNodes, edges: fallbackEdges }
         }
@@ -729,9 +776,11 @@
           })
         }
 
-        const scopedNodes = graphData.nodes.filter((node) => scopedIds.has(node.id))
+        const scopedNodes = graphData.nodes.filter((node) =>
+          scopedIds.has(node.id),
+        )
         const scopedEdges = graphData.edges.filter(
-          (edge) => scopedIds.has(edge.source) && scopedIds.has(edge.target)
+          (edge) => scopedIds.has(edge.source) && scopedIds.has(edge.target),
         )
 
         return {
@@ -747,7 +796,7 @@
       const getSystemScopedEdges = (scopedNodes) => {
         const nodeIds = new Set(scopedNodes.map((node) => node.id))
         return graphData.edges.filter(
-          (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)
+          (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target),
         )
       }
 
@@ -760,8 +809,11 @@
             enLabel: system.enLabel,
             nodes: scoped.nodes.length,
             edges: scoped.edges.length,
-            formulas: scoped.nodes.filter((node) => node.type === 'formula').length,
-            performances: scoped.nodes.filter((node) => node.type === 'performance').length,
+            formulas: scoped.nodes.filter((node) => node.type === 'formula')
+              .length,
+            performances: scoped.nodes.filter(
+              (node) => node.type === 'performance',
+            ).length,
           }
         })
       })
@@ -772,7 +824,7 @@
         try {
           console.log('开始加载知识图谱数据...')
           const response = await apiClient.get(
-            '/knowledgegraph/graph/full_graph/'
+            '/knowledgegraph/graph/full_graph/',
           )
           const data = response.data
 
@@ -783,67 +835,25 @@
           graphData.nodes = data.nodes || []
           graphData.edges = data.edges || []
 
-          // 如果没有数据，使用示例数据进行测试
           if (graphData.nodes.length === 0) {
-            console.warn('后端返回空数据，使用示例数据')
-            graphData.nodes = [
-              {
-                id: 'rm_1',
-                name: '聚醚多元醇',
-                type: 'raw_material',
-                code: 'RM001',
-                data: { supplier: '示例供应商' },
-              },
-              {
-                id: 'rm_2',
-                name: '异氰酸酯',
-                type: 'raw_material',
-                code: 'RM002',
-                data: { supplier: '示例供应商2' },
-              },
-              {
-                id: 'int_1',
-                name: '预聚体',
-                type: 'intermediate',
-                code: 'INT001',
-                data: { intermediate_type: '预聚体' },
-              },
-              {
-                id: 'formula_1',
-                name: '配方A',
-                type: 'formula',
-                code: 'F001',
-                data: { version: '1.0' },
-              },
-              {
-                id: 'perf_1',
-                name: '性能测试1',
-                type: 'performance',
-                code: 'P001',
-                data: { rating: 4.5 },
-              },
-            ]
-            graphData.edges = [
-              { source: 'rm_1', target: 'int_1', relation: '组成' },
-              { source: 'rm_2', target: 'int_1', relation: '组成' },
-              { source: 'int_1', target: 'formula_1', relation: '配方成分' },
-              { source: 'formula_1', target: 'perf_1', relation: '性能数据' },
-            ]
-            ElMessage.warning('后端暂无数据，显示示例数据')
+            console.warn('后端返回空数据（数据库暂无真实图谱数据）')
+            ElMessage.warning(
+              '知识图谱暂无数据，请先在"文档管理"中处理CSV文档，或将OCR识别结果导入知识图谱',
+            )
           }
 
           // 更新统计数据
           stats.rawMaterials = graphData.nodes.filter(
-            (n) => n.type === 'raw_material'
+            (n) => n.type === 'raw_material',
           ).length
           stats.intermediates = graphData.nodes.filter(
-            (n) => n.type === 'intermediate'
+            (n) => n.type === 'intermediate',
           ).length
           stats.formulas = graphData.nodes.filter(
-            (n) => n.type === 'formula'
+            (n) => n.type === 'formula',
           ).length
           stats.performances = graphData.nodes.filter(
-            (n) => n.type === 'performance'
+            (n) => n.type === 'performance',
           ).length
 
           console.log('统计数据:', stats)
@@ -853,7 +863,7 @@
             // 初始化过滤数据
             filterData()
             ElMessage.success(
-              `知识图谱加载成功：${graphData.nodes.length}个节点，${graphData.edges.length}条边`
+              `知识图谱加载成功：${graphData.nodes.length}个节点，${graphData.edges.length}条边`,
             )
           } else {
             ElMessage.warning('暂无图谱数据')
@@ -861,64 +871,55 @@
         } catch (error) {
           console.error('加载图谱失败:', error)
           ElMessage.error(
-            '加载图谱失败: ' + (error.response?.data?.message || error.message)
+            '加载图谱失败: ' + (error.response?.data?.message || error.message),
           )
-
-          // API失败时也使用示例数据
-          console.log('使用备用示例数据')
-          graphData.nodes = [
-            {
-              id: 'rm_1',
-              name: '聚醚多元醇',
-              type: 'raw_material',
-              code: 'RM001',
-              data: { supplier: '示例供应商' },
-            },
-            {
-              id: 'rm_2',
-              name: '异氰酸酯',
-              type: 'raw_material',
-              code: 'RM002',
-              data: { supplier: '示例供应商2' },
-            },
-            {
-              id: 'int_1',
-              name: '预聚体',
-              type: 'intermediate',
-              code: 'INT001',
-              data: { intermediate_type: '预聚体' },
-            },
-            {
-              id: 'formula_1',
-              name: '配方A',
-              type: 'formula',
-              code: 'F001',
-              data: { version: '1.0' },
-            },
-            {
-              id: 'perf_1',
-              name: '性能测试1',
-              type: 'performance',
-              code: 'P001',
-              data: { rating: 4.5 },
-            },
-          ]
-          graphData.edges = [
-            { source: 'rm_1', target: 'int_1', relation: '组成' },
-            { source: 'rm_2', target: 'int_1', relation: '组成' },
-            { source: 'int_1', target: 'formula_1', relation: '配方成分' },
-            { source: 'formula_1', target: 'perf_1', relation: '性能数据' },
-          ]
-
-          stats.rawMaterials = 2
-          stats.intermediates = 1
-          stats.formulas = 1
-          stats.performances = 1
-
-          renderGraph()
-          filterData()
+          graphData.nodes = []
+          graphData.edges = []
+          stats.rawMaterials = 0
+          stats.intermediates = 0
+          stats.formulas = 0
+          stats.performances = 0
         } finally {
           loading.value = false
+        }
+      }
+
+      // 将OCR识别（论文提取）结果导入知识图谱
+      const importOcrResults = async () => {
+        try {
+          await ElMessageBox.confirm(
+            '将扫描所有OCR识别结果并把提取出的原材料/中间体/配方/性能写入知识图谱，可能耗时较长，是否继续？',
+            '导入OCR识别数据',
+            {
+              confirmButtonText: '开始导入',
+              cancelButtonText: '取消',
+              type: 'warning',
+            },
+          )
+        } catch {
+          return
+        }
+        importing.value = true
+        try {
+          const response = await apiClient.post(
+            '/knowledgegraph/process-ocr-results/',
+            {
+              import_all: true,
+            },
+          )
+          const data = response.data
+          ElMessage.success(data.message || '导入完成')
+          await loadGraphData()
+        } catch (error) {
+          console.error('导入OCR数据失败:', error)
+          ElMessage.error(
+            '导入失败: ' +
+              (error.response?.data?.error ||
+                error.response?.data?.message ||
+                error.message),
+          )
+        } finally {
+          importing.value = false
         }
       }
 
@@ -946,34 +947,34 @@
           chartInstance = echarts.init(graphContainer.value)
         }
 
-  // 先按体系过滤，再按节点类型过滤
-  const systemScopedNodes = getSystemScopedNodes()
-  const systemScopedEdges = getSystemScopedEdges(systemScopedNodes)
+        // 先按体系过滤，再按节点类型过滤
+        const systemScopedNodes = getSystemScopedNodes()
+        const systemScopedEdges = getSystemScopedEdges(systemScopedNodes)
 
-  let filteredNodesData = systemScopedNodes
-  let filteredEdgesData = systemScopedEdges
+        let filteredNodesData = systemScopedNodes
+        let filteredEdgesData = systemScopedEdges
 
         if (viewMode.value !== 'full') {
           // 只显示选中类型的节点
           filteredNodesData = systemScopedNodes.filter(
-            (node) => node.type === viewMode.value
+            (node) => node.type === viewMode.value,
           )
           const nodeIds = new Set(filteredNodesData.map((n) => n.id))
 
           // 只显示连接选中类型节点的边
           filteredEdgesData = systemScopedEdges.filter(
-            (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)
+            (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target),
           )
 
           console.log(
-            `过滤后节点: ${filteredNodesData.length}, 边: ${filteredEdgesData.length}`
+            `过滤后节点: ${filteredNodesData.length}, 边: ${filteredEdgesData.length}`,
           )
         }
 
         // 计算节点大小（基于连接数）
         const getNodeSize = (nodeId, nodeType) => {
           const connections = filteredEdgesData.filter(
-            (e) => e.source === nodeId || e.target === nodeId
+            (e) => e.source === nodeId || e.target === nodeId,
           ).length
           const baseSize =
             {
@@ -1094,7 +1095,7 @@
                   ${node.name}
                 </h4>
                 <p style="margin: 5px 0;"><strong>类型:</strong> ${getNodeTypeLabel(
-                  node.type
+                  node.type,
                 )}</p>
                 <p style="margin: 5px 0;"><strong>编号:</strong> ${
                   node.code || '-'
@@ -1265,19 +1266,19 @@
 
         // 分类过滤
         filteredRawMaterials.value = scopedNodes.filter(
-          (node) => node.type === 'raw_material' && matchesSearch(node, query)
+          (node) => node.type === 'raw_material' && matchesSearch(node, query),
         )
 
         filteredIntermediates.value = scopedNodes.filter(
-          (node) => node.type === 'intermediate' && matchesSearch(node, query)
+          (node) => node.type === 'intermediate' && matchesSearch(node, query),
         )
 
         filteredFormulas.value = scopedNodes.filter(
-          (node) => node.type === 'formula' && matchesSearch(node, query)
+          (node) => node.type === 'formula' && matchesSearch(node, query),
         )
 
         filteredPerformances.value = scopedNodes.filter(
-          (node) => node.type === 'performance' && matchesSearch(node, query)
+          (node) => node.type === 'performance' && matchesSearch(node, query),
         )
       }
 
@@ -1300,7 +1301,7 @@
             (value) =>
               value &&
               typeof value === 'string' &&
-              value.toLowerCase().includes(query)
+              value.toLowerCase().includes(query),
           )
         }
 
@@ -1411,12 +1412,14 @@
         drawerVisible,
         selectedNode,
         viewMode,
-  selectedAdhesiveSystem,
-  adhesiveSystems,
-  activeSystemLabel,
-  systemMetricsCards,
+        selectedAdhesiveSystem,
+        adhesiveSystems,
+        activeSystemLabel,
+        systemMetricsCards,
         stats,
+        importing,
         loadGraphData,
+        importOcrResults,
         resetView,
         getNodeTypeLabel,
         getNodeTypeColor,
@@ -1453,8 +1456,16 @@
     width: 100%;
     margin: 0;
     background:
-      radial-gradient(circle at 10% 10%, rgba(191, 219, 254, 0.5), transparent 30%),
-      radial-gradient(circle at 95% 12%, rgba(199, 210, 254, 0.48), transparent 28%),
+      radial-gradient(
+        circle at 10% 10%,
+        rgba(191, 219, 254, 0.5),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at 95% 12%,
+        rgba(199, 210, 254, 0.48),
+        transparent 28%
+      ),
       linear-gradient(160deg, #f8fafc 0%, #f1f5f9 45%, #eef2ff 100%);
     min-height: 100vh;
     box-sizing: border-box;
